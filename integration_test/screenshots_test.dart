@@ -7,6 +7,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -87,17 +88,38 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
+  // README 截图面向桌面宽屏（1280 宽的分栏、侧边栏流程）；
+  // 移动端布局流程不同，由 mobile_connect_test.dart 单独覆盖。
+  final isDesktop =
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux);
+  if (!isDesktop) {
+    test('README 截图仅在桌面端生成（移动端见 mobile_connect_test）', () {
+      markTestSkipped('README 截图只在桌面平台生成');
+    });
+    return;
+  }
+
   testWidgets('生成 README 截图', (tester) async {
     // README 以英文为主文档，截图统一钉英文界面。
     tester.platformDispatcher.localesTestValue = const [Locale('en')];
     addTearDown(tester.platformDispatcher.clearAllTestValues);
 
-    await windowManager.ensureInitialized();
-    await windowManager.setSize(const Size(1280, 820));
+    // 桌面端固定截图窗口尺寸；移动端没有 window_manager 实现，
+    // 且模拟器屏幕本身就是目标截图尺寸，无需设置。
+    if (isDesktop) {
+      await windowManager.ensureInitialized();
+      await windowManager.setSize(const Size(1280, 820));
+    }
 
     // macOS 应用进程被沙盒重定向了工作目录，输出目录用环境变量显式指定。
-    final shotsDir =
-        Platform.environment['SSH_SHOTS_DIR'] ?? 'docs/screenshots';
+    // 移动端应用沙盒只写临时目录，模拟器跑测试时截图不进仓库。
+    final shotsDir = Platform.environment['SSH_SHOTS_DIR'] ??
+        (isDesktop
+            ? 'docs/screenshots'
+            : Directory.systemTemp.createTempSync().path);
     Directory(shotsDir).createSync(recursive: true);
     final shotKey = GlobalKey();
     final store = ServerStore(seed: demoSeed);

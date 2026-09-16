@@ -10,11 +10,18 @@
 """
 
 import asyncio
+import logging
+import os
 import socket
 import sys
 from pathlib import Path
 
 import asyncssh
+
+# 协议级排障开关：环境变量 SSH_DEBUG=1 时输出 asyncssh DEBUG 日志。
+if os.environ.get('SSH_DEBUG') == '1':
+    logging.basicConfig(level=logging.DEBUG)
+    logging.getLogger('asyncssh').setLevel(logging.DEBUG)
 
 PROMPT = 'demo@localhost:~$ '
 
@@ -44,7 +51,12 @@ async def demo_shell(process: asyncssh.SSHServerProcess) -> None:
     process.stdout.write(PROMPT)
     line = ''
     while True:
-        data = await process.stdin.read(256)
+        try:
+            data = await process.stdin.read(256)
+        except asyncssh.TerminalSizeChanged:
+            # 视窗变化以异常形式投递给挂起的 read，吞掉后继续收输入；
+            # 否则客户端首帧布局触发 window-change 就会把连接整个带崩。
+            continue
         if not data:
             return
         # 不做服务端回显：客户端终端已有本地回显，回显会重复一遍。
@@ -54,6 +66,7 @@ async def demo_shell(process: asyncssh.SSHServerProcess) -> None:
             i = min(ends)
             raw, line = line[:i], line[i + 1:]
             cmd = raw.strip()
+            print(f'[shell] cmd={cmd!r}', flush=True)
             response = _respond(cmd)
             process.stdout.write(response)
             if cmd == 'exit':
