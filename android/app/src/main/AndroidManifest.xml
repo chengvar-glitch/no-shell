@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- SSH/SFTP 需要直接建立 TCP 连接，release 包必须有 INTERNET 权限
+         （debug/profile 清单里的同名权限只覆盖开发调试场景）。 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="NoShell"
         android:name="${applicationName}"
