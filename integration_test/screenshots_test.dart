@@ -212,11 +212,11 @@ void main() {
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await settle(600);
     await shot('06-settings');
-    await tester.tap(find.widgetWithText(FilledButton, 'Cancel'));
-    await settle(600);
 
-    // 7. 深色主题。
-    await tester.tap(find.byIcon(Icons.dark_mode_outlined));
+    // 7. 深色主题：设置内主题分段切到 Dark（即时生效），关闭后截主界面。
+    await tester.tap(find.text('Dark'));
+    await settle(600);
+    await tester.tap(find.widgetWithText(FilledButton, 'Done'));
     await settle(600);
     await shot('07-dark');
 
