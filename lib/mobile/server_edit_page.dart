@@ -6,6 +6,7 @@ import '../models.dart';
 import '../ssh/credential_store.dart';
 import '../ssh/ssh_credentials.dart';
 import '../store.dart';
+import 'frosted_bar.dart';
 
 /// 移动端新建 / 编辑主机页（桌面端继续使用弹窗表单）。
 class ServerEditPage extends StatefulWidget {
@@ -112,121 +113,130 @@ class _ServerEditPageState extends State<ServerEditPage> {
     final isEditing = widget.initial != null;
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
+      extendBodyBehindAppBar: true,
+      appBar: FrostedBar(
         title: Text(isEditing ? l10n.editConnection : l10n.newConnection),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [
-            // 粘贴为主、手输兜底：两处输入共存，元数据只覆盖识别到的字段。
-            TextField(
-              controller: _metadata,
-              maxLines: 5,
-              decoration: InputDecoration(
-                labelText: l10n.pasteMetadata,
-                hintText: l10n.pasteMetadataHint,
-                alignLabelWithHint: true,
-              ),
-              onChanged: _applyMetadata,
+      body: FrostedBody(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              FrostedBar.topInset(context) + 12,
+              16,
+              24,
             ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _name,
-              autofocus: !isEditing,
-              textInputAction: TextInputAction.next,
-              decoration: InputDecoration(
-                labelText: l10n.fieldName,
-                hintText: l10n.nameHint,
+            children: [
+              // 粘贴为主、手输兜底：两处输入共存，元数据只覆盖识别到的字段。
+              TextField(
+                controller: _metadata,
+                maxLines: 5,
+                decoration: InputDecoration(
+                  labelText: l10n.pasteMetadata,
+                  hintText: l10n.pasteMetadataHint,
+                  alignLabelWithHint: true,
+                ),
+                onChanged: _applyMetadata,
               ),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? l10n.nameRequired : null,
-            ),
-            const SizedBox(height: 14),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    controller: _host,
-                    textInputAction: TextInputAction.next,
-                    decoration: InputDecoration(
-                      labelText: l10n.fieldHost,
-                      hintText: l10n.hostHint,
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _name,
+                autofocus: !isEditing,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: l10n.fieldName,
+                  hintText: l10n.nameHint,
+                ),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? l10n.nameRequired : null,
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: TextFormField(
+                      controller: _host,
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        labelText: l10n.fieldHost,
+                        hintText: l10n.hostHint,
+                      ),
+                      validator: (v) => v == null || v.trim().isEmpty
+                          ? l10n.hostRequired
+                          : null,
                     ),
-                    validator: (v) => v == null || v.trim().isEmpty
-                        ? l10n.hostRequired
-                        : null,
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextFormField(
-                    controller: _port,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: l10n.port),
-                    validator: (v) {
-                      final port = int.tryParse(v ?? '');
-                      if (port == null || port < 1 || port > 65535) {
-                        return l10n.portInvalid;
-                      }
-                      return null;
-                    },
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _port,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(labelText: l10n.port),
+                      validator: (v) {
+                        final port = int.tryParse(v ?? '');
+                        if (port == null || port < 1 || port > 65535) {
+                          return l10n.portInvalid;
+                        }
+                        return null;
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _username,
-              textInputAction: TextInputAction.next,
-              decoration: InputDecoration(
-                labelText: l10n.username,
-                hintText: l10n.usernameHint,
+                ],
               ),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? l10n.usernameRequired : null,
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _group,
-              textInputAction: TextInputAction.next,
-              decoration: InputDecoration(
-                labelText: l10n.group,
-                hintText: l10n.groupHint,
-              ),
-            ),
-            const SizedBox(height: 16),
-            SegmentedButton<AuthMethod>(
-              segments: [
-                ButtonSegment(
-                  value: AuthMethod.password,
-                  label: Text(l10n.authPassword),
-                  icon: const Icon(Icons.password_rounded, size: 16),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _username,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: l10n.username,
+                  hintText: l10n.usernameHint,
                 ),
-                ButtonSegment(
-                  value: AuthMethod.privateKey,
-                  label: Text(l10n.authKey),
-                  icon: const Icon(Icons.vpn_key_outlined, size: 16),
-                ),
-              ],
-              selected: {_auth},
-              showSelectedIcon: false,
-              onSelectionChanged: (selection) =>
-                  setState(() => _auth = selection.first),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _notes,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: l10n.notesOptional,
-                alignLabelWithHint: true,
+                validator: (v) => v == null || v.trim().isEmpty
+                    ? l10n.usernameRequired
+                    : null,
               ),
-            ),
-          ],
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _group,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: l10n.group,
+                  hintText: l10n.groupHint,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SegmentedButton<AuthMethod>(
+                segments: [
+                  ButtonSegment(
+                    value: AuthMethod.password,
+                    label: Text(l10n.authPassword),
+                    icon: const Icon(Icons.password_rounded, size: 16),
+                  ),
+                  ButtonSegment(
+                    value: AuthMethod.privateKey,
+                    label: Text(l10n.authKey),
+                    icon: const Icon(Icons.vpn_key_outlined, size: 16),
+                  ),
+                ],
+                selected: {_auth},
+                showSelectedIcon: false,
+                onSelectionChanged: (selection) =>
+                    setState(() => _auth = selection.first),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _notes,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: l10n.notesOptional,
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: SafeArea(

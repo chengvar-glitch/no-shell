@@ -9,6 +9,7 @@ import '../store.dart';
 import '../widgets/server_detail.dart' show OverviewTab, TerminalTab;
 import '../widgets/sftp_browser.dart' show SftpTab;
 import '../widgets/status_badges.dart';
+import 'frosted_bar.dart';
 import 'server_edit_page.dart';
 
 /// 移动端主机详情页：概览 / 终端 / SFTP 三个 Tab + 底部连接操作，
@@ -90,92 +91,95 @@ class ServerDetailPage extends StatelessWidget {
         }
         final session = sessions.byServerId(server.id);
         final hasActive = session?.isActive ?? false;
-        return Scaffold(
-          appBar: AppBar(
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    server.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+        final tabBar = TabBar(
+          tabs: [
+            Tab(text: l10n.overview),
+            Tab(text: l10n.terminal),
+            Tab(text: l10n.sftp),
+          ],
+          onTap: (_) => FocusScope.of(context).unfocus(),
+        );
+        return DefaultTabController(
+          length: 3,
+          child: Scaffold(
+            extendBodyBehindAppBar: true,
+            appBar: FrostedBar(
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      server.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                StatusPill(status: server.status),
-              ],
-            ),
-            actions: [
-              IconButton(
-                tooltip: l10n.edit,
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () => _edit(context, server),
+                  const SizedBox(width: 8),
+                  StatusPill(status: server.status),
+                ],
               ),
-              IconButton(
-                tooltip: l10n.delete,
-                icon: const Icon(Icons.delete_outline_rounded),
-                onPressed: () => _confirmDelete(context, server),
-              ),
-            ],
-          ),
-          body: DefaultTabController(
-            length: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TabBar(
-                  tabs: [
-                    Tab(text: l10n.overview),
-                    Tab(text: l10n.terminal),
-                    Tab(text: l10n.sftp),
-                  ],
-                  onTap: (_) => FocusScope.of(context).unfocus(),
+              actions: [
+                IconButton(
+                  tooltip: l10n.edit,
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _edit(context, server),
                 ),
-                Expanded(
-                  child: TabBarView(
-                    // 保活三个 Tab：切走不再 dispose，切回终端无需重建 xterm 视图。
-                    children: [
-                      _KeepAlive(child: OverviewTab(server: server)),
-                      _KeepAlive(
-                        child: TerminalTab(
-                          server: server,
-                          session: session,
-                          idleHint: l10n.sessionMobileHint,
-                          onRetry: session == null
-                              ? null
-                              : () => sessions.retry(server.id),
-                        ),
-                      ),
-                      _KeepAlive(
-                        child: SftpTab(
-                          session: session,
-                          idleHint: l10n.sftpSessionMobileHint,
-                          onRetry: session == null
-                              ? null
-                              : () => sessions.retry(server.id),
-                        ),
-                      ),
-                    ],
-                  ),
+                IconButton(
+                  tooltip: l10n.delete,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  onPressed: () => _confirmDelete(context, server),
                 ),
               ],
+              // TabBar 一并放进玻璃区：标题 + 标签同享磨砂底。
+              bottom: tabBar,
             ),
-          ),
-          bottomNavigationBar: SafeArea(
-            minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: FilledButton.icon(
-              onPressed: () => toggleSession(
-                context,
-                sessions: sessions,
-                server: server,
-                credentials: credentials,
+            // 详情页内容以画布为主（终端 / SFTP），不滚动穿越玻璃，
+            // 整体让出玻璃区高度即可。
+            body: Padding(
+              padding: EdgeInsets.only(
+                top: FrostedBar.topInset(context, bottom: tabBar),
               ),
-              icon: Icon(
-                hasActive ? Icons.link_off_rounded : Icons.bolt_rounded,
-                size: 17,
+              child: TabBarView(
+                // 保活三个 Tab：切走不再 dispose，切回终端无需重建 xterm 视图。
+                children: [
+                  _KeepAlive(child: OverviewTab(server: server)),
+                  _KeepAlive(
+                    child: TerminalTab(
+                      server: server,
+                      session: session,
+                      idleHint: l10n.sessionMobileHint,
+                      onRetry: session == null
+                          ? null
+                          : () => sessions.retry(server.id),
+                    ),
+                  ),
+                  _KeepAlive(
+                    child: SftpTab(
+                      session: session,
+                      idleHint: l10n.sftpSessionMobileHint,
+                      onRetry: session == null
+                          ? null
+                          : () => sessions.retry(server.id),
+                    ),
+                  ),
+                ],
               ),
-              label: Text(hasActive ? l10n.disconnect : l10n.connectNow),
+            ),
+            bottomNavigationBar: SafeArea(
+              minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: FilledButton.icon(
+                onPressed: () => toggleSession(
+                  context,
+                  sessions: sessions,
+                  server: server,
+                  credentials: credentials,
+                ),
+                icon: Icon(
+                  hasActive ? Icons.link_off_rounded : Icons.bolt_rounded,
+                  size: 17,
+                ),
+                label: Text(hasActive ? l10n.disconnect : l10n.connectNow),
+              ),
             ),
           ),
         );
