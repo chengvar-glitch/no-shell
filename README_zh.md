@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="icon/icon.svg" width="110" alt="NoShell 图标" />
+
 # NoShell
 
 跨平台 SSH 连接管理器：终端、SFTP 文件管理与凭据安全存储，一套 Flutter 代码同时面向桌面与移动端。
@@ -7,7 +9,7 @@
 [![CI](https://github.com/chengvar-glitch/no-shell/actions/workflows/ci.yml/badge.svg)](https://github.com/chengvar-glitch/no-shell/actions/workflows/ci.yml)
 [English](README.md) · **[中文](README_zh.md)**
 
-<img src="docs/screenshots/01-desktop-overview.png" width="860" alt="NoShell 桌面主界面" />
+<img src="docs/screenshots/01-desktop-overview.svg" width="860" alt="NoShell 桌面主界面" />
 
 *桌面端左右分栏：主机分组列表 · 主机概览 · 终端 / SFTP 同屏切换*
 
@@ -29,19 +31,19 @@
 
 | 新建连接 | 连接认证 |
 | --- | --- |
-| <img src="docs/screenshots/02-new-connection.png" width="420" /> | <img src="docs/screenshots/03-credentials.png" width="420" /> |
+| <img src="docs/screenshots/02-new-connection.svg" width="420" /> | <img src="docs/screenshots/03-credentials.svg" width="420" /> |
 
 | 终端 | SFTP 文件浏览 |
 | --- | --- |
-| <img src="docs/screenshots/04-terminal.png" width="420" /> | <img src="docs/screenshots/05-sftp.png" width="420" /> |
+| <img src="docs/screenshots/04-terminal.svg" width="420" /> | <img src="docs/screenshots/05-sftp.svg" width="420" /> |
 
 | 深色主题 | 设置 |
 | --- | --- |
-| <img src="docs/screenshots/07-dark.png" width="420" /> | <img src="docs/screenshots/06-settings.png" width="420" /> |
+| <img src="docs/screenshots/07-dark.svg" width="420" /> | <img src="docs/screenshots/06-settings.svg" width="420" /> |
 
 | 移动端布局（窄屏自动切换底部导航） |
 | --- |
-| <img src="docs/screenshots/08-mobile.png" width="300" /> |
+| <img src="docs/screenshots/08-mobile.svg" width="300" /> |
 
 ## 平台支持
 

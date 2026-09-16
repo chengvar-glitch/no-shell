@@ -34,6 +34,16 @@ bool get usesCustomWindowCaption {
   return platform == TargetPlatform.windows || platform == TargetPlatform.linux;
 }
 
+/// 是否为 macOS 这类「红绿灯浮在内容左上角」的平台。
+///
+/// 原生侧（见 MainFlutterWindow）把标题栏透明化、并用空工具栏把顶部条带
+/// 撑到 52pt：红绿灯悬在条带内（中心 y≈27pt），条带以下才是普通可交互
+/// 内容。布局上顶部一行要与红绿灯齐平，其余内容从条带之下排起。
+bool get usesFloatingTrafficLights {
+  if (kIsWeb) return false;
+  return defaultTargetPlatform == TargetPlatform.macOS;
+}
+
 /// 内容区顶部避让量。
 ///
 /// Windows/Linux 的自绘标题条已经是内容区里的真实一行（见 [WindowCaptionBar]），

@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="430" height="930" viewBox="0 0 430 930" font-family="-apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <rect x="0" y="0" width="430" height="930" fill="#0F1114"/>
+  <!-- 顶栏 -->
+  <text x="16" y="38" font-size="26" font-weight="700" fill="#E6EDF3">Servers</text>
+  <g stroke="#C9D1D9" stroke-width="1.8" fill="none" stroke-linecap="round">
+    <circle cx="356" cy="28" r="7"/>
+    <path d="M362 34 l6 6"/>
+  </g>
+  <g fill="#C9D1D9">
+    <circle cx="401" cy="21" r="2.6"/>
+    <circle cx="401" cy="28" r="2.6"/>
+    <circle cx="401" cy="35" r="2.6"/>
+  </g>
+  <!-- Production 4 -->
+  <text x="18" y="80" font-size="13" font-weight="600" fill="#8B949E">Production</text>
+  <text x="414" y="80" font-size="13" fill="#8B949E" text-anchor="end">4</text>
+  <circle cx="20" cy="123" r="4.5" fill="#4B525C"/>
+  <text x="52" y="119" font-size="15" font-weight="600" fill="#E6EDF3">web-prod-01</text>
+  <text x="52" y="137" font-size="13" fill="#8B949E">deploy@10.0.1.11</text>
+  <path d="M383 113 l10 7 -10 7 z" fill="#8B949E"/>
+  <circle cx="20" cy="183" r="4.5" fill="#4B525C"/>
+  <text x="52" y="179" font-size="15" font-weight="600" fill="#E6EDF3">web-prod-02</text>
+  <text x="52" y="197" font-size="13" fill="#8B949E">deploy@10.0.1.12</text>
+  <path d="M383 175 l10 7 -10 7 z" fill="#8B949E"/>
+  <circle cx="20" cy="245" r="4.5" fill="#4B525C"/>
+  <text x="52" y="241" font-size="15" font-weight="600" fill="#E6EDF3">api-gateway</text>
+  <text x="52" y="259" font-size="13" fill="#8B949E">ops@10.0.1.20:2222</text>
+  <path d="M383 237 l10 7 -10 7 z" fill="#8B949E"/>
+  <circle cx="20" cy="315" r="4.5" fill="#3FB950"/>
+  <text x="52" y="311" font-size="15" font-weight="600" fill="#E6EDF3">demo-server</text>
+  <text x="52" y="329" font-size="13" fill="#8B949E">smoke@127.0.0.1:2222</text>
+  <g stroke="#8B949E" stroke-width="1.6" fill="none" stroke-linecap="round">
+    <path d="M378 303 c5 -6 13 -6 18 0 M378 321 c5 6 13 6 18 0"/>
+    <path d="M382 312 h11 M386 307 l-5 5 M391 317 l-5 5" stroke-linejoin="round"/>
+  </g>
+  <!-- Development 3 -->
+  <text x="18" y="371" font-size="13" font-weight="600" fill="#8B949E">Development</text>
+  <text x="414" y="371" font-size="13" fill="#8B949E" text-anchor="end">3</text>
+  <circle cx="20" cy="414" r="4.5" fill="#4B525C"/>
+  <text x="52" y="410" font-size="15" font-weight="600" fill="#E6EDF3">db-primary</text>
+  <text x="52" y="428" font-size="13" fill="#8B949E">root@10.0.2.31</text>
+  <path d="M383 404 l10 7 -10 7 z" fill="#8B949E"/>
+  <circle cx="20" cy="469" r="4.5" fill="#4B525C"/>
+  <text x="52" y="465" font-size="15" font-weight="600" fill="#E6EDF3">redis-cache</text>
+  <text x="52" y="483" font-size="13" fill="#8B949E">root@10.0.2.32</text>
+  <path d="M383 459 l10 7 -10 7 z" fill="#8B949E"/>
+  <circle cx="20" cy="525" r="4.5" fill="#4B525C"/>
+  <text x="52" y="521" font-size="15" font-weight="600" fill="#E6EDF3">ci-runner</text>
+  <text x="52" y="539" font-size="13" fill="#8B949E">ci@10.0.2.40</text>
+  <path d="M383 515 l10 7 -10 7 z" fill="#8B949E"/>
+  <!-- Personal 1 -->
+  <text x="18" y="570" font-size="13" font-weight="600" fill="#8B949E">Personal</text>
+  <text x="414" y="570" font-size="13" fill="#8B949E" text-anchor="end">1</text>
+  <circle cx="20" cy="613" r="4.5" fill="#4B525C"/>
+  <text x="52" y="609" font-size="15" font-weight="600" fill="#E6EDF3">nas-home</text>
+  <text x="52" y="627" font-size="13" fill="#8B949E">admin@192.168.1.10</text>
+  <!-- 浮动按钮 -->
+  <rect x="236" y="603" width="178" height="55" rx="27.5" fill="#3D5AA9"/>
+  <g stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round">
+    <path d="M263 630 h18 M272 621 v18"/>
+  </g>
+  <text x="290" y="637" font-size="15" font-weight="600" fill="#FFFFFF">New connection</text>
+  <!-- 底部导航 -->
+  <rect x="0" y="691" width="430" height="239" fill="#12151A"/>
+  <rect x="22" y="704" width="63" height="34" rx="17" fill="#232A33"/>
+  <g fill="#C9D1D9">
+    <rect x="41" y="710" width="9" height="5" rx="1.5"/>
+    <rect x="41" y="717" width="9" height="5" rx="1.5" fill="#8B949E"/>
+  </g>
+  <text x="50" y="733" font-size="13" fill="#E6EDF3" text-anchor="middle">Servers</text>
+  <g stroke="#8B949E" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="146" y="710" width="15" height="11" rx="2"/>
+    <path d="M150 713 l-2 2.5 2 2.5 M153 713 l2 2.5 -2 2.5"/>
+  </g>
+  <text x="153" y="733" font-size="13" fill="#8B949E" text-anchor="middle">Terminal</text>
+  <g fill="none" stroke="#8B949E" stroke-width="1.8">
+    <circle cx="262" cy="716" r="3.5"/>
+    <path d="M266 716 l8 5 -3.5 4 -2.5 -2 -1 2.5"/>
+  </g>
+  <text x="266" y="733" font-size="13" fill="#8B949E" text-anchor="middle">Keys</text>
+  <g stroke="#8B949E" stroke-width="1.6" fill="none">
+    <circle cx="363" cy="714" r="3"/>
+    <path d="M363 708.5 v-1.5 M363 721.5 v1.5 M357.5 714 h-1.5 M369.5 714 h1.5 M359.3 709.8 l1.1 1.1 M367.6 718.1 l1.1 1.1 M368.7 709.8 l-1.1 1.1 M360.4 718.1 l-1.1 1.1"/>
+  </g>
+  <text x="363" y="733" font-size="13" fill="#8B949E" text-anchor="middle">Settings</text>
+</svg>

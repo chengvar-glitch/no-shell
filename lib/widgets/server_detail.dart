@@ -55,8 +55,9 @@ class ServerDetailPanel extends StatelessWidget {
   }
 }
 
-/// macOS 的展开入口：红绿灯浮在内容左上角，按钮与它们同一行、位于其右侧。
-/// 只给 macOS 用；Windows/Linux 走 [_ExpandSidebarButton]，排在标题条行内。
+/// 无主机选中（空态）时的展开入口：macOS 上红绿灯浮在内容左上角，按钮与
+/// 它们同一行、位于其右侧；其余非自绘标题条平台排在面板左上角。
+/// 有主机选中的详情头部走行内 [_ExpandSidebarButton]，不用这个浮动版本。
 Widget? sidebarExpandButton(
   BuildContext context,
   bool collapsed,
@@ -251,7 +252,8 @@ class _ServerDetailState extends State<_ServerDetail> {
     );
 
     // Windows/Linux：头部直接排进自绘标题条那一行，内容整体上移，顶部不再多出
-    // 一条空白；macOS 的红绿灯浮在内容上，头部照旧让出顶部后排进面板。
+    // 一条空白；macOS 的品牌行让给了红绿灯，头部也排进这一行（行高 54 = 红绿灯
+    // 中心 y≈27pt 的两倍，在其中垂直居中），与侧边栏动作按钮同一条中心线。
     if (usesCustomWindowCaption) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -268,21 +270,33 @@ class _ServerDetailState extends State<_ServerDetail> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(16, windowTopInset(10.0), 12, 8),
-              child: header,
-            ),
+            if (isMacOS)
+              // 收起侧边栏后详情面板顶到窗口左缘，头部必须让开左上角的红绿灯
+              // 区（红绿灯右缘约 82pt），起点平移到 96pt；动画时长与侧边栏
+              // 收起一致，名字不会从灯底下突兀地钻出来。
+              AnimatedPadding(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.fromLTRB(
+                  widget.sidebarCollapsed ? 96 : 16,
+                  0,
+                  12,
+                  0,
+                ),
+                child: SizedBox(
+                  height: 54,
+                  child: Align(alignment: Alignment.centerLeft, child: header),
+                ),
+              )
+            else
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, windowTopInset(10.0), 12, 8),
+                child: header,
+              ),
             _HeaderTags(server: server),
             Expanded(child: tabs),
           ],
         ),
-        // macOS 收起时，展开按钮浮在与红绿灯同行的位置。
-        if (isMacOS)
-          ?sidebarExpandButton(
-            context,
-            widget.sidebarCollapsed,
-            widget.onToggleSidebar,
-          ),
       ],
     );
   }

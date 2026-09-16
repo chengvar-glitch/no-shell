@@ -154,110 +154,48 @@ class _SidebarState extends State<Sidebar> {
 
   Widget _buildHeader(ThemeData theme) {
     final l10n = AppLocalizations.of(context);
-    final title = Row(
-      children: [
-        // 品牌标 30px：在 48px 标题区里上下各留 9px，不再贴边。
-        const AppIconMark(size: 30),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                l10n.appName,
-                // 头部高度固定为标题条一行，文本必须单行省略：
-                // 侧边栏可收窄到 220px，换行会把这一行撑破。
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  height: 1.25,
-                  letterSpacing: 0.1,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                l10n.hostCount(widget.store.serverCount),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.1,
-                  color: theme.secondaryText,
-                ),
-              ),
-            ],
-          ),
-        ),
-        _headerAction(
-          icon: Icons.menu_open,
-          tooltip: l10n.collapseSidebar(sidebarToggleShortcut),
-          onPressed: widget.onToggleSidebar,
-        ),
-        // 导入 / 导出：与收起、新建同级的头部动作，排在第二位。
-        // 注意 PopupMenuButton.constraints 约束的是菜单本身，不是图标按钮，
-        // 命中区尺寸只能靠外层 SizedBox 保证。
-        SizedBox(
-          width: 34,
-          height: 34,
-          child: PopupMenuButton<String>(
-            tooltip: l10n.importExportHosts,
-            icon: const Icon(Icons.import_export_rounded, size: 18),
-            padding: EdgeInsets.zero,
-            iconSize: 18,
-            onSelected: (action) {
-              switch (action) {
-                case 'import':
-                  widget.onImportHosts();
-                case 'export':
-                  widget.onExportHosts();
-              }
-            },
-            itemBuilder: (menuContext) {
-              final menuL10n = AppLocalizations.of(menuContext);
-              return [
-                PopupMenuItem(
-                  value: 'import',
-                  height: 36,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.download_rounded, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        menuL10n.importHosts,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ],
+    // 品牌区：图标 + 应用名 + 主机数。
+    final brand = Expanded(
+      child: Row(
+        children: [
+          // 品牌标 30px：在 48px 标题区里上下各留 9px，不再贴边。
+          const AppIconMark(size: 30),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.appName,
+                  // 头部高度固定为标题条一行，文本必须单行省略：
+                  // 侧边栏可收窄到 220px，换行会把这一行撑破。
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    height: 1.25,
+                    letterSpacing: 0.1,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
-                PopupMenuItem(
-                  value: 'export',
-                  height: 36,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.upload_outlined, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        menuL10n.exportHosts,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ],
+                const SizedBox(height: 3),
+                Text(
+                  l10n.hostCount(widget.store.serverCount),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.1,
+                    color: theme.secondaryText,
                   ),
                 ),
-              ];
-            },
+              ],
+            ),
           ),
-        ),
-        _headerAction(
-          icon: Icons.add_rounded,
-          tooltip: l10n.newConnection,
-          onPressed: widget.onCreate,
-          size: 19,
-        ),
-      ],
+        ],
+      ),
     );
     // Windows/Linux：自绘标题条是详情面板里的真实一行，侧边栏头部与它同高对齐，
     // 整块头部顶到窗口最上沿——顶部不再留白，也就没有独立标题栏的观感。
@@ -267,14 +205,107 @@ class _SidebarState extends State<Sidebar> {
         padding: const EdgeInsets.fromLTRB(12, 0, 8, 10),
         child: WindowDragRegion(
           key: const ValueKey('sidebar-header-drag'),
-          child: SizedBox(height: kWindowCaptionHeight, child: title),
+          child: SizedBox(
+            height: kWindowCaptionHeight,
+            child: Row(children: [brand, ..._headerActions()]),
+          ),
         ),
       );
     }
-    // macOS 红绿灯浮在左上角，其余平台顶部是系统手势区，头部整体下移让位。
+    // macOS：品牌区不摆（应用身份交给系统菜单栏），头部只留三个动作按钮、
+    // 靠右排；行高 54 让按钮垂直中心落在红绿灯中心线上（y≈27pt，即原生
+    // trafficLightTopInset 20pt + 半个灯高），整行平行于红绿灯。
+    if (usesFloatingTrafficLights) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: SizedBox(
+          height: 54,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: _headerActions(),
+          ),
+        ),
+      );
+    }
+    // 其余平台（web 桌面宽屏）：顶部没有窗口按钮，头部照旧带动作整体排布。
     return Padding(
-      padding: EdgeInsets.fromLTRB(12, windowTopInset(12.0), 8, 10),
-      child: title,
+      padding: const EdgeInsets.fromLTRB(12, 12, 8, 10),
+      child: Row(children: [brand, ..._headerActions()]),
+    );
+  }
+
+  /// 头部动作三件套：收起侧边栏 / 导入导出 / 新建。
+  /// Windows/Linux 排在品牌区右侧；macOS 独占头部行（与红绿灯齐平，
+  /// 详情面板头部同高对齐，见 server_detail 的头部行高 49）。
+  List<Widget> _headerActions() => [
+    _collapseAction(),
+    // 注意 PopupMenuButton.constraints 约束的是菜单本身，不是图标按钮，
+    // 命中区尺寸只能靠外层 SizedBox 保证。
+    SizedBox(
+      width: 34,
+      height: 34,
+      child: PopupMenuButton<String>(
+        tooltip: AppLocalizations.of(context).importExportHosts,
+        icon: const Icon(Icons.import_export_rounded, size: 18),
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        onSelected: (action) {
+          switch (action) {
+            case 'import':
+              widget.onImportHosts();
+            case 'export':
+              widget.onExportHosts();
+          }
+        },
+        itemBuilder: (menuContext) {
+          final menuL10n = AppLocalizations.of(menuContext);
+          return [
+            PopupMenuItem(
+              value: 'import',
+              height: 36,
+              child: Row(
+                children: [
+                  const Icon(Icons.download_rounded, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    menuL10n.importHosts,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'export',
+              height: 36,
+              child: Row(
+                children: [
+                  const Icon(Icons.upload_outlined, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    menuL10n.exportHosts,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ];
+        },
+      ),
+    ),
+    _headerAction(
+      icon: Icons.add_rounded,
+      tooltip: AppLocalizations.of(context).newConnection,
+      onPressed: widget.onCreate,
+      size: 19,
+    ),
+  ];
+
+  Widget _collapseAction() {
+    return _headerAction(
+      icon: Icons.menu_open,
+      tooltip: AppLocalizations.of(context)
+          .collapseSidebar(sidebarToggleShortcut),
+      onPressed: widget.onToggleSidebar,
     );
   }
 

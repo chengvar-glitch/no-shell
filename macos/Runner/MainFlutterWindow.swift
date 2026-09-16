@@ -2,9 +2,11 @@ import Cocoa
 import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
-  /// 红绿灯偏移（相对窗口左上角），单位是「红绿灯单位」= 单个灯的外框宽。
-  private let trafficLightLeftUnits: CGFloat = 1.5
-  private let trafficLightTopUnits: CGFloat = 1.25
+  /// 红绿灯（关闭灯）左上角相对窗口左上角的偏移，单位 pt。
+  /// 左边距 21pt 约等于 1.5 个灯位；Flutter 侧与红绿灯齐平的行高
+  /// （sidebar / server_detail 的 54）= 上边距 + 半个灯高的两倍，改动需同步。
+  private let trafficLightLeftInset: CGFloat = 21
+  private let trafficLightTopInset: CGFloat = 20
 
   /// 红绿灯（关闭 / 最小化 / 最大化）的原始坐标。系统会随窗口布局重排标题栏
   /// 按钮，平移必须以这份原始坐标为基准做绝对定位，重复触发才不会累加偏移。
@@ -82,14 +84,13 @@ class MainFlutterWindow: NSWindow {
     }
     guard let base = baseTrafficLightOrigins[.closeButton],
           let closeButton = standardWindowButton(.closeButton) else { return }
-    let unit = closeButton.frame.width
     // 按钮坐标挂在标题条容器里，容器原点不在窗口原点，换算到窗口坐标
     //（to: nil 即窗口坐标，原点左下、y 向上）再差值，消除父视图偏移。
     let containerOrigin = closeButton.superview?.convert(
       NSPoint.zero, to: nil
     ) ?? .zero
-    let dx = trafficLightLeftUnits * unit - (containerOrigin.x + base.x)
-    let desiredY = frame.height - trafficLightTopUnits * unit
+    let dx = trafficLightLeftInset - (containerOrigin.x + base.x)
+    let desiredY = frame.height - trafficLightTopInset
       - closeButton.frame.height
     let dy = desiredY - (containerOrigin.y + base.y)
     for type in types {

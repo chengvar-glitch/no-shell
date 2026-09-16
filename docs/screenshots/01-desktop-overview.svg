@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="820" viewBox="0 0 1280 820" font-family="-apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <!-- NoShell 桌面主界面矢量 mockup：按 docs/screenshots/01-desktop-overview.png 1:1 重建。
+       色值取自 lib/theme.dart；文字用系统字体栈，GitHub 渲染以查看者本地字体为准。 -->
+  <!-- 侧边栏 -->
+  <rect x="0" y="0" width="264" height="820" fill="#ECEEF2"/>
+  <!-- 内容区 -->
+  <rect x="264" y="0" width="1016" height="820" fill="#F6F7F9"/>
+  <line x1="264" y1="0" x2="264" y2="820" stroke="#E0E2E7" stroke-width="1"/>
+
+  <!-- 侧边栏头部：品牌 + 动作 -->
+  <g>
+    <rect x="12" y="12" width="30" height="30" rx="8" fill="#101725"/>
+    <g transform="translate(12 12) scale(0.0293)">
+      <path d="M208 730 V294 L628 730 V294" fill="none" stroke="#EAF0FB" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="732" y="650" width="144" height="140" rx="34" fill="#4C8DFF"/>
+    </g>
+    <text x="52" y="25" font-size="13.5" font-weight="600" fill="#1D2430">NoShell</text>
+    <text x="52" y="41" font-size="11" fill="#6E7683">7 hosts</text>
+  </g>
+  <!-- 头部动作：收起 / 导入导出 / 新建 -->
+  <g stroke="#565D68" stroke-width="1.6" fill="none" stroke-linecap="round">
+    <path d="M163 22 h19 M167 29 h15 M163 36 h19"/>
+    <path d="M206 36 V22 M203 25 l3 -3 3 3 M219 22 V36 M216 33 l3 3 3 -3"/>
+  </g>
+  <g stroke="#565D68" stroke-width="1.8" stroke-linecap="round">
+    <path d="M252 29 h14 M259 22 v14"/>
+  </g>
+
+  <!-- 搜索框 -->
+  <rect x="12" y="70" width="240" height="40" rx="10" fill="#E2E4E9"/>
+  <circle cx="29" cy="88" r="5.5" fill="none" stroke="#6E7683" stroke-width="1.6"/>
+  <line x1="33.5" y1="92.5" x2="38" y2="97" stroke="#6E7683" stroke-width="1.6" stroke-linecap="round"/>
+  <text x="46" y="94.5" font-size="12.5" fill="#8A909C">Search name, host, or tag…</text>
+
+  <!-- 分组：Production -->
+  <path d="M14 124 l5 5 5 -5" fill="none" stroke="#6E7683" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 3) rotate(-90 19 129)"/>
+  <text x="33" y="131" font-size="11.5" font-weight="600" fill="#6E7683">Production</text>
+  <text x="250" y="131" font-size="11" fill="#8A909C" text-anchor="end">3</text>
+
+  <!-- 主机行：web-prod-01（选中） -->
+  <rect x="8" y="140" width="248" height="54" rx="8" fill="#D9E0F2"/>
+  <circle cx="21" cy="161" r="4.5" fill="#8B949E"/>
+  <text x="36" y="158.5" font-size="13" font-weight="600" fill="#1D2430">web-prod-01</text>
+  <text x="36" y="176" font-size="11.5" fill="#6E7683">deploy@10.0.1.11</text>
+  <path d="M241 158 l9 6 -9 6 z" fill="#6E7683"/>
+  <!-- 主机行：web-prod-02 -->
+  <circle cx="21" cy="217" r="4.5" fill="#8B949E"/>
+  <text x="36" y="214.5" font-size="13" font-weight="600" fill="#1D2430">web-prod-02</text>
+  <text x="36" y="232" font-size="11.5" fill="#6E7683">deploy@10.0.1.12</text>
+  <!-- 主机行：api-gateway -->
+  <circle cx="21" cy="273" r="4.5" fill="#8B949E"/>
+  <text x="36" y="270.5" font-size="13" font-weight="600" fill="#1D2430">api-gateway</text>
+  <text x="36" y="288" font-size="11.5" fill="#6E7683">ops@10.0.1.20:2222</text>
+
+  <!-- 分组：Development -->
+  <path d="M14 318 l5 5 5 -5" fill="none" stroke="#6E7683" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 3) rotate(-90 19 323)"/>
+  <text x="33" y="325" font-size="11.5" font-weight="600" fill="#6E7683">Development</text>
+  <text x="250" y="325" font-size="11" fill="#8A909C" text-anchor="end">3</text>
+  <!-- db-primary -->
+  <circle cx="21" cy="367" r="4.5" fill="#8B949E"/>
+  <text x="36" y="364.5" font-size="13" font-weight="600" fill="#1D2430">db-primary</text>
+  <text x="36" y="382" font-size="11.5" fill="#6E7683">root@10.0.2.31</text>
+  <!-- redis-cache -->
+  <circle cx="21" cy="423" r="4.5" fill="#8B949E"/>
+  <text x="36" y="420.5" font-size="13" font-weight="600" fill="#1D2430">redis-cache</text>
+  <text x="36" y="438" font-size="11.5" fill="#6E7683">root@10.0.2.32</text>
+  <!-- ci-runner -->
+  <circle cx="21" cy="479" r="4.5" fill="#8B949E"/>
+  <text x="36" y="476.5" font-size="13" font-weight="600" fill="#1D2430">ci-runner</text>
+  <text x="36" y="494" font-size="11.5" fill="#6E7683">ci@10.0.2.40</text>
+
+  <!-- 分组：Personal -->
+  <path d="M14 518 l5 5 5 -5" fill="none" stroke="#6E7683" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 3) rotate(-90 19 523)"/>
+  <text x="33" y="525" font-size="11.5" font-weight="600" fill="#6E7683">Personal</text>
+  <text x="250" y="525" font-size="11" fill="#8A909C" text-anchor="end">1</text>
+  <!-- nas-home -->
+  <circle cx="21" cy="573" r="4.5" fill="#8B949E"/>
+  <text x="36" y="570.5" font-size="13" font-weight="600" fill="#1D2430">nas-home</text>
+  <text x="36" y="588" font-size="11.5" fill="#6E7683">admin@192.168.1.10</text>
+
+  <!-- 底部：Settings -->
+  <line x1="0" y1="772" x2="264" y2="772" stroke="#E0E2E7" stroke-width="1"/>
+  <g stroke="#565D68" stroke-width="1.5" fill="none">
+    <circle cx="25" cy="794" r="3.2"/>
+    <path d="M25 788.5 v2 M25 797.5 v2 M19.5 794 h2 M28.5 794 h2 M21.2 790.2 l1.4 1.4 M27.4 796.4 l1.4 1.4 M28.8 790.2 l-1.4 1.4 M22.6 796.4 l-1.4 1.4"/>
+  </g>
+  <text x="48" y="798.5" font-size="13" font-weight="500" fill="#3C434E">Settings</text>
+
+  <!-- 详情头部 -->
+  <text x="280" y="69" font-size="16" font-weight="700" fill="#1D2430">web-prod-01</text>
+  <rect x="402" y="50" width="138" height="28" rx="14" fill="#E9EBEF"/>
+  <circle cx="416" cy="64" r="4" fill="#8B949E"/>
+  <text x="426" y="68.5" font-size="12.5" fill="#565D68">Not connected</text>
+  <text x="562" y="69" font-size="16" font-weight="700" fill="#6E7683">⋯</text>
+  <rect x="604" y="46" width="118" height="32" rx="16" fill="#3D5AA9"/>
+  <path d="M624 53 l-5 9 h4 l-2 7 6 -9 h-4 z" fill="#FFFFFF"/>
+  <text x="634" y="67" font-size="12.5" font-weight="600" fill="#FFFFFF">Connect</text>
+
+  <!-- 标签 -->
+  <rect x="280" y="96" width="62" height="26" rx="13" fill="#FFFFFF" stroke="#E3E5EA"/>
+  <text x="293" y="113" font-size="12" fill="#565D68">nginx</text>
+  <rect x="350" y="96" width="50" height="26" rx="13" fill="#FFFFFF" stroke="#E3E5EA"/>
+  <text x="362" y="113" font-size="12" fill="#565D68">web</text>
+
+  <!-- Tabs -->
+  <text x="470" y="163" font-size="13" font-weight="600" fill="#1D2430" text-anchor="middle">Overview</text>
+  <rect x="434" y="171" width="72" height="3" rx="1.5" fill="#3D5AA9"/>
+  <text x="744" y="163" font-size="13" fill="#6E7683" text-anchor="middle">Terminal</text>
+  <text x="1116" y="163" font-size="13" fill="#6E7683" text-anchor="middle">SFTP</text>
+  <line x1="264" y1="178" x2="1280" y2="178" stroke="#E4E6EA" stroke-width="1"/>
+
+  <!-- 概览卡片：第一行 -->
+  <g>
+    <rect x="296" y="196" width="220" height="92" rx="12" fill="#FFFFFF" stroke="#ECEEF2"/>
+    <text x="312" y="226" font-size="12" fill="#6E7683">Host address</text>
+    <text x="312" y="258" font-size="15" font-weight="600" fill="#1D2430">10.0.1.11</text>
+    <g stroke="#6E7683" stroke-width="1.4" fill="none">
+      <rect x="484" y="240" width="14" height="16" rx="3"/>
+      <path d="M480 244 v-8 a3 3 0 0 1 3 -3 h11"/>
+    </g>
+    <rect x="540" y="196" width="220" height="92" rx="12" fill="#FFFFFF" stroke="#ECEEF2"/>
+    <text x="556" y="226" font-size="12" fill="#6E7683">Port</text>
+    <text x="556" y="258" font-size="15" font-weight="600" fill="#1D2430">22</text>
+    <rect x="784" y="196" width="220" height="92" rx="12" fill="#FFFFFF" stroke="#ECEEF2"/>
+    <text x="800" y="226" font-size="12" fill="#6E7683">Username</text>
+    <text x="800" y="258" font-size="15" font-weight="600" fill="#1D2430">deploy</text>
+    <rect x="1028" y="196" width="220" height="92" rx="12" fill="#FFFFFF" stroke="#ECEEF2"/>
+    <text x="1044" y="226" font-size="12" fill="#6E7683">Authentication</text>
+    <text x="1044" y="258" font-size="15" font-weight="600" fill="#1D2430">SSH key</text>
+  </g>
+  <!-- 概览卡片：第二行 -->
+  <g>
+    <rect x="296" y="312" width="220" height="92" rx="12" fill="#FFFFFF" stroke="#ECEEF2"/>
+    <text x="312" y="342" font-size="12" fill="#6E7683">Last connected</text>
+    <text x="312" y="374" font-size="15" font-weight="600" fill="#1D2430">Never connected</text>
+    <rect x="540" y="312" width="220" height="92" rx="12" fill="#FFFFFF" stroke="#ECEEF2"/>
+    <text x="556" y="342" font-size="12" fill="#6E7683">Group</text>
+    <text x="556" y="374" font-size="15" font-weight="600" fill="#1D2430">Production</text>
+  </g>
+
+  <!-- 备注 -->
+  <text x="296" y="446" font-size="12.5" fill="#6E7683">Notes</text>
+  <rect x="296" y="456" width="952" height="64" rx="12" fill="#FFFFFF" stroke="#ECEEF2"/>
+  <text x="316" y="494" font-size="13.5" fill="#1D2430">Front-end load balancer. Changes require approval.</text>
+</svg>
