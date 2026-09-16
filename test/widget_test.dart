@@ -6,6 +6,7 @@ import 'package:no_shell/models.dart';
 import 'package:no_shell/store.dart';
 
 import 'support/credential_store_fake.dart';
+import 'support/demo_servers.dart';
 
 void main() {
   // 应用已国际化，钉住中文系统语言以匹配下方中文断言。
@@ -13,7 +14,12 @@ void main() {
   Future<void> pumpDesktop(WidgetTester tester) async {
     tester.platformDispatcher.localesTestValue = const [Locale('zh')];
     addTearDown(tester.platformDispatcher.clearAllTestValues);
-    await tester.pumpWidget(NoShellApp(credentials: FakeCredentialStore()));
+    await tester.pumpWidget(
+      NoShellApp(
+        store: ServerStore(seed: demoServers),
+        credentials: FakeCredentialStore(),
+      ),
+    );
     await tester.pump();
   }
 
@@ -76,9 +82,7 @@ void main() {
     final credentials = FakeCredentialStore();
     tester.platformDispatcher.localesTestValue = const [Locale('zh')];
     addTearDown(tester.platformDispatcher.clearAllTestValues);
-    await tester.pumpWidget(
-      NoShellApp(store: store, credentials: credentials),
-    );
+    await tester.pumpWidget(NoShellApp(store: store, credentials: credentials));
     await tester.pump();
 
     await tester.tap(find.byTooltip('新建连接'));

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/l10n/generated/app_localizations.dart';
 import 'package:no_shell/main.dart';
+import 'package:no_shell/store.dart';
 import 'package:no_shell/ssh/local_files.dart';
 import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
@@ -12,6 +13,7 @@ import 'package:no_shell/ssh/terminal_session.dart';
 import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/sftp_browser.dart';
 
+import 'support/demo_servers.dart';
 import 'support/sftp_fakes.dart';
 
 /// 用固定尺寸的宿主承载 SFTP 面板：
@@ -444,7 +446,9 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(const NoShellApp());
+      await tester.pumpWidget(
+        NoShellApp(store: ServerStore(seed: demoServers)),
+      );
       await tester.pump();
       await tester.tap(find.text('web-prod-01'));
       await tester.pumpAndSettle();
@@ -480,7 +484,9 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(const NoShellApp());
+      await tester.pumpWidget(
+        NoShellApp(store: ServerStore(seed: demoServers)),
+      );
       await tester.pump();
       await tester.tap(find.text('db-primary'));
       await tester.pumpAndSettle();

@@ -46,7 +46,7 @@ final class _FakeTransport implements SshTransport {
 }
 
 SshServer _server() => SshServer(
-  // 必须是 mock 数据里已存在的 id，mark* 才能回写状态。
+  // store 必须预置同一 id 的主机，mark* 才能按 id 回写状态。
   id: 'srv-01',
   group: '生产环境',
   name: 'test-host',
@@ -68,7 +68,7 @@ SessionManager _manager(ServerStore store, List<_FakeTransport> transports) =>
 void main() {
   group('SessionManager', () {
     test('open 后主机状态经历 connecting → connected，会话持有终端缓冲区', () async {
-      final store = ServerStore();
+      final store = ServerStore(seed: [_server()]);
       final transport = _FakeTransport();
       final sessions = _manager(store, [transport]);
 
@@ -87,7 +87,7 @@ void main() {
     });
 
     test('重复 open 同一主机时复用活跃会话，不重复建连', () async {
-      final store = ServerStore();
+      final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [_FakeTransport()]);
 
       final first = sessions.open(
@@ -104,7 +104,7 @@ void main() {
     });
 
     test('close 移除会话、释放传输并把主机置回未连接', () async {
-      final store = ServerStore();
+      final store = ServerStore(seed: [_server()]);
       final transport = _FakeTransport();
       final sessions = _manager(store, [transport]);
       sessions.open(_server(), const SshCredentials(password: 'pw'));
@@ -118,7 +118,7 @@ void main() {
     });
 
     test('连接失败归类为错误状态，暴露错误种类', () async {
-      final store = ServerStore();
+      final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [
         _FakeTransport(error: SSHAuthFailError('Permission denied')),
       ]);
@@ -134,7 +134,7 @@ void main() {
     });
 
     test('远端主动断开 → 会话变为 closed，主机回到未连接', () async {
-      final store = ServerStore();
+      final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [
         _FakeTransport(closeAfterConnect: true),
       ]);
@@ -148,7 +148,7 @@ void main() {
     });
 
     test('retry 用原凭据、以新传输重建会话并恢复连接', () async {
-      final store = ServerStore();
+      final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [
         _FakeTransport(error: SSHAuthFailError('Permission denied')),
         _FakeTransport(),
@@ -167,7 +167,7 @@ void main() {
     });
 
     test('web 等不支持平台抛 UnsupportedError → unsupported 归类', () async {
-      final store = ServerStore();
+      final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [
         _FakeTransport(error: UnsupportedError('no tcp')),
       ]);

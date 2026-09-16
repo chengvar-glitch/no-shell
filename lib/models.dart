@@ -1,4 +1,4 @@
-/// 服务器数据模型与示例数据。
+/// 服务器数据模型。
 library;
 
 import 'l10n/generated/app_localizations.dart';
@@ -123,82 +123,3 @@ String formatRelativeTime(AppLocalizations l10n, DateTime? time) {
   final d = time.day.toString().padLeft(2, '0');
   return '$y-$m-$d';
 }
-
-/// 示例数据：连接状态一律从「未连接」开始，由真实 SSH 会话驱动，
-/// 预置的状态只保留「最近连接」时间作展示。
-final List<SshServer> mockServers = [
-  SshServer(
-    id: 'srv-01',
-    group: '生产环境',
-    name: 'web-prod-01',
-    host: '10.0.1.11',
-    username: 'deploy',
-    tags: ['nginx', 'web'],
-    lastConnectedAt: DateTime.now().subtract(const Duration(minutes: 26)),
-    notes: '主站前端负载节点，变更需走审批流程。',
-  ),
-  SshServer(
-    id: 'srv-02',
-    group: '生产环境',
-    name: 'web-prod-02',
-    host: '10.0.1.12',
-    username: 'deploy',
-    tags: ['nginx', 'web'],
-    lastConnectedAt: DateTime.now().subtract(const Duration(hours: 5)),
-  ),
-  SshServer(
-    id: 'srv-03',
-    group: '生产环境',
-    name: 'api-gateway',
-    host: '10.0.1.20',
-    port: 2222,
-    username: 'ops',
-    authMethod: AuthMethod.password,
-    tags: ['gateway', 'api'],
-    lastConnectedAt: DateTime.now().subtract(const Duration(days: 2)),
-  ),
-  SshServer(
-    id: 'srv-04',
-    group: '开发 / 测试',
-    name: 'db-primary',
-    host: '10.0.2.31',
-    username: 'root',
-    tags: ['postgres'],
-    lastConnectedAt: DateTime.now().subtract(const Duration(hours: 1)),
-    notes: '测试库每晚 02:00 自动重建，勿存放重要数据。',
-  ),
-  SshServer(
-    id: 'srv-05',
-    group: '开发 / 测试',
-    name: 'redis-cache',
-    host: '10.0.2.32',
-    username: 'root',
-  ),
-  SshServer(
-    id: 'srv-06',
-    group: '开发 / 测试',
-    name: 'ci-runner',
-    host: '10.0.2.40',
-    username: 'ci',
-    tags: ['jenkins'],
-    lastConnectedAt: DateTime.now().subtract(const Duration(days: 9)),
-  ),
-  SshServer(
-    id: 'srv-07',
-    group: '个人服务器',
-    name: 'nas-home',
-    host: '192.168.1.10',
-    username: 'admin',
-    tags: ['nas', 'home'],
-    lastConnectedAt: DateTime.now().subtract(const Duration(minutes: 3)),
-  ),
-  SshServer(
-    id: 'srv-08',
-    group: '个人服务器',
-    name: 'vps-blog',
-    host: '47.98.12.34',
-    username: 'ubuntu',
-    tags: ['blog'],
-    lastConnectedAt: DateTime.now().subtract(const Duration(days: 30)),
-  ),
-];

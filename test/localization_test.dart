@@ -4,6 +4,9 @@ import 'package:no_shell/app_locale.dart';
 import 'package:no_shell/l10n/generated/app_localizations.dart';
 import 'package:no_shell/main.dart';
 import 'package:no_shell/models.dart';
+import 'package:no_shell/store.dart';
+
+import 'support/demo_servers.dart';
 
 void main() {
   group('AppLanguage', () {
@@ -85,25 +88,33 @@ void main() {
 
       // zh → 中文界面（侧边栏主机计数）。
       useSystemLocale(tester, const [Locale('zh')]);
-      await tester.pumpWidget(const NoShellApp());
+      await tester.pumpWidget(
+        NoShellApp(store: ServerStore(seed: demoServers)),
+      );
       await tester.pumpAndSettle();
       expect(find.text('8 台主机'), findsOneWidget);
 
       // en → 英文界面。
       useSystemLocale(tester, const [Locale('en')]);
-      await tester.pumpWidget(const NoShellApp());
+      await tester.pumpWidget(
+        NoShellApp(store: ServerStore(seed: demoServers)),
+      );
       await tester.pumpAndSettle();
       expect(find.text('8 hosts'), findsOneWidget);
 
       // 不支持的语言（fr）→ 回退首个支持语言英文。
       useSystemLocale(tester, const [Locale('fr')]);
-      await tester.pumpWidget(const NoShellApp());
+      await tester.pumpWidget(
+        NoShellApp(store: ServerStore(seed: demoServers)),
+      );
       await tester.pumpAndSettle();
       expect(find.text('8 hosts'), findsOneWidget);
 
       // 优先匹配：zh_CN 列表命中中文。
       useSystemLocale(tester, const [Locale('zh'), Locale('en')]);
-      await tester.pumpWidget(const NoShellApp());
+      await tester.pumpWidget(
+        NoShellApp(store: ServerStore(seed: demoServers)),
+      );
       await tester.pumpAndSettle();
       expect(find.text('8 台主机'), findsOneWidget);
     });
@@ -114,7 +125,9 @@ void main() {
       addTearDown(() => resetLocale(tester));
       useSystemLocale(tester, const [Locale('en')]);
 
-      await tester.pumpWidget(const NoShellApp());
+      await tester.pumpWidget(
+        NoShellApp(store: ServerStore(seed: demoServers)),
+      );
       await tester.pumpAndSettle();
       expect(find.text('8 hosts'), findsOneWidget);
 
@@ -147,12 +160,16 @@ void main() {
       addTearDown(() => resetLocale(tester));
 
       useSystemLocale(tester, const [Locale('en')]);
-      await tester.pumpWidget(const NoShellApp());
+      await tester.pumpWidget(
+        NoShellApp(store: ServerStore(seed: demoServers)),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Servers'), findsWidgets);
 
       useSystemLocale(tester, const [Locale('zh')]);
-      await tester.pumpWidget(const NoShellApp());
+      await tester.pumpWidget(
+        NoShellApp(store: ServerStore(seed: demoServers)),
+      );
       await tester.pumpAndSettle();
       expect(find.text('服务器'), findsWidgets);
     });

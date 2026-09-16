@@ -109,7 +109,14 @@ void main() {
 
     test('save → load roundtrip', () async {
       final persistence = SharedPreferencesServerPersistence();
-      await persistence.save([_fullServer(), mockServers.first]);
+      const second = SshServer(
+        id: 'srv-01',
+        group: 'g',
+        name: 'n',
+        host: 'h',
+        username: 'u',
+      );
+      await persistence.save([_fullServer(), second]);
 
       final loaded = await persistence.load();
       expect(loaded, hasLength(2));
@@ -131,19 +138,20 @@ void main() {
       final store = ServerStore();
       await store.load();
       store.upsert(_fullServer());
+      expect(store.serverCount, 1);
       store.remove('srv-x');
-      expect(store.serverCount, mockServers.length);
+      expect(store.serverCount, 0);
     });
 
-    test('首次运行（无存档）保留示例数据并写入基线', () async {
+    test('首次运行（无存档）写入空列表基线', () async {
       final persistence = FakeServerPersistence();
       final store = ServerStore(persistence: persistence);
 
       await store.load();
 
-      expect(store.serverCount, mockServers.length);
+      expect(store.serverCount, 0);
       expect(persistence.saveCount, 1);
-      expect(persistence.stored, hasLength(mockServers.length));
+      expect(persistence.stored, hasLength(0));
     });
 
     test('有存档时以存档替换内存列表', () async {

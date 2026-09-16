@@ -10,7 +10,7 @@ import 'server_persistence.dart';
 /// 变化后异步落盘。连接状态由 SessionManager 按真实 SSH 会话阶段回写。
 class ServerStore extends ChangeNotifier {
   ServerStore({this.persistence, List<SshServer>? seed})
-    : _servers = List.of(seed ?? mockServers);
+    : _servers = List.of(seed ?? const []);
 
   /// 主机列表落盘通道；null 表示仅内存（测试或嵌入场景）。
   final ServerPersistence? persistence;
@@ -24,7 +24,7 @@ class ServerStore extends ChangeNotifier {
   /// 仅需要数量时使用，避免 [servers] 每次拷贝整个列表。
   int get serverCount => _servers.length;
 
-  /// 启动时载入已保存的主机；首次运行（无存档）保留播种的示例数据。
+  /// 启动时载入已保存的主机；首次运行（无存档）即为空列表。
   /// 不阻塞调用方：可 await 后再 runApp，也可以先出界面再等通知。
   Future<void> load() async {
     final backend = persistence;
@@ -37,7 +37,7 @@ class ServerStore extends ChangeNotifier {
       return;
     }
     if (saved == null) {
-      // 首次运行：把示例数据写入存档，保证之后变更都有完整基线。
+      // 首次运行：写入空列表存档，保证之后变更都有完整基线。
       _schedulePersist();
       return;
     }

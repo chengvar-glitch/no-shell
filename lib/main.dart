@@ -22,7 +22,7 @@ import 'theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _setupDesktopWindow();
-  // 启动即载入已保存的主机列表与偏好，避免先闪一帧示例数据 / 默认主题
+  // 启动即载入已保存的主机列表与偏好，避免先闪一帧空列表 / 默认主题
   // 再被替换；两者互不依赖，并行读盘。
   final store = ServerStore(persistence: SharedPreferencesServerPersistence());
   final settings = SharedPreferencesSettingsPersistence();

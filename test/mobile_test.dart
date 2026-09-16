@@ -7,6 +7,7 @@ import 'package:no_shell/settings.dart';
 import 'package:no_shell/store.dart';
 
 import 'support/credential_store_fake.dart';
+import 'support/demo_servers.dart';
 
 Finder navLabel(String label) =>
     find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
@@ -27,7 +28,8 @@ void main() {
     addTearDown(tester.platformDispatcher.clearAllTestValues);
     await tester.pumpWidget(
       NoShellApp(
-        store: store,
+        // 未显式传 store 时注入示例数据，非空列表语义由测试自持。
+        store: store ?? ServerStore(seed: demoServers),
         credentials: credentials ?? FakeCredentialStore(),
       ),
     );

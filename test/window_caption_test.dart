@@ -4,10 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:no_shell/main.dart';
+import 'package:no_shell/store.dart';
 import 'package:no_shell/widgets/app_icon_mark.dart';
 import 'package:no_shell/widgets/window_caption.dart';
 
 import 'support/credential_store_fake.dart';
+import 'support/demo_servers.dart';
 
 void main() {
   // 自绘标题条只在 Windows / Linux 生效，测试统一钉在 Linux 平台；
@@ -36,7 +38,12 @@ void main() {
         null,
       ),
     );
-    await tester.pumpWidget(NoShellApp(credentials: FakeCredentialStore()));
+    await tester.pumpWidget(
+      NoShellApp(
+        store: ServerStore(seed: demoServers),
+        credentials: FakeCredentialStore(),
+      ),
+    );
     await tester.pump();
   }
 
@@ -64,7 +71,10 @@ void main() {
     );
     try {
       await tester.pumpWidget(
-        NoShellApp(credentials: FakeCredentialStore()),
+        NoShellApp(
+          store: ServerStore(seed: demoServers),
+          credentials: FakeCredentialStore(),
+        ),
       );
       await tester.pump();
       expect(find.byIcon(Icons.minimize), findsNothing);
