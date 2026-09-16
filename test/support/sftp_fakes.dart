@@ -1,0 +1,332 @@
+import 'dart:async';
+
+import 'package:no_shell/models.dart';
+import 'package:no_shell/ssh/local_files.dart';
+import 'package:no_shell/ssh/sftp.dart';
+import 'package:no_shell/ssh/ssh_transport.dart';
+import 'package:xterm/core.dart';
+
+/// 内存版 SFTP 文件系统：覆盖浏览、上传 / 下载与增删改的编排逻辑，
+/// 不涉及真实网络。列表按目录存放，`rmdir` 与真实服务端一致地拒绝非空目录。
+final class FakeSftpFileSystem implements SftpFileSystem {
+  FakeSftpFileSystem({this.home = '/home/deploy'}) {
+    listings['/'] = [];
+    listings[home] = [];
+  }
+
+  final String home;
+
+  /// 目录路径 → 子条目。
+  final Map<String, List<SftpEntry>> listings = {};
+
+  /// 远端文件内容。
+  final Map<String, List<int>> contents = {};
+
+  /// list 调用记录，用于断言刷新行为。
+  final List<String> listCalls = [];
+
+  /// 非 null 时 [list] 抛出该错误。
+  SftpException? listError;
+
+  /// 非 null 时 [list] 会一直挂着，直到测试主动 complete：
+  /// 用来把面板钉在「载入中」那一帧上做布局断言。
+  Completer<void>? listGate;
+
+  /// 非 null 时 [write] 抛出该错误。
+  SftpException? writeError;
+
+  /// 读取分块大小，用于让下载产生多块进度回调。
+  int chunkSize = 4;
+
+  bool disposed = false;
+
+  SftpEntry addFile(String dir, String name, {List<int>? content}) {
+    final bytes = content ?? const [65, 66, 67, 68];
+    final path = sftpJoin(dir, name);
+    contents[path] = bytes;
+    final entry = SftpEntry(
+      name: name,
+      path: path,
+      isDirectory: false,
+      size: bytes.length,
+      modifiedAt: DateTime(2026),
+    );
+    listings.putIfAbsent(dir, () => []).add(entry);
+    return entry;
+  }
+
+  SftpEntry addDirectory(String dir, String name) {
+    final path = sftpJoin(dir, name);
+    listings[path] = [];
+    final entry = SftpEntry(
+      name: name,
+      path: path,
+      isDirectory: true,
+      modifiedAt: DateTime(2026),
+    );
+    listings.putIfAbsent(dir, () => []).add(entry);
+    return entry;
+  }
+
+  @override
+  Future<String> homeDirectory() async => home;
+
+  @override
+  Future<List<SftpEntry>> list(String path) async {
+    listCalls.add(path);
+    final gate = listGate;
+    if (gate != null) await gate.future;
+    final error = listError;
+    if (error != null) throw error;
+    final entries = listings[path];
+    if (entries == null) {
+      throw const SftpException(SftpErrorKind.notFound);
+    }
+    return List.of(entries);
+  }
+
+  @override
+  Stream<List<int>> read(String path) async* {
+    final bytes = contents[path];
+    if (bytes == null) throw const SftpException(SftpErrorKind.notFound);
+    for (var offset = 0; offset < bytes.length; offset += chunkSize) {
+      final end = (offset + chunkSize).clamp(0, bytes.length);
+      yield bytes.sublist(offset, end);
+    }
+  }
+
+  /// 指定目录当前的内容，便于断言「文件已出现在列表里」。
+  List<SftpEntry> entriesOf(String dir) => List.of(listings[dir] ?? const []);
+
+  @override
+  Future<void> write(
+    String path,
+    Stream<List<int>> data, {
+    void Function(int bytes)? onProgress,
+  }) async {
+    final buffer = <int>[];
+    await for (final chunk in data) {
+      buffer.addAll(chunk);
+      onProgress?.call(buffer.length);
+      final error = writeError;
+      if (error != null) {
+        // 模拟传输中途失败：半截文件已经落在远端。
+        _store(path, buffer);
+        throw error;
+      }
+    }
+    _store(path, buffer);
+  }
+
+  @override
+  Future<void> createDirectory(String path) async {
+    if (listings.containsKey(path)) return;
+    listings[path] = [];
+    _upsert(sftpParent(path), sftpBaseName(path), 0, isDirectory: true);
+  }
+
+  @override
+  Future<void> rename(String from, String to) async {
+    final parent = sftpParent(from);
+    final entries = listings[parent];
+    final index = entries?.indexWhere((entry) => entry.path == from) ?? -1;
+    if (index < 0) throw const SftpException(SftpErrorKind.notFound);
+    final old = entries![index];
+    final name = sftpBaseName(to);
+    entries[index] = SftpEntry(
+      name: name,
+      path: to,
+      isDirectory: old.isDirectory,
+      isSymlink: old.isSymlink,
+      size: old.size,
+      modifiedAt: old.modifiedAt,
+      permissions: old.permissions,
+    );
+    if (old.isDirectory) {
+      _remapPrefix(from, to);
+    } else if (contents.containsKey(from)) {
+      contents[to] = contents.remove(from)!;
+    }
+  }
+
+  @override
+  Future<void> removeFile(String path) async {
+    final entries = listings[sftpParent(path)];
+    final index = entries?.indexWhere((entry) => entry.path == path) ?? -1;
+    if (index < 0) throw const SftpException(SftpErrorKind.notFound);
+    entries!.removeAt(index);
+    contents.remove(path);
+  }
+
+  @override
+  Future<void> removeDirectory(String path) async {
+    final children = listings[path];
+    if (children == null) throw const SftpException(SftpErrorKind.notFound);
+    // 与真实 rmdir 一致：非空目录必须由调用方先清空。
+    if (children.isNotEmpty) {
+      throw const SftpException(SftpErrorKind.other, 'directory not empty');
+    }
+    listings.remove(path);
+    listings[sftpParent(path)]?.removeWhere((entry) => entry.path == path);
+  }
+
+  @override
+  void dispose() => disposed = true;
+
+  void _store(String path, List<int> bytes) {
+    contents[path] = bytes;
+    _upsert(sftpParent(path), sftpBaseName(path), bytes.length);
+  }
+
+  void _upsert(
+    String parent,
+    String name,
+    int size, {
+    bool isDirectory = false,
+  }) {
+    final entries = listings.putIfAbsent(parent, () => []);
+    final path = sftpJoin(parent, name);
+    final index = entries.indexWhere((entry) => entry.path == path);
+    final entry = SftpEntry(
+      name: name,
+      path: path,
+      isDirectory: isDirectory,
+      size: size,
+      modifiedAt: DateTime(2026),
+    );
+    if (index < 0) {
+      entries.add(entry);
+    } else {
+      entries[index] = entry;
+    }
+  }
+
+  void _remapPrefix(String from, String to) {
+    for (final key in listings.keys.toList()) {
+      if (key == from || key.startsWith('$from/')) {
+        listings[key.replaceFirst(from, to)] = listings.remove(key)!;
+      }
+    }
+    for (final key in contents.keys.toList()) {
+      if (key.startsWith('$from/')) {
+        contents[key.replaceFirst(from, to)] = contents.remove(key)!;
+      }
+    }
+  }
+}
+
+/// 假本地文件网关：上传源与下载落点都由测试直接指定，落盘内容记在内存里。
+final class FakeLocalFileGateway implements LocalFileGateway {
+  FakeLocalFileGateway();
+
+  /// 下一次 [pickUploads] 返回的内容。
+  List<LocalUpload> uploads = const [];
+
+  /// 单文件下载的落点；为 null 表示用户取消。
+  LocalTarget? downloadTarget;
+
+  /// 多文件下载的落点；为 null 表示用户取消。
+  List<LocalTarget>? downloadDirectory;
+
+  /// 非 null 时 [pickUploads] 抛出该错误，模拟选择器不可用。
+  Object? pickError;
+
+  /// 写入成功的本地文件内容。
+  final Map<String, List<int>> written = {};
+
+  /// 被丢弃的半成品路径。
+  final List<String> discarded = [];
+
+  @override
+  Future<List<LocalUpload>> pickUploads({String? confirmLabel}) async {
+    final error = pickError;
+    if (error != null) throw error;
+    return uploads;
+  }
+
+  @override
+  Future<LocalTarget?> pickDownloadTarget(
+    String suggestedName, {
+    String? confirmLabel,
+  }) async => downloadTarget;
+
+  @override
+  Future<List<LocalTarget>?> pickDownloadDirectory(
+    List<String> names, {
+    String? confirmLabel,
+  }) async => downloadDirectory;
+
+  @override
+  LocalWriteHandle openWrite(String path) =>
+      _MemoryWriteHandle((bytes) => written[path] = bytes);
+
+  @override
+  Future<void> discard(String path) async {
+    discarded.add(path);
+    written.remove(path);
+  }
+
+  /// 用内存句柄写出的字节（close 之后可读）。
+  List<int> bytesOf(String path) => written[path] ?? const [];
+}
+
+/// 收集写入字节、close 时回吐，模拟本地落盘。
+final class _MemoryWriteHandle implements LocalWriteHandle {
+  _MemoryWriteHandle(this._onClose);
+
+  final void Function(List<int> bytes) _onClose;
+  final List<int> _bytes = [];
+
+  @override
+  void add(List<int> chunk) => _bytes.addAll(chunk);
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async => _onClose(_bytes);
+}
+
+/// 假传输层：直接给出 [openSftp] 的结果，便于会话层与面板层测试。
+final class FakeSftpTransport implements SshTransport {
+  FakeSftpTransport({this.fileSystem, this.sftpError});
+
+  final SftpFileSystem? fileSystem;
+
+  /// 非 null 时 [openSftp] 抛出该错误（如服务端未启用 sftp 子系统）。
+  final Object? sftpError;
+
+  Terminal? attachedTerminal;
+  bool disposed = false;
+  int openSftpCalls = 0;
+
+  @override
+  Future<void> attach(
+    Terminal terminal, {
+    required void Function() onConnected,
+    required void Function() onClosed,
+  }) async {
+    attachedTerminal = terminal;
+    onConnected();
+  }
+
+  @override
+  Future<SftpFileSystem> openSftp() async {
+    openSftpCalls++;
+    final error = sftpError;
+    if (error != null) throw error;
+    return fileSystem!;
+  }
+
+  @override
+  void dispose() => disposed = true;
+}
+
+/// 测试用主机：id 必须在示例数据里，会话状态才能回写。
+SshServer testServer({String id = 'srv-01'}) => SshServer(
+  id: id,
+  group: '生产环境',
+  name: 'test-host',
+  host: '10.0.0.1',
+  username: 'root',
+);

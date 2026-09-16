@@ -1,0 +1,67 @@
+# CI：push 到 main 或 PR 时自动静态检查 + 单元/组件测试。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 安装依赖
+        run: flutter pub get
+
+      - name: 静态分析（必须无告警）
+        run: flutter analyze
+
+      - name: 测试
+        run: flutter test
+
+  # 真实链路冒烟：在本机拉起 sshd，用 App 同款 dartssh2 链路跑通
+  # 认证、PTY 交互与 SFTP 上传下载。账号为一次性随机密码，仅存续于本 job。
+  smoke-ssh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 安装依赖
+        run: flutter pub get
+
+      - name: 启动本地 sshd（一次性账号，随机密码）
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y openssh-server
+          SMOKE_PASS="ci-$(openssl rand -hex 12)"
+          sudo useradd -m -s /bin/bash ci-smoke
+          echo "ci-smoke:$SMOKE_PASS" | sudo chpasswd
+          echo "PasswordAuthentication yes" | sudo tee /etc/ssh/sshd_config.d/00-ci.conf
+          sudo mkdir -p /run/sshd
+          sudo /usr/sbin/sshd
+          echo "SMOKE_PASS=$SMOKE_PASS" >> "$GITHUB_ENV"
+
+      - name: 冒烟 —— 认证与命令执行
+        run: dart run tool/smoke_ssh.dart 127.0.0.1 22 ci-smoke --password "$SMOKE_PASS"
+
+      - name: 冒烟 —— PTY 交互式 shell
+        run: dart run tool/smoke_ssh.dart 127.0.0.1 22 ci-smoke --password "$SMOKE_PASS" --shell
+
+      - name: 冒烟 —— SFTP 浏览与上传下载
+        run: dart run tool/smoke_ssh.dart 127.0.0.1 22 ci-smoke --password "$SMOKE_PASS" --sftp

@@ -1,0 +1,84 @@
+name: no_shell
+description: "NoShell — cross-platform SSH connection manager with terminal, SFTP and secure credential storage."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.3
+
+dependencies:
+  dartssh2: ^4.1.0
+  file_selector: ^1.1.0
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_secure_storage: ^11.1.1
+  intl: any
+  path_provider: ^2.1.6
+  screen_retriever: ^0.2.2
+  shared_preferences: ^2.5.5
+  window_manager: ^0.5.2
+  xterm: ^4.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  msix: ^3.18.0
+
+msix_config:
+  display_name: NoShell
+  publisher_display_name: chengvar
+  identity_name: com.noshell
+  # 版本由 CI 按 tag 动态传入（--version），此处仅为本地兜底。
+  msix_version: 0.1.0.0
+  architecture: x64
+  capabilities: internetClient
+  install_certificate: false
+
+# 图标源在 icon/：art.svg 是唯一样式来源，render.py 生成 icon/png/ 全套 PNG。
+# 改图标：编辑 icon/art.svg，重跑 render.py，再执行 `dart run flutter_launcher_icons`。
+# Linux 不在本工具覆盖范围，hicolor 主题图标由 release.yml 安装 icon/png/linux/*.png。
+flutter_launcher_icons:
+  # Android 传统图标（8.0 以下）与通用兜底
+  image_path: icon/png/icon-1024.png
+
+  android: true
+  adaptive_icon_background: "#101725"
+  adaptive_icon_foreground: icon/png/android-foreground-1024.png
+  adaptive_icon_monochrome: icon/png/android-monochrome-1024.png
+  # 前景已按 66dp 安全区缩放，不要再内缩一次
+  adaptive_icon_foreground_inset: 0
+
+  ios: true
+  # 不含 alpha 的实心底板：App Store Connect 拒收带 alpha 的图
+  image_path_ios: icon/png/ios-1024.png
+  remove_alpha_ios: true
+
+  macos:
+    generate: true
+    # macOS 不做图标遮罩，圆角方板直接画在图上（Apple 824/185.4 网格）
+    image_path: icon/png/macos-1024.png
+
+  windows:
+    generate: true
+    image_path: icon/png/icon-1024.png
+    icon_size: 256
+
+  web:
+    generate: true
+    image_path: icon/png/icon-1024.png
+    background_color: "#101725"
+    theme_color: "#101725"
+
+flutter:
+  uses-material-design: true
+  generate: true
+  # 应用内品牌标（侧边栏头部 / 设置 / 关于）直接用启动图标那份 PNG，
+  # 不再单独维护一份应用内图标源。
+  assets:
+    - icon/png/icon-128.png

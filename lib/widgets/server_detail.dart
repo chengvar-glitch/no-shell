@@ -1,0 +1,812 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../app_locale.dart';
+import '../l10n/generated/app_localizations.dart';
+import '../models.dart';
+import '../settings.dart';
+import '../ssh/session_manager.dart';
+import '../ssh/terminal_session.dart';
+import '../ssh/terminal_view.dart';
+import '../theme.dart';
+import 'sftp_browser.dart';
+import 'status_badges.dart';
+import 'window_caption.dart';
+
+class ServerDetailPanel extends StatelessWidget {
+  const ServerDetailPanel({
+    super.key,
+    required this.server,
+    required this.sessions,
+    required this.onConnect,
+    required this.onCreate,
+    required this.onDelete,
+    this.sidebarCollapsed = false,
+    this.onToggleSidebar,
+  });
+
+  final SshServer? server;
+  final SessionManager sessions;
+  final ValueChanged<SshServer> onConnect;
+  final VoidCallback onCreate;
+  final ValueChanged<SshServer> onDelete;
+  final bool sidebarCollapsed;
+  final VoidCallback? onToggleSidebar;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = server;
+    if (selected == null) {
+      return _EmptyState(
+        onCreate: onCreate,
+        sidebarCollapsed: sidebarCollapsed,
+        onToggleSidebar: onToggleSidebar,
+      );
+    }
+    return _ServerDetail(
+      server: selected,
+      sessions: sessions,
+      onConnect: () => onConnect(selected),
+      onDelete: () => onDelete(selected),
+      sidebarCollapsed: sidebarCollapsed,
+      onToggleSidebar: onToggleSidebar,
+    );
+  }
+}
+
+/// macOS 的展开入口：红绿灯浮在内容左上角，按钮与它们同一行、位于其右侧。
+/// 只给 macOS 用；Windows/Linux 走 [_ExpandSidebarButton]，排在标题条行内。
+Widget? sidebarExpandButton(
+  BuildContext context,
+  bool collapsed,
+  VoidCallback? onToggle,
+) {
+  if (!collapsed || onToggle == null) return null;
+  final isMacOS = defaultTargetPlatform == TargetPlatform.macOS;
+  return Align(
+    alignment: Alignment.topLeft,
+    child: Padding(
+      // 红绿灯区域约到 x=76、垂直中心 y≈16，这里与之同行并留出间距。
+      padding: EdgeInsets.only(
+        left: isMacOS ? 84 : 6,
+        top: isMacOS ? 3 : windowTopInset(6.0),
+      ),
+      child: IconButton(
+        tooltip: AppLocalizations.of(context)
+            .expandSidebar(sidebarToggleShortcut),
+        icon: const Icon(Icons.view_sidebar, size: 17),
+        onPressed: onToggle,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 30, height: 26),
+      ),
+    ),
+  );
+}
+
+/// 行内版展开侧边栏按钮：与侧边栏头部、详情头部的动作按钮同一套尺寸。
+/// 收起侧边栏后它排在标题条这一行里（跟着行内走），而不是浮到内容左上角。
+class _ExpandSidebarButton extends StatelessWidget {
+  const _ExpandSidebarButton({required this.onToggle});
+
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: AppLocalizations.of(context)
+          .expandSidebar(sidebarToggleShortcut),
+      icon: const Icon(Icons.view_sidebar, size: 18),
+      onPressed: onToggle,
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.onCreate,
+    required this.sidebarCollapsed,
+    required this.onToggleSidebar,
+  });
+
+  final VoidCallback onCreate;
+  final bool sidebarCollapsed;
+  final VoidCallback? onToggleSidebar;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final expandable = sidebarCollapsed && onToggleSidebar != null;
+    final content = Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              color: theme.panelBackground,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: theme.hairline),
+            ),
+            child: Icon(
+              Icons.lan_outlined,
+              size: 32,
+              color: theme.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            l10n.selectHostToStart,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            l10n.emptyDetailHint,
+            style: TextStyle(fontSize: 12.5, color: theme.secondaryText),
+          ),
+          const SizedBox(height: 22),
+          FilledButton.tonalIcon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add_rounded, size: 17),
+            label: Text(l10n.newConnection),
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.comfortable,
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    // Windows/Linux：自绘标题条本来就是面板里的第一行，展开按钮排进这一行，
+    // 与窗口按钮同行——不会再浮在内容左上角、看起来像掉到了下一行。
+    if (usesCustomWindowCaption) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          WindowCaptionBar(
+            leading: expandable
+                ? _ExpandSidebarButton(onToggle: onToggleSidebar!)
+                : null,
+          ),
+          Expanded(child: content),
+        ],
+      );
+    }
+    return Stack(
+      children: [
+        ?sidebarExpandButton(context, sidebarCollapsed, onToggleSidebar),
+        content,
+      ],
+    );
+  }
+}
+
+class _ServerDetail extends StatefulWidget {
+  const _ServerDetail({
+    required this.server,
+    required this.sessions,
+    required this.onConnect,
+    required this.onDelete,
+    required this.sidebarCollapsed,
+    required this.onToggleSidebar,
+  });
+
+  final SshServer server;
+  final SessionManager sessions;
+  final VoidCallback onConnect;
+  final VoidCallback onDelete;
+  final bool sidebarCollapsed;
+  final VoidCallback? onToggleSidebar;
+
+  @override
+  State<_ServerDetail> createState() => _ServerDetailState();
+}
+
+class _ServerDetailState extends State<_ServerDetail> {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final server = widget.server;
+    final session = widget.sessions.byServerId(server.id);
+    final header = _DetailHeader(
+      server: server,
+      connected: session?.isActive ?? false,
+      sidebarCollapsed: widget.sidebarCollapsed,
+      onToggleSidebar: widget.onToggleSidebar,
+      onConnect: widget.onConnect,
+      onDelete: widget.onDelete,
+    );
+    final tabs = _DetailTabs(
+      labels: [l10n.overview, l10n.terminal, l10n.sftp],
+      children: [
+        OverviewTab(server: server),
+        TerminalTab(
+          server: server,
+          session: session,
+          idleHint: l10n.sessionDesktopHint,
+          onRetry: session == null
+              ? null
+              : () => widget.sessions.retry(server.id),
+        ),
+        SftpTab(
+          session: session,
+          idleHint: l10n.sftpSessionHint,
+          onRetry: session == null
+              ? null
+              : () => widget.sessions.retry(server.id),
+        ),
+      ],
+    );
+
+    // Windows/Linux：头部直接排进自绘标题条那一行，内容整体上移，顶部不再多出
+    // 一条空白；macOS 的红绿灯浮在内容上，头部照旧让出顶部后排进面板。
+    if (usesCustomWindowCaption) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          WindowCaptionBar(leading: header),
+          _HeaderTags(server: server),
+          Expanded(child: tabs),
+        ],
+      );
+    }
+    final isMacOS = defaultTargetPlatform == TargetPlatform.macOS;
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, windowTopInset(10.0), 12, 8),
+              child: header,
+            ),
+            _HeaderTags(server: server),
+            Expanded(child: tabs),
+          ],
+        ),
+        // macOS 收起时，展开按钮浮在与红绿灯同行的位置。
+        if (isMacOS)
+          ?sidebarExpandButton(
+            context,
+            widget.sidebarCollapsed,
+            widget.onToggleSidebar,
+          ),
+      ],
+    );
+  }
+}
+
+/// 详情面板头部：服务器名 + 状态 + 操作按钮。
+///
+/// 操作按钮（⋯ 菜单 / 连接 / 断开连接）紧跟在名字后面而不是贴在面板右端：
+/// 头部已经上移到标题条这一行，右端是窗口按钮（关闭）的位置，摆在那里会打架。
+class _DetailHeader extends StatelessWidget {
+  const _DetailHeader({
+    required this.server,
+    required this.connected,
+    required this.sidebarCollapsed,
+    required this.onToggleSidebar,
+    required this.onConnect,
+    required this.onDelete,
+  });
+
+  final SshServer server;
+  final bool connected;
+  final bool sidebarCollapsed;
+  final VoidCallback? onToggleSidebar;
+  final VoidCallback onConnect;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final showExpand =
+        sidebarCollapsed &&
+        onToggleSidebar != null &&
+        defaultTargetPlatform != TargetPlatform.macOS;
+    return Row(
+      // 收缩包裹：头部排在标题条左侧，窄窗口下由名字省略号承担收缩。
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showExpand) ...[
+          _ExpandSidebarButton(onToggle: onToggleSidebar!),
+          const SizedBox(width: 2),
+        ],
+        Flexible(
+          child: Text(
+            server.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        StatusPill(status: server.status),
+        const SizedBox(width: 4),
+        PopupMenuButton<String>(
+          tooltip: l10n.moreActions,
+          icon: Icon(
+            Icons.more_horiz_rounded,
+            size: 19,
+            color: theme.secondaryText,
+          ),
+          onSelected: (action) {
+            if (action == 'delete') onDelete();
+          },
+          itemBuilder: (menuContext) => [
+            PopupMenuItem(
+              value: 'delete',
+              height: 36,
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.delete_outline_rounded,
+                    size: 16,
+                    color: AppPalette.danger,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    AppLocalizations.of(menuContext).deleteHost,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppPalette.danger,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(width: 4),
+        connected
+            ? OutlinedButton.icon(
+                onPressed: onConnect,
+                icon: const Icon(Icons.link_off_rounded, size: 15),
+                label: Text(l10n.disconnect),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  textStyle: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )
+            : FilledButton.icon(
+                onPressed: onConnect,
+                icon: const Icon(Icons.bolt_rounded, size: 15),
+                label: Text(l10n.connect),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  textStyle: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+      ],
+    );
+  }
+}
+
+/// 标签行：排在标题条 / 头部之下，没有标签时不占高度。
+/// 始终保留在树上，避免标签增减时把 Tab 容器搬到另一个子树位置。
+class _HeaderTags extends StatelessWidget {
+  const _HeaderTags({required this.server});
+
+  final SshServer server;
+
+  @override
+  Widget build(BuildContext context) {
+    if (server.tags.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Padding(
+      // 标题条行内时头部左内边距是 12（与侧边栏头部对齐），标签跟着它走；
+      // macOS 的头部仍在面板里、左内边距 16。
+      padding: EdgeInsets.fromLTRB(usesCustomWindowCaption ? 12 : 16, 6, 12, 0),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          for (final tag in server.tags) _TagChip(theme: theme, label: tag),
+        ],
+      ),
+    );
+  }
+}
+
+/// 三个 Tab 的标签栏与内容体：当前 Tab 索引收敛在这里，
+/// 切换时只重建标签栏与承载内容的 Stack，三个 Tab 子树实例保持不变。
+class _DetailTabs extends StatefulWidget {
+  const _DetailTabs({required this.labels, required this.children});
+
+  final List<String> labels;
+  final List<Widget> children;
+
+  @override
+  State<_DetailTabs> createState() => _DetailTabsState();
+}
+
+class _DetailTabsState extends State<_DetailTabs>
+    with SingleTickerProviderStateMixin {
+  late final TabController _controller = TabController(
+    length: widget.children.length,
+    vsync: this,
+  )..addListener(_onTabChanged);
+  int _index = 0;
+
+  // 切换动画期间会多次通知，只在 index 真正变化时重建。
+  void _onTabChanged() {
+    if (_controller.index != _index) {
+      setState(() => _index = _controller.index);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onTabChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TabBar(
+          controller: _controller,
+          tabs: [for (final label in widget.labels) Tab(text: label)],
+          onTap: (_) => FocusScope.of(context).unfocus(),
+        ),
+        Expanded(
+          child: _DetailTabView(index: _index, children: widget.children),
+        ),
+      ],
+    );
+  }
+}
+
+/// 常驻保活的 Tab 内容体：三个 Tab 始终参与布局（xterm 视图、SFTP 列表切走再
+/// 切回不需要重建），但只画当前这一个。
+///
+/// 这里不用 IndexedStack：它的 index 变化会 markNeedsLayout，整棵子树（终端
+/// 字符度量 + SFTP 列表）每次切换都要重新布局，实测一帧要几十毫秒，表现就是
+/// 切 Tab 卡顿、有顿挫感。Visibility(maintainSize: true) 只 markNeedsPaint，
+/// 隐藏的 Tab 保留布局尺寸，同时跳过绘制 / 命中 / 语义（等价于 IndexedStack
+/// 的可见性语义），切换因此退化成一次重绘。
+class _DetailTabView extends StatelessWidget {
+  const _DetailTabView({required this.index, required this.children});
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < children.length; i++)
+          Visibility(
+            visible: i == index,
+            maintainSize: true,
+            maintainState: true,
+            maintainAnimation: true,
+            child: children[i],
+          ),
+      ],
+    );
+  }
+}
+
+class _TagChip extends StatelessWidget {
+  const _TagChip({required this.theme, required this.label});
+
+  final ThemeData theme;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+      decoration: BoxDecoration(
+        color: theme.hoverOverlay,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: theme.hairline),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, color: theme.secondaryText),
+      ),
+    );
+  }
+}
+
+class OverviewTab extends StatelessWidget {
+  const OverviewTab({super.key, required this.server});
+
+  final SshServer server;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _InfoCard(
+                theme: theme,
+                label: l10n.hostAddress,
+                value: server.host,
+                trailing: IconButton(
+                  tooltip: l10n.copyAddress,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 26,
+                    height: 26,
+                  ),
+                  iconSize: 14,
+                  icon: Icon(
+                    Icons.copy_rounded,
+                    size: 14,
+                    color: theme.secondaryText,
+                  ),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: server.host));
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(content: Text(l10n.copied(server.host))),
+                      );
+                  },
+                ),
+              ),
+              _InfoCard(
+                theme: theme,
+                label: l10n.port,
+                value: '${server.port}',
+              ),
+              _InfoCard(
+                theme: theme,
+                label: l10n.username,
+                value: server.username,
+              ),
+              _InfoCard(
+                theme: theme,
+                label: l10n.authMethod,
+                value: authMethodLabel(l10n, server.authMethod),
+              ),
+              _InfoCard(
+                theme: theme,
+                label: l10n.lastConnected,
+                value: formatRelativeTime(l10n, server.lastConnectedAt),
+              ),
+              _InfoCard(theme: theme, label: l10n.group, value: server.group),
+            ],
+          ),
+          if (server.notes != null) ...[
+            const SizedBox(height: 18),
+            Text(
+              l10n.notes,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.4,
+                color: theme.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: theme.panelBackground,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.hairline),
+              ),
+              child: Text(
+                server.notes!,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.5,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({
+    required this.theme,
+    required this.label,
+    required this.value,
+    this.trailing,
+  });
+
+  final ThemeData theme;
+  final String label;
+  final String value;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 218,
+      padding: const EdgeInsets.fromLTRB(14, 11, 8, 11),
+      decoration: BoxDecoration(
+        color: theme.panelBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.hairline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.3,
+              color: theme.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 终端视图：有会话时渲染真实 SSH 终端，否则展示静态引导画面。
+/// 桌面端详情面板与移动端详情页共用。
+final class TerminalTab extends StatelessWidget {
+  const TerminalTab({
+    super.key,
+    required this.server,
+    this.session,
+    this.onRetry,
+    this.idleHint,
+  });
+
+  final SshServer server;
+
+  /// 当前主机的 SSH 会话；为空表示尚未建立，展示引导画面。
+  final TerminalSession? session;
+
+  /// 失败 / 已结束时的重连动作。
+  final VoidCallback? onRetry;
+
+  /// 未连接时的提示文案，桌面端与移动端入口措辞不同。
+  final String? idleHint;
+
+  @override
+  Widget build(BuildContext context) {
+    final session = this.session;
+    // 只监听终端样式偏好：配色 / 字体变化时仅终端面板重建。
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: ValueListenableBuilder<TerminalStylePrefs>(
+        valueListenable: TerminalStyleScope.of(context).notifier,
+        builder: (context, prefs, _) {
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: prefs.theme.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Theme.of(context).hairline),
+            ),
+            // RepaintBoundary 只包住终端本体：它把终端的高频重绘（输出流）
+            // 隔离在内部，同时让外层边框/背景换色（如主题切换动画）只重绘
+            // 容器本身，不再连带把整幅终端缓冲区按帧重画一遍。
+            child: RepaintBoundary(
+              child: session == null
+                  ? _buildIdleOutput(context, prefs)
+                  : SshTerminalView(session: session, onRetry: onRetry),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildIdleOutput(BuildContext context, TerminalStylePrefs prefs) {
+    final colors = prefs.theme;
+    // 未连接时的占位输出跟着终端字号走：连上前后字号一致，不会「一跳变样」。
+    final mono = TextStyle(
+      fontSize: prefs.fontSize.toDouble(),
+      height: 1.55,
+      fontFamily: prefs.resolvedFontFamily,
+      fontFamilyFallback: prefs.fontFallback,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: SelectionArea(
+            child: SingleChildScrollView(
+              child: Text.rich(
+                TextSpan(
+                  style: mono,
+                  children: [
+                    TextSpan(
+                      text: r'$ ',
+                      style: TextStyle(color: colors.brightBlack),
+                    ),
+                    TextSpan(
+                      text: 'ssh ${server.account}\n',
+                      style: TextStyle(color: colors.foreground),
+                    ),
+                    TextSpan(
+                      text:
+                          idleHint ??
+                          AppLocalizations.of(context).sessionDesktopHint,
+                      style: TextStyle(color: colors.brightBlack),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'ssh · ${server.account}',
+          style: TextStyle(
+            fontSize: (prefs.fontSize - 2).clamp(9, 20).toDouble(),
+            color: colors.foreground.withValues(alpha: 0.35),
+          ),
+        ),
+      ],
+    );
+  }
+}

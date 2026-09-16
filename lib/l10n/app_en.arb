@@ -1,0 +1,388 @@
+{
+  "@@locale": "en",
+  "appName": "NoShell",
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "edit": "Edit",
+  "connect": "Connect",
+  "disconnect": "Disconnect",
+  "connectNow": "Connect now",
+  "newConnection": "New connection",
+  "editConnection": "Edit connection",
+  "defaultGroupName": "Default group",
+  "undo": "Undo",
+  "deletedSnackbar": "Deleted {name}",
+  "@deletedSnackbar": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteConfirmTitle": "Delete \"{name}\"?",
+  "@deleteConfirmTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteConfirmBody": "This host will be removed and cannot be recovered.",
+  "hostNotFound": "Host not found",
+  "language": "Language",
+  "followSystem": "System",
+  "statusConnected": "Connected",
+  "statusConnecting": "Connecting",
+  "statusError": "Failed",
+  "statusIdle": "Not connected",
+  "hostCount": "{count, plural, =1{1 host} other{{count} hosts}}",
+  "@hostCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "collapseSidebar": "Collapse sidebar ({shortcut})",
+  "@collapseSidebar": {
+    "placeholders": {
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  },
+  "expandSidebar": "Expand sidebar ({shortcut})",
+  "@expandSidebar": {
+    "placeholders": {
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  },
+  "windowMinimize": "Minimize",
+  "windowMaximize": "Maximize",
+  "windowRestore": "Restore",
+  "windowClose": "Close",
+  "searchHint": "Search name, host, or tag…",
+  "noMatchingHosts": "No matching hosts",
+  "about": "About",
+  "switchToDark": "Switch to dark",
+  "switchToLight": "Switch to light",
+  "selectHostToStart": "Select a host to get started",
+  "emptyDetailHint": "Pick a host from the sidebar to view its details, or create a new connection.",
+  "overview": "Overview",
+  "terminal": "Terminal",
+  "sftp": "SFTP",
+  "moreActions": "More actions",
+  "deleteHost": "Delete host",
+  "hostAddress": "Host address",
+  "copyAddress": "Copy address",
+  "copied": "Copied {value}",
+  "@copied": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "port": "Port",
+  "username": "Username",
+  "authMethod": "Authentication",
+  "authPassword": "Password",
+  "authKey": "SSH key",
+  "lastConnected": "Last connected",
+  "group": "Group",
+  "notes": "Notes",
+  "notesOptional": "Notes (optional)",
+  "pasteMetadata": "Paste metadata (optional)",
+  "pasteMetadataHint": "name: fofo\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password",
+  "sessionDesktopHint": "No session yet — click \"Connect\" at the top right to start an SSH session and use the terminal.\n",
+  "sessionMobileHint": "No session yet — tap \"Connect now\" at the bottom to start an SSH session and use the terminal.\n",
+  "connectAuthTitle": "Connect to \"{name}\"",
+  "@connectAuthTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "authMemoryHint": "Credentials are used for this connection; check \"Remember credentials\" to store them securely.",
+  "rememberCredentials": "Remember credentials",
+  "fieldPrivateKey": "Private key (PEM)",
+  "privateKeyHint": "-----BEGIN OPENSSH PRIVATE KEY-----",
+  "fieldPassphrase": "Key passphrase (optional)",
+  "credentialsRequired": "Please enter a password or paste a key",
+  "connectingTo": "Connecting to {account}…",
+  "@connectingTo": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionClosedMsg": "Session closed",
+  "authFailedMsg": "Authentication failed — check your password or key",
+  "networkErrorMsg": "Cannot reach host — check address, port and network",
+  "webUnsupportedMsg": "SSH connections are not supported on web yet",
+  "hostKeyChangedMsg": "Host key verification failed — the server's fingerprint no longer matches the one recorded at first connection, so the connection was refused. If the server was rebuilt on purpose, forget the recorded fingerprint and reconnect; otherwise beware of a man-in-the-middle attack.",
+  "hostKeyForgetAndRetry": "Forget fingerprint and reconnect",
+  "reconnect": "Reconnect",
+  "fieldName": "Name",
+  "nameHint": "e.g. web-prod-01",
+  "nameRequired": "Please enter a name",
+  "fieldHost": "Host",
+  "hostHint": "IP or domain",
+  "hostRequired": "Please enter a host",
+  "portInvalid": "1-65535",
+  "usernameHint": "e.g. root",
+  "usernameRequired": "Please enter a username",
+  "groupHint": "e.g. Production",
+  "navServers": "Servers",
+  "navKeys": "Keys",
+  "navSettings": "Settings",
+  "search": "Search",
+  "cancelSearch": "Cancel search",
+  "noHostsYet": "No hosts yet",
+  "createFirstConnection": "Tap the button below to create a connection",
+  "noHostsHint": "Create one with the + button above",
+  "tryAnotherKeyword": "Try a different keyword",
+  "keysComingSoon": "Key management coming soon",
+  "keysComingSoonHint": "You will be able to generate and import Ed25519 / RSA keys",
+  "noActiveSessions": "No active sessions",
+  "sessionsEmptyHint": "Connect to a host on the Servers tab and sessions will show up here",
+  "appearance": "Appearance",
+  "theme": "Theme",
+  "light": "Light",
+  "dark": "Dark",
+  "appFont": "App font",
+  "fontSystemDefault": "System default",
+  "fontMonospace": "Monospace",
+  "terminalPreset": "Terminal theme",
+  "terminalFont": "Terminal font",
+  "terminalFontSize": "Terminal font size",
+  "fontSizeDecrease": "Decrease font size",
+  "fontSizeIncrease": "Increase font size",
+  "fontCustom": "Custom font…",
+  "terminalFontCustomName": "Font family",
+  "terminalFontCustomHint": "e.g. Fira Code, Sarasa Mono SC",
+  "presetDefaultDark": "Default dark",
+  "biometricLock": "Biometric lock",
+  "comingSoon": "Coming soon",
+  "settingsSubtitle": "Theme, terminal and language",
+  "appearanceHint": "Theme and font for the app UI",
+  "terminalSectionHint": "Colors, font and size used by terminals",
+  "languageHint": "UI language; Automatic follows the system",
+  "terminalPreview": "Preview",
+  "terminalPreviewCommand": "ssh deploy@10.0.0.1",
+  "settingsApplyHint": "Changes apply immediately",
+  "done": "Done",
+  "sftpSessionHint": "No session yet — click \"Connect\" at the top right to browse the server files.\n",
+  "sftpSessionMobileHint": "No session yet — tap \"Connect now\" below to browse the server files.\n",
+  "sftpRetry": "Retry",
+  "sftpUp": "Parent folder",
+  "sftpRefresh": "Refresh",
+  "sftpUpload": "Upload",
+  "sftpDownload": "Download",
+  "sftpNewFolder": "New folder",
+  "sftpEditPath": "Edit path",
+  "sftpPathHint": "Remote path",
+  "sftpFilter": "Filter",
+  "sftpFilterHint": "Filter in this folder…",
+  "sftpShowHidden": "Show hidden files",
+  "sftpHideHidden": "Hide hidden files",
+  "sftpSortBy": "Sort by",
+  "sftpSortName": "Name",
+  "sftpSortSize": "Size",
+  "sftpSortModified": "Modified",
+  "sftpSortAscending": "Ascending",
+  "sftpSortDescending": "Descending",
+  "sftpCopyPath": "Copy path",
+  "sftpRename": "Rename",
+  "sftpColumnName": "Name",
+  "sftpColumnSize": "Size",
+  "sftpColumnModified": "Modified",
+  "sftpColumnPermissions": "Permissions",
+  "sftpItemCount": "{count, plural, =1{1 item} other{{count} items}}",
+  "@sftpItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sftpSelectedCount": "{count, plural, =1{1 selected} other{{count} selected}}",
+  "@sftpSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sftpTotalSize": "{size} total",
+  "@sftpTotalSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpFolderEmpty": "This folder is empty",
+  "sftpFolderEmptyHint": "Use Upload to send local files here",
+  "sftpNoMatches": "No matching items",
+  "sftpNewFolderTitle": "New folder",
+  "sftpFolderNameField": "Folder name",
+  "sftpRenameTitle": "Rename \"{name}\"",
+  "@sftpRenameTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpNameInvalid": "Name cannot contain \"/\" or \"..\"",
+  "sftpDeleteTitle": "Delete \"{name}\"?",
+  "@sftpDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpDeleteMultiTitle": "{count, plural, =1{Delete this item?} other{Delete these {count} items?}}",
+  "@sftpDeleteMultiTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sftpDeleteFileBody": "Deleted files cannot be recovered.",
+  "sftpDeleteFolderBody": "The folder and everything inside it will be deleted, and cannot be recovered.",
+  "sftpOverwriteTitle": "File already exists",
+  "sftpOverwriteBody": "{count, plural, =1{1 file with the same name already exists here. Overwrite it?} other{{count} files with the same name already exist here. Overwrite them?}}",
+  "@sftpOverwriteBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sftpOverwrite": "Overwrite",
+  "sftpTransfersTitle": "Transfers",
+  "sftpClearFinished": "Clear finished",
+  "sftpCanceled": "Canceled",
+  "sftpDone": "Done",
+  "sftpFailed": "Failed",
+  "sftpRemaining": "{time} left",
+  "@sftpRemaining": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpUploaded": "Uploaded {name}",
+  "@sftpUploaded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpDownloaded": "Saved {name}",
+  "@sftpDownloaded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpUploadFailed": "Upload failed: {name}",
+  "@sftpUploadFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpDownloadFailed": "Download failed: {name}",
+  "@sftpDownloadFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpTransferCanceledMsg": "Canceled {name}",
+  "@sftpTransferCanceledMsg": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpPickerFailed": "Cannot open the file picker",
+  "sftpTargetUnavailable": "Cannot determine where to save the file",
+  "sftpErrorPermission": "Permission denied",
+  "sftpErrorNotFound": "Path not found",
+  "sftpErrorUnsupported": "This connection does not support SFTP",
+  "sftpErrorNetwork": "Connection lost",
+  "sftpErrorOther": "Operation failed",
+  "neverConnected": "Never connected",
+  "justNow": "Just now",
+  "minutesAgo": "{count, plural, =1{1 minute ago} other{{count} minutes ago}}",
+  "@minutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hoursAgo": "{count, plural, =1{1 hour ago} other{{count} hours ago}}",
+  "@hoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "daysAgo": "{count, plural, =1{1 day ago} other{{count} days ago}}",
+  "@daysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importHosts": "Import hosts",
+  "exportHosts": "Export hosts",
+  "importExportHosts": "Import / export hosts",
+  "importDone": "{count, plural, =1{1 host imported} other{{count} hosts imported}}",
+  "@importDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importSkipped": "{count, plural, =1{1 duplicate skipped} other{{count} duplicates skipped}}",
+  "@importSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importEmpty": "No valid host entries found. Please check the file format.",
+  "exportDone": "{count, plural, =1{1 host exported} other{{count} hosts exported}}",
+  "@exportDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exportEmpty": "No hosts to export",
+  "exportFailed": "Export failed. Please try again."
+}

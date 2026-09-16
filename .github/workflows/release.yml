@@ -1,0 +1,235 @@
+# Release：推送 tag（如 0.1.0 / v0.1.0）时自动多平台构建并创建 GitHub Release。
+# 产物矩阵：web zip / android apk / linux deb+rpm / macos arm64 zip（仅 Apple Silicon）/
+# windows 免安装 zip + MSIX（附一次性自签证书 .cer，安装前需导入信任）。
+# iOS 需要开发者证书签名，暂不纳入自动构建。
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '*.*.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: web
+            flutter-build: web
+            runs-on: ubuntu-latest
+          - target: android
+            flutter-build: apk
+            runs-on: ubuntu-latest
+          - target: linux
+            flutter-build: linux
+            runs-on: ubuntu-latest
+          - target: macos
+            flutter-build: macos
+            runs-on: macos-latest
+          - target: windows
+            flutter-build: windows
+            runs-on: windows-latest
+
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 安装 Linux 构建依赖
+        if: matrix.target == 'linux'
+        run: >
+          sudo apt-get update -y &&
+          sudo apt-get install -y ninja-build libgtk-3-dev clang cmake pkg-config
+          libsecret-1-dev libjsoncpp-dev rpm
+
+      - name: 安装依赖
+        run: flutter pub get
+
+      - name: 构建产物
+        run: flutter build ${{ matrix.flutter-build }} --release
+
+      - name: 打包（web）
+        if: matrix.target == 'web'
+        run: |
+          cd build/web
+          zip -qr "../../NoShell-${{ github.ref_name }}-web.zip" .
+
+      - name: 打包（android）
+        if: matrix.target == 'android'
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "NoShell-${{ github.ref_name }}-android.apk"
+
+      # deb / rpm：装到 /opt/noshell，附 .desktop 入口与 /usr/bin 软链。
+      - name: 打包（linux deb + rpm）
+        if: matrix.target == 'linux'
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUNDLE=build/linux/x64/release/bundle
+
+          rm -rf .deb-pkg
+          mkdir -p .deb-pkg/noshell/DEBIAN \
+            .deb-pkg/noshell/opt \
+            .deb-pkg/noshell/usr/bin \
+            .deb-pkg/noshell/usr/share/applications
+          cp -R "$BUNDLE" .deb-pkg/noshell/opt/noshell
+          ln -s /opt/noshell/NoShell .deb-pkg/noshell/usr/bin/noshell
+          # hicolor 主题图标：flutter_launcher_icons 不覆盖 Linux，图源见 icon/。
+          for n in 16 24 32 48 64 128 256 512; do
+            install -Dm644 "icon/png/linux/noshell-$n.png" \
+              ".deb-pkg/noshell/usr/share/icons/hicolor/${n}x${n}/apps/noshell.png"
+          done
+          cat > .deb-pkg/noshell/DEBIAN/control <<CONTROL
+          Package: noshell
+          Version: $VERSION
+          Section: net
+          Priority: optional
+          Architecture: amd64
+          Depends: libgtk-3-0t64 | libgtk-3-0, libsecret-1-0
+          Maintainer: chengvar <chengvar@users.noreply.github.com>
+          Description: NoShell — cross-platform SSH connection manager
+           SSH terminal, SFTP file management and secure credential storage.
+          CONTROL
+          cat > .deb-pkg/noshell/usr/share/applications/noshell.desktop <<DESKTOP
+          [Desktop Entry]
+          Type=Application
+          Name=NoShell
+          Comment=SSH terminal and SFTP file management
+          Exec=/opt/noshell/NoShell
+          Icon=noshell
+          Terminal=false
+          Categories=Network;RemoteAccess;
+          DESKTOP
+          dpkg-deb --build --root-owner-group .deb-pkg/noshell \
+            "NoShell-${GITHUB_REF_NAME}-linux-amd64.deb"
+
+          rm -rf .rpm-build
+          mkdir -p .rpm-build/BUILD .rpm-build/RPMS .rpm-build/SPECS .rpm-build/SOURCES .rpm-build/SRPMS
+          cat > .rpm-build/SPECS/noshell.spec <<SPEC
+          Name:           noshell
+          Version:        $VERSION
+          Release:        1
+          Summary:        NoShell — cross-platform SSH connection manager
+          License:        Proprietary
+          BuildArch:      x86_64
+          Requires:       gtk3, libsecret
+
+          %description
+          SSH terminal, SFTP file management and secure credential storage.
+
+          %install
+          mkdir -p %{buildroot}/opt/noshell %{buildroot}/usr/bin %{buildroot}/usr/share/applications
+          cp -R "$PWD/$BUNDLE/." %{buildroot}/opt/noshell/
+          ln -s /opt/noshell/NoShell %{buildroot}/usr/bin/noshell
+          # 循环变量延时到 rpmbuild 执行 %install 时才展开（此处已转义）。
+          for n in 16 24 32 48 64 128 256 512; do
+            install -Dm644 "$PWD/icon/png/linux/noshell-\$n.png" \
+              "%{buildroot}/usr/share/icons/hicolor/\${n}x\${n}/apps/noshell.png"
+          done
+          cat > %{buildroot}/usr/share/applications/noshell.desktop <<DESKTOP
+          [Desktop Entry]
+          Type=Application
+          Name=NoShell
+          Comment=SSH terminal and SFTP file management
+          Exec=/opt/noshell/NoShell
+          Icon=noshell
+          Terminal=false
+          Categories=Network;RemoteAccess;
+          DESKTOP
+
+          %files
+          /opt/noshell
+          /usr/bin/noshell
+          /usr/share/applications/noshell.desktop
+          /usr/share/icons/hicolor
+          SPEC
+          rpmbuild -bb --define "_topdir $PWD/.rpm-build" \
+            .rpm-build/SPECS/noshell.spec
+          cp .rpm-build/RPMS/x86_64/noshell-*.rpm \
+            "NoShell-${GITHUB_REF_NAME}-linux-x86_64.rpm"
+
+      # macOS 构建产物已在 Release.xcconfig 限定 arm64（仅 Apple Silicon）。
+      - name: 打包（macos arm64）
+        if: matrix.target == 'macos'
+        run: >
+          ditto -c -k --sequesterRsrc --keepParent
+          build/macos/Build/Products/Release/NoShell.app
+          "NoShell-${{ github.ref_name }}-macos-arm64.zip"
+
+      - name: 生成 MSIX 一次性自签证书
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type Custom `
+            -Subject "CN=NoShell" `
+            -KeyUsage DigitalSignature -FriendlyName "NoShell release" `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
+            -NotAfter (Get-Date).AddYears(3)
+          $password = ConvertTo-SecureString -String "noshell-msix" -Force -AsPlainText
+          # pfx 含私钥，文件名刻意不带 NoShell- 前缀，避免被产物上传 glob 收走。
+          Export-PfxCertificate -Cert $cert -FilePath msix-signing.pfx `
+            -Password $password | Out-Null
+          Export-Certificate -Cert $cert `
+            -FilePath "NoShell-$($env:GITHUB_REF_NAME)-windows.cer" | Out-Null
+
+      # MSIX 与免安装 zip 并行提供；证书随包发布，安装前需把 .cer 导入
+      # 「受信任的人」/「受信任的根证书颁发机构」。
+      - name: 打包（windows MSIX）
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $version = ($env:GITHUB_REF_NAME -replace '^v', '') + ".0"
+          dart run msix:create `
+            --build-windows false `
+            --version $version `
+            --certificate-path msix-signing.pfx `
+            --certificate-password noshell-msix `
+            --output-name "NoShell-$($env:GITHUB_REF_NAME)-windows"
+          $msix = Get-ChildItem -Path build -Recurse -Filter "*.msix" |
+            Select-Object -First 1
+          if ($null -eq $msix) { throw "msix not produced" }
+          Move-Item $msix.FullName "NoShell-$($env:GITHUB_REF_NAME)-windows.msix"
+
+      - name: 打包（windows 免安装 zip）
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: >
+          Compress-Archive -Path build\windows\x64\runner\Release\*
+          -DestinationPath "NoShell-$($env:GITHUB_REF_NAME)-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: noshell-${{ matrix.target }}
+          path: |
+            NoShell-*
+            !msix-signing.pfx
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/NoShell-*

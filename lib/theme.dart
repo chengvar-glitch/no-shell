@@ -1,0 +1,263 @@
+import 'package:flutter/material.dart';
+
+import 'models.dart';
+import 'settings.dart';
+
+/// 与 ZCode / Codex 类似的开发者工具配色：低饱和深灰 + 蓝色强调色。
+abstract final class AppPalette {
+  static const pageDark = Color(0xFF0F1114);
+  static const panelDark = Color(0xFF171B21);
+  static const sidebarDark = Color(0xFF0C0E11);
+  static const terminalDark = Color(0xFF0A0C0F);
+
+  static const pageLight = Color(0xFFF6F7F9);
+  static const panelLight = Color(0xFFFFFFFF);
+  static const sidebarLight = Color(0xFFECEEF2);
+
+  static const success = Color(0xFF3FB950);
+  static const warning = Color(0xFFD29922);
+  static const danger = Color(0xFFF85149);
+  static const idle = Color(0xFF8B949E);
+
+  static const seed = Color(0xFF4C8DFF);
+}
+
+/// 面板 / 分隔线 / 悬浮等语义色的载体。
+///
+/// 这些颜色不能只按 [ThemeData.brightness] 现算：主题切换由 [AnimatedTheme]
+/// 驱动，而 [ThemeData.lerp] 对 brightness 做的是 t < 0.5 的硬切换，现算值会在
+/// 动画中点整体跳一下，看起来就是「卡顿」。放进 [ThemeExtension] 后由扩展自己
+/// 的 [lerp] 插值，就能和 ColorScheme 一起逐帧平滑过渡。
+@immutable
+class AppColors extends ThemeExtension<AppColors> {
+  const AppColors({
+    required this.pageBackground,
+    required this.panelBackground,
+    required this.sidebarBackground,
+    required this.hairline,
+    required this.hoverOverlay,
+  });
+
+  final Color pageBackground;
+  final Color panelBackground;
+  final Color sidebarBackground;
+  final Color hairline;
+  final Color hoverOverlay;
+
+  static const dark = AppColors(
+    pageBackground: AppPalette.pageDark,
+    panelBackground: AppPalette.panelDark,
+    sidebarBackground: AppPalette.sidebarDark,
+    hairline: Color(0x14FFFFFF),
+    hoverOverlay: Color(0x0DFFFFFF),
+  );
+
+  static const light = AppColors(
+    pageBackground: AppPalette.pageLight,
+    panelBackground: AppPalette.panelLight,
+    sidebarBackground: AppPalette.sidebarLight,
+    hairline: Color(0x14000000),
+    hoverOverlay: Color(0x07000000),
+  );
+
+  static AppColors of(Brightness brightness) =>
+      brightness == Brightness.dark ? dark : light;
+
+  @override
+  AppColors copyWith({
+    Color? pageBackground,
+    Color? panelBackground,
+    Color? sidebarBackground,
+    Color? hairline,
+    Color? hoverOverlay,
+  }) {
+    return AppColors(
+      pageBackground: pageBackground ?? this.pageBackground,
+      panelBackground: panelBackground ?? this.panelBackground,
+      sidebarBackground: sidebarBackground ?? this.sidebarBackground,
+      hairline: hairline ?? this.hairline,
+      hoverOverlay: hoverOverlay ?? this.hoverOverlay,
+    );
+  }
+
+  @override
+  AppColors lerp(ThemeExtension<AppColors>? other, double t) {
+    if (other is! AppColors) return this;
+    return AppColors(
+      pageBackground: Color.lerp(pageBackground, other.pageBackground, t)!,
+      panelBackground: Color.lerp(panelBackground, other.panelBackground, t)!,
+      sidebarBackground: Color.lerp(
+        sidebarBackground,
+        other.sidebarBackground,
+        t,
+      )!,
+      hairline: Color.lerp(hairline, other.hairline, t)!,
+      hoverOverlay: Color.lerp(hoverOverlay, other.hoverOverlay, t)!,
+    );
+  }
+}
+
+/// 统一的面板 / 分隔线 / 悬浮等语义色，避免组件里散落硬编码颜色。
+extension AppThemeX on ThemeData {
+  /// 语义色板；ThemeData 未注册扩展时按亮度取常量兜底，取值永不抛错。
+  AppColors get appColors => extension<AppColors>() ?? AppColors.of(brightness);
+
+  Color get pageBackground => appColors.pageBackground;
+
+  Color get panelBackground => appColors.panelBackground;
+
+  Color get sidebarBackground => appColors.sidebarBackground;
+
+  Color get hairline => appColors.hairline;
+
+  Color get hoverOverlay => appColors.hoverOverlay;
+
+  /// 整行可点入口（侧边栏底部「设置」这类）的悬停底色。
+  /// [hoverOverlay] 只有 2~5% 的灰度差，单独铺在整行上几乎看不出来；这一档
+  /// 与图标按钮（Material 默认 8% onSurface）同强度，保证「能点」一眼可见。
+  /// 主机行不用它：那一行悬停时会浮出连接按钮，反馈已经足够。
+  Color get rowHover => colorScheme.onSurface.withValues(alpha: 0.08);
+
+  Color get selectedOverlay => colorScheme.primary.withValues(
+    alpha: brightness == Brightness.dark ? 0.20 : 0.12,
+  );
+
+  Color get secondaryText => colorScheme.onSurface.withValues(alpha: 0.62);
+
+  Color statusColor(ServerStatus status) => switch (status) {
+    ServerStatus.connected => AppPalette.success,
+    ServerStatus.connecting => AppPalette.warning,
+    ServerStatus.error => AppPalette.danger,
+    ServerStatus.idle => AppPalette.idle,
+  };
+}
+
+abstract final class AppTheme {
+  static ThemeData light([UiFont font = UiFont.system]) =>
+      _build(Brightness.light, font);
+
+  static ThemeData dark([UiFont font = UiFont.system]) =>
+      _build(Brightness.dark, font);
+
+  /// 按（亮度, 界面字体）维度缓存：构建 ThemeData 开销不小，
+  /// 主题与字体切换均为低频操作，命中缓存即可零成本重建 MaterialApp。
+  static final _cache = <(Brightness, UiFont), ThemeData>{};
+
+  static ThemeData _build(Brightness brightness, UiFont font) =>
+      _cache.putIfAbsent((brightness, font), () => _create(brightness, font));
+
+  static ThemeData _create(Brightness brightness, UiFont font) {
+    final isDark = brightness == Brightness.dark;
+    final colors = AppColors.of(brightness);
+    final scheme = ColorScheme.fromSeed(
+      seedColor: AppPalette.seed,
+      brightness: brightness,
+    );
+    final hairline = colors.hairline;
+
+    var data = ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      brightness: brightness,
+      // 注册语义色扩展，主题切换时随 ColorScheme 一起插值（见 AppColors）。
+      extensions: [colors],
+      scaffoldBackgroundColor: colors.pageBackground,
+      splashFactory: NoSplash.splashFactory,
+      dividerTheme: DividerThemeData(color: hairline, thickness: 1, space: 1),
+      scrollbarTheme: ScrollbarThemeData(
+        thickness: const WidgetStatePropertyAll(6),
+        minThumbLength: 40,
+        radius: const Radius.circular(3),
+        thumbColor: WidgetStatePropertyAll(
+          scheme.onSurface.withValues(alpha: 0.22),
+        ),
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: scheme.onSurface,
+        unselectedLabelColor: scheme.onSurface.withValues(alpha: 0.55),
+        indicatorColor: scheme.primary,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: hairline,
+        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        // 选中 / 未选中的**字重必须一致**（只靠颜色 + 指示器区分选中态）：
+        // 两者字重不同时 M3 的 TabBar 会用 AnimatedDefaultTextStyle 逐帧插值
+        // 标签样式，每一帧的插值样式都会让标签段落重新排版，在本机
+        // （Linux + Impeller）实测每次切换单帧阻塞 1.5~2.1s（release 构建
+        // 同样复现，raster 仅 0~2ms，帧耗时全在布局阶段的 RenderParagraph
+        // 上），表现就是「连上 SSH 后切三个 Tab 非常卡」；字重统一后同一
+        // 路径单帧回落到 4~6ms。颜色插值本身不触发这个问题。
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: isDark ? AppPalette.panelDark : AppPalette.panelLight,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        titleTextStyle: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: scheme.onSurface,
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: isDark
+            ? const Color(0xFF232A33)
+            : const Color(0xFF1F242C),
+        contentTextStyle: const TextStyle(
+          fontSize: 13,
+          color: Color(0xFFE6EDF3),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: isDark ? AppPalette.panelDark : AppPalette.panelLight,
+        surfaceTintColor: Colors.transparent,
+        elevation: 10,
+        position: PopupMenuPosition.over,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: TextStyle(fontSize: 13, color: scheme.onSurface),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2A313B) : const Color(0xFF2B313A),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: const TextStyle(fontSize: 11.5, color: Color(0xFFE6EDF3)),
+        waitDuration: const Duration(milliseconds: 450),
+      ),
+      inputDecorationTheme: InputDecorationThemeData(
+        isDense: true,
+        filled: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(9),
+          borderSide: BorderSide(color: hairline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(9),
+          borderSide: BorderSide(color: hairline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(9),
+          borderSide: BorderSide(color: scheme.primary, width: 1.2),
+        ),
+      ),
+    );
+    // 界面字体：应用到整套文本主题，目标字体未安装时按回退链解析。
+    if (font != UiFont.system) {
+      data = data.copyWith(
+        textTheme: data.textTheme.apply(
+          fontFamily: font.fontFamily,
+          fontFamilyFallback: font.fallback,
+        ),
+        primaryTextTheme: data.primaryTextTheme.apply(
+          fontFamily: font.fontFamily,
+          fontFamilyFallback: font.fallback,
+        ),
+      );
+    }
+    return data;
+  }
+}

@@ -1,0 +1,7 @@
+#include "../../Flutter/Flutter-Release.xcconfig"
+#include "Warnings.xcconfig"
+
+// 发布包只支持 Apple Silicon（M 系列）：直接限制构建架构，
+// 不再产出 universal 二进制，Release 产物体积减半。
+ARCHS=arm64
+ONLY_ACTIVE_ARCH=YES
