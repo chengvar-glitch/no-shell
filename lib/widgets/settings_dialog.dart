@@ -445,15 +445,8 @@ class _SettingBlock extends StatelessWidget {
 
 /// 终端配色选择器：每块用它自己的配色绘制（背景 + 前景 + 强调色），
 /// 选中的一块描边高亮并打勾；比下拉列表更容易一眼比出深浅与色相。
-class _PresetPicker extends StatefulWidget {
+class _PresetPicker extends StatelessWidget {
   const _PresetPicker();
-
-  @override
-  State<_PresetPicker> createState() => _PresetPickerState();
-}
-
-class _PresetPickerState extends State<_PresetPicker> {
-  TerminalPreset? _hovered;
 
   @override
   Widget build(BuildContext context) {
@@ -479,9 +472,6 @@ class _PresetPickerState extends State<_PresetPicker> {
                       preset: preset,
                       label: preset.label(l10n),
                       selected: preset == prefs.preset,
-                      hovered: preset == _hovered,
-                      onHover: (value) =>
-                          setState(() => _hovered = value ? preset : null),
                       onTap: () =>
                           scope.notifier.value = prefs.copyWith(preset: preset),
                     ),
@@ -495,34 +485,40 @@ class _PresetPickerState extends State<_PresetPicker> {
   }
 }
 
-class _PresetTile extends StatelessWidget {
+/// 悬停态收敛在 tile 内部：鼠标扫过时只重建这一块，不惊动整组 tile。
+class _PresetTile extends StatefulWidget {
   const _PresetTile({
     required this.preset,
     required this.label,
     required this.selected,
-    required this.hovered,
-    required this.onHover,
     required this.onTap,
   });
 
   final TerminalPreset preset;
   final String label;
   final bool selected;
-  final bool hovered;
-  final ValueChanged<bool> onHover;
   final VoidCallback onTap;
+
+  @override
+  State<_PresetTile> createState() => _PresetTileState();
+}
+
+class _PresetTileState extends State<_PresetTile> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = preset.theme;
+    final colors = widget.preset.theme;
     final highlight = theme.colorScheme.primary;
+    final hovered = _hovered;
+    final selected = widget.selected;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      onEnter: (_) => onHover(true),
-      onExit: (_) => onHover(false),
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 130),
           curve: Curves.easeOut,
@@ -547,7 +543,7 @@ class _PresetTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      label,
+                      widget.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

@@ -32,10 +32,19 @@ final class SharedPreferencesServerPersistence implements ServerPersistence {
     }
     try {
       final list = jsonDecode(raw) as List<Object?>;
-      return [
-        for (final item in list)
-          SshServer.fromJson(item! as Map<String, Object?>),
-      ];
+      // 逐条解析：一条坏记录只跳过那一条，不再让整份主机列表清零。
+      final servers = <SshServer>[];
+      for (final item in list) {
+        if (item is! Map) continue;
+        try {
+          servers.add(SshServer.fromJson(item.cast<String, Object?>()));
+        } on FormatException {
+          continue;
+        } on TypeError {
+          continue;
+        }
+      }
+      return servers;
     } on FormatException {
       return null;
     } on TypeError {

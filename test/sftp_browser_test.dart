@@ -228,6 +228,24 @@ void main() {
       expect(controller.entries.map((entry) => entry.name), ['builds']);
     });
 
+    test('递归删除不穿透符号链接', () async {
+      final (:controller, :fs) = await ready();
+      addTearDown(controller.dispose);
+      // /data 是真实目录，home 里的 link 指向它：删 link 不能动 /data 的内容。
+      final data = fs.addDirectory(fs.home, 'data');
+      fs.addFile(data.path, 'precious.txt', content: [1, 2, 3]);
+      fs.addSymlink(fs.home, 'link', data.path);
+      await controller.refresh();
+
+      await controller.deleteEntries([
+        controller.entries.firstWhere((entry) => entry.name == 'link'),
+      ]);
+      // 链接已删，目标目录与其内容原样保留。
+      expect(controller.entries.map((entry) => entry.name), ['data']);
+      expect(fs.listings.containsKey(data.path), isTrue);
+      expect(fs.contents['${data.path}/precious.txt'], [1, 2, 3]);
+    });
+
     test('非法名称被拒绝', () async {
       final (:controller, :fs) = await ready();
       addTearDown(controller.dispose);

@@ -32,7 +32,16 @@ class ServersTab extends StatefulWidget {
 
 class _ServersTabState extends State<ServersTab> {
   bool _searching = false;
-  String _query = '';
+
+  /// 搜索关键词走 ValueNotifier：每次输入只重建列表子树，
+  /// 不把 setState 上抛到整个 Tab（含毛玻璃顶栏与 FAB）。
+  final ValueNotifier<String> _query = ValueNotifier('');
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
 
   void _openEditor([SshServer? existing]) {
     Navigator.of(context).push(
@@ -158,13 +167,6 @@ class _ServersTabState extends State<ServersTab> {
     return ListenableBuilder(
       listenable: widget.store,
       builder: (context, _) {
-        final groups = widget.store.groups(query: _query);
-        final total = widget.store.serverCount;
-        // 扁平化为「分组头 / 主机行」序列，itemBuilder 按下标直取，
-        // 避免每构建一行都从头回扫分组列表。
-        final rows = <Object>[
-          for (final group in groups) ...[group, ...group.servers],
-        ];
         return Scaffold(
           extendBodyBehindAppBar: true,
           appBar: FrostedBar(
@@ -177,7 +179,7 @@ class _ServersTabState extends State<ServersTab> {
                 ),
                 onPressed: () => setState(() {
                   _searching = !_searching;
-                  _query = '';
+                  _query.value = '';
                 }),
               ),
               PopupMenuButton<String>(
@@ -225,40 +227,54 @@ class _ServersTabState extends State<ServersTab> {
               ),
             ],
           ),
-          body: rows.isEmpty
-              ? Padding(
-                  padding: EdgeInsets.only(top: FrostedBar.topInset(context)),
-                  child: _emptyView(context, total),
-                )
-              // 扁平化为「分组头 / 主机行」序列，懒构建可见行即可；
-              // 初始顶部内边距让首行落在玻璃下缘，滚动后内容从玻璃下穿过。
-              : FrostedBody(
-                  child: ListView.builder(
-                    padding: EdgeInsets.only(
-                      top: FrostedBar.topInset(context),
-                      bottom: 96,
-                    ),
-                    itemCount: rows.length,
-                    itemBuilder: (context, index) {
-                      final row = rows[index];
-                      if (row is ServerGroup) {
-                        return _groupHeader(context, row);
-                      }
-                      final server = row as SshServer;
-                      return _ServerTile(
-                        server: server,
-                        onTap: () => _openDetail(server),
-                        onLongPress: () => _showActions(server),
-                        onToggleConnect: () => toggleSession(
-                          context,
-                          sessions: widget.sessions,
-                          server: server,
-                          credentials: widget.credentials,
+          body: ValueListenableBuilder<String>(
+            valueListenable: _query,
+            builder: (context, query, _) {
+              final groups = widget.store.groups(query: query);
+              final total = widget.store.serverCount;
+              // 扁平化为「分组头 / 主机行」序列，itemBuilder 按下标直取，
+              // 避免每构建一行都从头回扫分组列表。
+              final rows = <Object>[
+                for (final group in groups) ...[group, ...group.servers],
+              ];
+              return rows.isEmpty
+                  ? Padding(
+                      padding: EdgeInsets.only(
+                        top: FrostedBar.topInset(context),
+                      ),
+                      child: _emptyView(context, total),
+                    )
+                  // 扁平化为「分组头 / 主机行」序列，懒构建可见行即可；
+                  // 初始顶部内边距让首行落在玻璃下缘，滚动后内容从玻璃下穿过。
+                  : FrostedBody(
+                      child: ListView.builder(
+                        padding: EdgeInsets.only(
+                          top: FrostedBar.topInset(context),
+                          bottom: 96,
                         ),
-                      );
-                    },
-                  ),
-                ),
+                        itemCount: rows.length,
+                        itemBuilder: (context, index) {
+                          final row = rows[index];
+                          if (row is ServerGroup) {
+                            return _groupHeader(context, row);
+                          }
+                          final server = row as SshServer;
+                          return _ServerTile(
+                            server: server,
+                            onTap: () => _openDetail(server),
+                            onLongPress: () => _showActions(server),
+                            onToggleConnect: () => toggleSession(
+                              context,
+                              sessions: widget.sessions,
+                              server: server,
+                              credentials: widget.credentials,
+                            ),
+                          );
+                        },
+                      ),
+                    );
+            },
+          ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () => _openEditor(),
             icon: const Icon(Icons.add_rounded),
@@ -272,7 +288,7 @@ class _ServersTabState extends State<ServersTab> {
   Widget _searchField() {
     return TextField(
       autofocus: true,
-      onChanged: (value) => setState(() => _query = value),
+      onChanged: (value) => _query.value = value,
       decoration: InputDecoration(
         hintText: AppLocalizations.of(context).searchHint,
         border: InputBorder.none,

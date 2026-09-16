@@ -58,10 +58,7 @@ final class _StatusBar extends StatelessWidget {
         ],
       );
     }
-    final total = entries.fold<int>(
-      0,
-      (sum, entry) => sum + (entry.isDirectory ? 0 : entry.size),
-    );
+    final total = controller.totalBytes;
     return Row(
       children: [
         Text(l10n.sftpItemCount(entries.length), style: style),

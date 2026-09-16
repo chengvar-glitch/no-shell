@@ -42,6 +42,7 @@ final class SftpTransfer extends ChangeNotifier {
   bool _cancelRequested = false;
   DateTime? _startedAt;
   DateTime? _finishedAt;
+  DateTime? _lastProgressNotifyAt;
 
   int get done => _done;
   SftpTransferState get state => _state;
@@ -100,17 +101,28 @@ final class SftpTransfer extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 进度按整百分比节流；总量未知时不推进度，避免高频重建。
+  /// 进度按整百分比节流；总量未知时按时间节流（每 250ms 至多一次），
+  /// 既让速度 / 字节数持续刷新，又不至于每个数据块都重建整行。
   void _report(int done) {
     if (done == _done) return;
     final total = this.total;
     if (total <= 0) {
       _done = done;
+      final now = DateTime.now();
+      final last = _lastProgressNotifyAt;
+      if (last == null ||
+          now.difference(last) >= const Duration(milliseconds: 250)) {
+        _lastProgressNotifyAt = now;
+        notifyListeners();
+      }
       return;
     }
     final stepped = (done * 100) ~/ total != (_done * 100) ~/ total;
     _done = done;
-    if (stepped) notifyListeners();
+    if (stepped) {
+      _lastProgressNotifyAt = DateTime.now();
+      notifyListeners();
+    }
   }
 
   void _finish(SftpTransferState state) {
@@ -294,7 +306,10 @@ final class SftpTransferQueue extends ChangeNotifier {
           transfer._fail(error);
         }
         notifyListeners();
-        onTransferFinished?.call(transfer);
+        // 界面提示回调不许打断队列：抛了异常剩下的任务还得继续跑。
+        try {
+          onTransferFinished?.call(transfer);
+        } catch (_) {}
       }
     } finally {
       _draining = false;

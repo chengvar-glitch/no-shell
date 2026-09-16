@@ -148,7 +148,16 @@ final class SharedPreferencesSettingsPersistence
 
   @override
   Future<void> save(AppSettings settings) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(settings.toJson()));
+    // 与 load 同样的兜底：落盘失败只降级为「改动未存档」，不上抛成未处理异常。
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_key, jsonEncode(settings.toJson()));
+    } on FormatException {
+      return;
+    } on TypeError {
+      return;
+    } catch (_) {
+      return;
+    }
   }
 }

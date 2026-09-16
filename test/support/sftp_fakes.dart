@@ -68,6 +68,22 @@ final class FakeSftpFileSystem implements SftpFileSystem {
     return entry;
   }
 
+  /// 指向 [targetPath] 的符号链接。[follow] 模拟悬空之外的解析结果：
+  /// 适配器层会对链接 stat 目标并把目录链接标成 isDirectory。
+  SftpEntry addSymlink(String dir, String name, String targetPath) {
+    final path = sftpJoin(dir, name);
+    final target = listings[targetPath];
+    final entry = SftpEntry(
+      name: name,
+      path: path,
+      isDirectory: target != null,
+      isSymlink: true,
+      modifiedAt: DateTime(2026),
+    );
+    listings.putIfAbsent(dir, () => []).add(entry);
+    return entry;
+  }
+
   @override
   Future<String> homeDirectory() async => home;
 

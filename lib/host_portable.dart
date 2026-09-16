@@ -34,6 +34,11 @@ final class HostImport {
   final String? password;
 }
 
+/// 块间分隔（换行）与 `key: value` 首个冒号的切分模式。
+/// 解析在每次输入变更时都会跑，正则只编译一次。
+final _lineBreakPattern = RegExp(r'\r\n|\n|\r');
+final _keySeparatorPattern = RegExp('[:：]');
+
 /// 解析主机文本；无地址的块与无法识别的行直接忽略。
 /// 缺省值：端口 22、名称与用户名取地址、分组取 [defaultGroup]。
 List<HostImport> parseHostsText(String text, {required String defaultGroup}) {
@@ -62,7 +67,7 @@ List<HostImport> parseHostsText(String text, {required String defaultGroup}) {
     port = null;
   }
 
-  for (final rawLine in text.split(RegExp(r'\r\n|\n|\r'))) {
+  for (final rawLine in text.split(_lineBreakPattern)) {
     final line = rawLine.trim();
     if (line.isEmpty) {
       finishBlock();
@@ -70,7 +75,7 @@ List<HostImport> parseHostsText(String text, {required String defaultGroup}) {
     }
     if (line.startsWith('#')) continue;
     // 只在首个冒号处切分，值本身可以再含冒号（如 IPv6 地址）。
-    final separator = line.indexOf(RegExp('[:：]'));
+    final separator = line.indexOf(_keySeparatorPattern);
     if (separator <= 0) continue;
     final key = _normalizeKey(line.substring(0, separator));
     final value = line.substring(separator + 1).trim();

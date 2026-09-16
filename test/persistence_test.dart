@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:no_shell/models.dart';
@@ -130,6 +132,21 @@ void main() {
       });
       final persistence = SharedPreferencesServerPersistence();
       expect(await persistence.load(), isNull);
+    });
+
+    test('单条记录损坏只跳过该条，其余照常读回', () async {
+      final good = _fullServer().toJson();
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'ssh_servers_v1': jsonEncode([
+          good,
+          {'host': '缺 id 的坏记录'},
+          'not-a-map',
+        ]),
+      });
+      final persistence = SharedPreferencesServerPersistence();
+      final loaded = await persistence.load();
+      expect(loaded, hasLength(1));
+      expect(loaded?[0].toJson(), good);
     });
   });
 

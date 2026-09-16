@@ -75,17 +75,17 @@ class SettingsTab extends StatelessWidget {
             _sectionHeader(context, l10n.terminal),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TerminalPresetDropdown(),
+              child: const TerminalPresetDropdown(),
             ),
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TerminalFontDropdown(),
+              child: const TerminalFontDropdown(),
             ),
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TerminalFontSizeControl(),
+              child: const TerminalFontSizeControl(),
             ),
             const Divider(height: 32),
             _sectionHeader(context, l10n.language),

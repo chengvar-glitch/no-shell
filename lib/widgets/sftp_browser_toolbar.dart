@@ -242,6 +242,7 @@ class _PathBarState extends State<_PathBar> {
         _scroll.hasClients) {
       // 路径变深时把视口推到末尾，始终能看到当前目录。
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         if (_scroll.hasClients) {
           _scroll.jumpTo(_scroll.position.maxScrollExtent);
         }

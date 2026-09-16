@@ -39,8 +39,16 @@ final class SftpBrowserController extends ChangeNotifier {
 
   SftpFileSystem? _fileSystem;
   String? _path;
+
+  /// 最近一次成功载入的目录。[navigate] 用它判重：
+  /// 载入失败的路径仍留在 [_path]（路径栏如实展示），再次进入要能重试。
+  String? _loadedPath;
   List<SftpEntry> _entries = const [];
   List<SftpEntry> _visible = const [];
+
+  /// 当前列表（过滤前）所有文件的字节数，随载入算一次；
+  /// 状态栏直接取用，不在每次通知时重新 fold 整份目录。
+  int _totalBytes = 0;
   final Set<String> _selected = {};
 
   /// Shift 连选的锚点（最后一次单击的条目）。
@@ -64,6 +72,9 @@ final class SftpBrowserController extends ChangeNotifier {
 
   /// 过滤 + 排序后的展示序列（长列表按下标直取，避免每帧重排）。
   List<SftpEntry> get entries => _visible;
+
+  /// 当前目录所有文件的总字节数（不含目录）。
+  int get totalBytes => _totalBytes;
 
   /// 首次载入（还没有任何目录内容）。
   bool get isLoading => _isLoading;
@@ -139,7 +150,7 @@ final class SftpBrowserController extends ChangeNotifier {
   }
 
   Future<void> navigate(String target) async {
-    if (target.isEmpty || target == _path) return;
+    if (target.isEmpty || target == _loadedPath) return;
     await _load(target);
   }
 
@@ -260,7 +271,8 @@ final class SftpBrowserController extends ChangeNotifier {
     final fileSystem = _requireFileSystem();
     await _mutate(() async {
       for (final entry in entries) {
-        if (entry.isDirectory) {
+        // 符号链接只删链接本身，不递归进目标目录。
+        if (entry.isDirectory && !entry.isSymlink) {
           await _removeTree(fileSystem, entry.path);
         } else {
           await fileSystem.removeFile(entry.path);
@@ -336,6 +348,7 @@ final class SftpBrowserController extends ChangeNotifier {
       // 期间用户又切换了目录：丢弃这次结果，由最新请求收尾。
       if (token != _loadToken || _disposed) return;
       _path = target;
+      _loadedPath = target;
       _entries = listing;
       if (keepSelection) {
         final names = {for (final entry in listing) entry.path};
@@ -344,6 +357,7 @@ final class SftpBrowserController extends ChangeNotifier {
         _selected.clear();
       }
       _rebuildVisible();
+      _recomputeTotalBytes();
     } on Object catch (error) {
       if (token != _loadToken || _disposed) return;
       // 路径栏如实反映「想打开哪里」，列表清空并把错误交给界面展示。
@@ -351,6 +365,7 @@ final class SftpBrowserController extends ChangeNotifier {
       _entries = const [];
       _selected.clear();
       _rebuildVisible();
+      _recomputeTotalBytes();
       _error = _wrap(error);
     } finally {
       if (token == _loadToken && !_disposed) {
@@ -377,8 +392,11 @@ final class SftpBrowserController extends ChangeNotifier {
   }
 
   Future<void> _removeTree(SftpFileSystem fileSystem, String path) async {
+    // 调用方已把顶层符号链接当文件删；这里对嵌套的子项同样不穿链接：
+    // list / 递归会跟着链接进到目标目录，把目标内容删空而链接还留着，
+    // 等于误删别人的数据。SFTP REMOVE 按 unlink 语义删链接，不碰目标。
     for (final child in await fileSystem.list(path)) {
-      if (child.isDirectory) {
+      if (child.isDirectory && !child.isSymlink) {
         await _removeTree(fileSystem, child.path);
       } else {
         await fileSystem.removeFile(child.path);
@@ -397,6 +415,14 @@ final class SftpBrowserController extends ChangeNotifier {
     ];
     list.sort(_compare);
     _visible = List.unmodifiable(list);
+  }
+
+  /// 载入结果落地后重算一次总量，状态栏只在目录变化时拿到新值。
+  void _recomputeTotalBytes() {
+    _totalBytes = [
+      for (final entry in _entries)
+        if (!entry.isDirectory) entry.size,
+    ].fold(0, (sum, size) => sum + size);
   }
 
   int _compare(SftpEntry a, SftpEntry b) {
