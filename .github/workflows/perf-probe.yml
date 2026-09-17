@@ -1,0 +1,103 @@
+# 跨平台首开耗时探针：手动触发，在 Linux / macOS / Windows 三类 runner 上各跑一次
+# integration_test/settings_open_perf_test.dart，用来回答「设置弹窗首次打开约 1s 的
+# 冷排版成本是否只有 Linux 有」。
+#
+# 结果怎么取：探针会把表格 debugPrint 到 stdout，但 Windows 的 release 产物是 GUI
+# 子系统程序、stdout 进不了 CI 日志，所以一律以落盘的 build/settings_open_perf_*.json
+# 为准（末尾 cat + 上传 artifact）。
+#
+# 读数注意：
+# - runner 没有 GPU（软件渲染 / 虚拟显示），raster 数字不可信；要看的是 build/布局
+#   那一段，属 CPU 侧，仍有平台间相对参考价值。
+# - runner 的字体集与真实用户机器不同（尤其中文回退），数字不等于用户机上的一致。
+# - 与本地同口径命令：flutter build <platform> --release --target=integration_test/
+#   settings_open_perf_test.dart，然后直接跑产物。
+name: Perf probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+          - os: macos-latest
+            target: macos
+          - os: windows-latest
+            target: windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 安装 Linux 构建依赖
+        if: matrix.target == 'linux'
+        run: >
+          sudo apt-get update -y &&
+          sudo apt-get install -y ninja-build libgtk-3-dev clang cmake pkg-config
+          libsecret-1-dev libjsoncpp-dev xvfb
+
+      - name: 安装依赖
+        run: flutter pub get
+
+      - name: 记录环境
+        shell: bash
+        run: |
+          flutter --version
+          echo "--- 中文字体数（解释数字时要用）---"
+          case "${{ matrix.target }}" in
+            linux)   fc-list :lang=zh 2>/dev/null | wc -l ;;
+            macos)   ls /System/Library/Fonts 2>/dev/null | wc -l ;;
+            windows) powershell -NoProfile -Command "(Get-ChildItem C:\Windows\Fonts).Count" ;;
+          esac
+
+      - name: 构建探针（release / AOT）
+        run: flutter build ${{ matrix.target }} --release --target=integration_test/settings_open_perf_test.dart
+
+      - name: 跑探针（Linux，虚拟显示）
+        if: matrix.target == 'linux'
+        timeout-minutes: 8
+        continue-on-error: true
+        run: xvfb-run -a --server-args="-screen 0 1600x1000x24" ./build/linux/x64/release/bundle/NoShell
+
+      - name: 跑探针（macOS）
+        if: matrix.target == 'macos'
+        timeout-minutes: 8
+        continue-on-error: true
+        run: ./build/macos/Build/Products/Release/NoShell.app/Contents/MacOS/NoShell
+
+      - name: 跑探针（Windows）
+        if: matrix.target == 'windows'
+        timeout-minutes: 8
+        continue-on-error: true
+        shell: bash
+        run: ./build/windows/x64/runner/Release/NoShell.exe
+
+      - name: 打印报告
+        if: always()
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for f in build/settings_open_perf_*.json; do
+            echo "===== $f ====="
+            cat "$f"
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-probe-${{ matrix.target }}
+          path: build/settings_open_perf_*.json
+          if-no-files-found: warn
