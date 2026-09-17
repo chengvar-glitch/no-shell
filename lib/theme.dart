@@ -97,10 +97,11 @@ extension AppThemeX on ThemeData {
 
   Color get hoverOverlay => appColors.hoverOverlay;
 
-  /// 整行可点入口（侧边栏底部「设置」这类）的悬停底色。
+  /// 侧边栏整行入口（主机行、分组头、底部「设置」）的悬停底色。
   /// [hoverOverlay] 只有 2~5% 的灰度差，单独铺在整行上几乎看不出来；这一档
   /// 与图标按钮（Material 默认 8% onSurface）同强度，保证「能点」一眼可见。
-  /// 主机行不用它：那一行悬停时会浮出连接按钮，反馈已经足够。
+  /// 这几个整行入口都走 [InkWell.hoverColor]，只画一层；不要再叠自绘底色，
+  /// 两层错位会在行的两侧露出一圈深浅不一的边。
   Color get rowHover => colorScheme.onSurface.withValues(alpha: 0.08);
 
   Color get selectedOverlay => colorScheme.primary.withValues(

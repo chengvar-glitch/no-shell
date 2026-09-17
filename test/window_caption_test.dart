@@ -128,8 +128,14 @@ void main() {
 
       // 断开 / 连接与「⋯」跟在名字后面，不再贴面板右端，
       // 免得内容上移后和窗口的关闭按钮挤在一起。
+      // 侧边栏分组头上也有「⋯」，断言限定在标题条里的那一枚。
       final moreLeft = tester
-          .getTopLeft(find.byIcon(Icons.more_horiz_rounded))
+          .getTopLeft(
+            find.descendant(
+              of: find.byType(WindowCaptionBar),
+              matching: find.byIcon(Icons.more_horiz_rounded),
+            ),
+          )
           .dx;
       final connectRect = tester.getRect(find.byIcon(Icons.bolt_rounded));
       final minimizeLeft = tester.getTopLeft(find.byIcon(Icons.minimize)).dx;

@@ -96,7 +96,7 @@
   "notes": "Notes",
   "notesOptional": "Notes (optional)",
   "pasteMetadata": "Paste metadata (optional)",
-  "pasteMetadataHint": "name: fofo\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password",
+  "pasteMetadataHint": "name: serverName\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password",
   "sessionDesktopHint": "No session yet — click \"Connect\" at the top right to start an SSH session and use the terminal.\n",
   "sessionMobileHint": "No session yet — tap \"Connect now\" at the bottom to start an SSH session and use the terminal.\n",
   "connectAuthTitle": "Connect to \"{name}\"",
@@ -138,6 +138,45 @@
   "usernameHint": "e.g. root",
   "usernameRequired": "Please enter a username",
   "groupHint": "e.g. Production",
+  "groupNew": "New group",
+  "groupRename": "Rename group",
+  "groupDelete": "Delete group",
+  "groupDeleteConfirm": "Delete group \"{name}\"?",
+  "@groupDeleteConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "groupDeleteEmptyBody": "This group has no hosts.",
+  "groupDeleteBody": "{count, plural, =1{Its 1 host will move to \"{target}\".} other{Its {count} hosts will move to \"{target}\".}}",
+  "@groupDeleteBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "groupMoveUp": "Move group up",
+  "groupMoveDown": "Move group down",
+  "groupNewConnection": "New connection in this group",
+  "groupMoveTo": "Move to group…",
+  "groupMoveTitle": "Move \"{name}\" to",
+  "@groupMoveTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "groupCreateFirst": "No other group yet — create one first",
+  "groupKeepOne": "Keep at least one group",
+  "groupNameRequired": "Enter a group name",
+  "groupNameExists": "A group with this name already exists",
   "navServers": "Servers",
   "navKeys": "Keys",
   "navSettings": "Settings",

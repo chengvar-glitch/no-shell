@@ -15,6 +15,7 @@ import 'ssh/session_manager.dart';
 import 'ssh/ssh_credentials.dart';
 import 'store.dart';
 import 'theme.dart';
+import 'widgets/group_controls.dart';
 import 'widgets/server_detail.dart';
 import 'widgets/settings_dialog.dart';
 import 'widgets/sidebar.dart';
@@ -169,16 +170,14 @@ class _HomePageState extends State<HomePage> {
       );
   }
 
-  Future<void> _editOrCreate([SshServer? existing]) async {
-    final groupNames = widget.store.groupNames;
-    if (groupNames.isEmpty) {
-      groupNames.add(AppLocalizations.of(context).defaultGroupName);
-    }
+  /// [group] 非空表示「在这个分组里新建」（分组头菜单的入口），表单预填该分组。
+  Future<void> _editOrCreate([SshServer? existing, String? group]) async {
     final result = await showDialog<SshServer>(
       context: context,
       builder: (_) => _ServerDialog(
         initial: existing,
-        groupNames: groupNames,
+        initialGroup: group,
+        groupNames: widget.store.groupNames,
         credentials: widget.credentials,
       ),
     );
@@ -207,6 +206,7 @@ class _HomePageState extends State<HomePage> {
               selectedId: _selectedId,
               onSelect: (server) => setState(() => _selectedId = server.id),
               onCreate: () => _editOrCreate(),
+              onCreateInGroup: (group) => _editOrCreate(null, group),
               onEdit: (server) => _editOrCreate(server),
               onDelete: _deleteServer,
               onToggleConnect: _toggleConnect,
@@ -279,9 +279,13 @@ class _ServerDialog extends StatefulWidget {
     required this.groupNames,
     required this.credentials,
     this.initial,
+    this.initialGroup,
   });
 
   final SshServer? initial;
+
+  /// 新建时预填的分组（「在此分组新建连接」传进来）。
+  final String? initialGroup;
   final List<String> groupNames;
   final CredentialStore credentials;
 
@@ -298,8 +302,10 @@ class _ServerDialogState extends State<_ServerDialog> {
     text: (widget.initial?.port ?? 22).toString(),
   );
   late final _username = TextEditingController(text: widget.initial?.username);
+  late final _group = TextEditingController(
+    text: widget.initial?.group ?? widget.initialGroup ?? '',
+  );
   late final _notes = TextEditingController(text: widget.initial?.notes);
-  late String _group = widget.initial?.group ?? widget.groupNames.first;
   late AuthMethod _auth = widget.initial?.authMethod ?? AuthMethod.privateKey;
 
   /// 粘贴的元数据里带的密码，保存时写进安全存储。
@@ -307,12 +313,17 @@ class _ServerDialogState extends State<_ServerDialog> {
 
   @override
   void dispose() {
-    _metadata.dispose();
-    _name.dispose();
-    _host.dispose();
-    _port.dispose();
-    _username.dispose();
-    _notes.dispose();
+    for (final controller in [
+      _metadata,
+      _name,
+      _host,
+      _port,
+      _username,
+      _group,
+      _notes,
+    ]) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -337,6 +348,7 @@ class _ServerDialogState extends State<_ServerDialog> {
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    final l10n = AppLocalizations.of(context);
     final id =
         widget.initial?.id ?? 'srv-${DateTime.now().microsecondsSinceEpoch}';
     final password = _password;
@@ -346,10 +358,12 @@ class _ServerDialogState extends State<_ServerDialog> {
       await widget.credentials.write(id, SshCredentials(password: password));
     }
     if (!mounted) return;
+    // 分组留空即落到默认分组；填了新名字就当场建一个（GroupField 支持直接输入）。
+    final group = _group.text.trim();
     Navigator.of(context).pop(
       SshServer(
         id: id,
-        group: _group,
+        group: group.isEmpty ? l10n.defaultGroupName : group,
         name: _name.text.trim(),
         host: _host.text.trim(),
         username: _username.text.trim(),
@@ -449,20 +463,10 @@ class _ServerDialogState extends State<_ServerDialog> {
                       : null,
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _group,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                  decoration: InputDecoration(labelText: l10n.group),
-                  items: [
-                    for (final name in widget.groupNames)
-                      DropdownMenuItem(value: name, child: Text(name)),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => _group = value);
-                  },
+                GroupField(
+                  controller: _group,
+                  groups: widget.groupNames,
+                  textStyle: const TextStyle(fontSize: 13.5),
                 ),
                 const SizedBox(height: 12),
                 SegmentedButton<AuthMethod>(

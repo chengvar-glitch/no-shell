@@ -6,6 +6,7 @@ import 'package:no_shell/main.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/store.dart';
 import 'package:no_shell/theme.dart';
+import 'package:no_shell/widgets/server_detail.dart';
 import 'package:no_shell/widgets/window_caption.dart';
 
 import 'support/credential_store_fake.dart';
@@ -59,7 +60,13 @@ void main() {
     await pumpDesktop(tester);
 
     Future<void> askDelete() async {
-      await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+      // 分组头上也有「⋯」，这里只要详情面板那一枚。
+      await tester.tap(
+        find.descendant(
+          of: find.byType(ServerDetailPanel),
+          matching: find.byIcon(Icons.more_horiz_rounded),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('删除主机'));
       await tester.pumpAndSettle();

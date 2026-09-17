@@ -193,7 +193,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pasteMetadataHint =>
-      'name: fofo\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password';
+      'name: serverName\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password';
 
   @override
   String get sessionDesktopHint =>
@@ -286,6 +286,63 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get groupHint => 'e.g. Production';
+
+  @override
+  String get groupNew => 'New group';
+
+  @override
+  String get groupRename => 'Rename group';
+
+  @override
+  String get groupDelete => 'Delete group';
+
+  @override
+  String groupDeleteConfirm(String name) {
+    return 'Delete group \"$name\"?';
+  }
+
+  @override
+  String get groupDeleteEmptyBody => 'This group has no hosts.';
+
+  @override
+  String groupDeleteBody(int count, String target) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Its $count hosts will move to \"$target\".',
+      one: 'Its 1 host will move to \"$target\".',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get groupMoveUp => 'Move group up';
+
+  @override
+  String get groupMoveDown => 'Move group down';
+
+  @override
+  String get groupNewConnection => 'New connection in this group';
+
+  @override
+  String get groupMoveTo => 'Move to group…';
+
+  @override
+  String groupMoveTitle(String name) {
+    return 'Move \"$name\" to';
+  }
+
+  @override
+  String get groupCreateFirst => 'No other group yet — create one first';
+
+  @override
+  String get groupKeepOne => 'Keep at least one group';
+
+  @override
+  String get groupNameRequired => 'Enter a group name';
+
+  @override
+  String get groupNameExists => 'A group with this name already exists';
 
   @override
   String get navServers => 'Servers';

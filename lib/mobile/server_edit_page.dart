@@ -6,6 +6,7 @@ import '../models.dart';
 import '../ssh/credential_store.dart';
 import '../ssh/ssh_credentials.dart';
 import '../store.dart';
+import '../widgets/group_controls.dart';
 
 /// 移动端新建 / 编辑主机页（桌面端继续使用弹窗表单）。
 class ServerEditPage extends StatefulWidget {
@@ -14,6 +15,7 @@ class ServerEditPage extends StatefulWidget {
     required this.store,
     required this.credentials,
     this.initial,
+    this.initialGroup,
   });
 
   final ServerStore store;
@@ -21,6 +23,9 @@ class ServerEditPage extends StatefulWidget {
 
   /// 传入则为编辑，否则为新建。
   final SshServer? initial;
+
+  /// 新建时预填的分组（分组头菜单的「在此分组新建连接」传进来）。
+  final String? initialGroup;
 
   @override
   State<ServerEditPage> createState() => _ServerEditPageState();
@@ -35,7 +40,9 @@ class _ServerEditPageState extends State<ServerEditPage> {
     text: (widget.initial?.port ?? 22).toString(),
   );
   late final _username = TextEditingController(text: widget.initial?.username);
-  late final _group = TextEditingController(text: widget.initial?.group);
+  late final _group = TextEditingController(
+    text: widget.initial?.group ?? widget.initialGroup ?? '',
+  );
   late final _notes = TextEditingController(text: widget.initial?.notes);
   late AuthMethod _auth = widget.initial?.authMethod ?? AuthMethod.privateKey;
 
@@ -190,14 +197,7 @@ class _ServerEditPageState extends State<ServerEditPage> {
                   v == null || v.trim().isEmpty ? l10n.usernameRequired : null,
             ),
             const SizedBox(height: 14),
-            TextFormField(
-              controller: _group,
-              textInputAction: TextInputAction.next,
-              decoration: InputDecoration(
-                labelText: l10n.group,
-                hintText: l10n.groupHint,
-              ),
-            ),
+            GroupField(controller: _group, groups: widget.store.groupNames),
             const SizedBox(height: 16),
             SegmentedButton<AuthMethod>(
               segments: [

@@ -8,6 +8,7 @@ import '../ssh/credential_store.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
 import '../theme.dart';
+import '../widgets/group_controls.dart';
 import '../widgets/status_badges.dart';
 import 'server_detail_page.dart';
 import 'server_edit_page.dart';
@@ -42,13 +43,15 @@ class _ServersTabState extends State<ServersTab> {
     super.dispose();
   }
 
-  void _openEditor([SshServer? existing]) {
+  /// [group] 非空表示「在这个分组里新建」（分组头菜单的入口），表单预填该分组。
+  void _openEditor([SshServer? existing, String? group]) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ServerEditPage(
           store: widget.store,
           credentials: widget.credentials,
           initial: existing,
+          initialGroup: group,
         ),
       ),
     );
@@ -103,6 +106,18 @@ class _ServersTabState extends State<ServersTab> {
               onTap: () {
                 Navigator.pop(sheetContext);
                 _openEditor(server);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.drive_file_move_outline),
+              title: Text(l10n.groupMoveTo),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                moveServerToGroupFlow(
+                  context,
+                  store: widget.store,
+                  server: server,
+                );
               },
             ),
             ListTile(
@@ -230,10 +245,15 @@ class _ServersTabState extends State<ServersTab> {
             builder: (context, query, _) {
               final groups = widget.store.groups(query: query);
               final total = widget.store.serverCount;
+              // 搜索时强制展开，保证命中结果可见；平时按 store 记的折叠态。
+              final searching = query.isNotEmpty;
               // 扁平化为「分组头 / 主机行」序列，itemBuilder 按下标直取，
               // 避免每构建一行都从头回扫分组列表。
               final rows = <Object>[
-                for (final group in groups) ...[group, ...group.servers],
+                for (final group in groups) ...[
+                  group,
+                  if (searching || !group.collapsed) ...group.servers,
+                ],
               ];
               return rows.isEmpty
                   ? _emptyView(context, total)
@@ -244,7 +264,11 @@ class _ServersTabState extends State<ServersTab> {
                       itemBuilder: (context, index) {
                         final row = rows[index];
                         if (row is ServerGroup) {
-                          return _groupHeader(context, row);
+                          return _groupHeader(
+                            context,
+                            row,
+                            searching: searching,
+                          );
                         }
                         final server = row as SshServer;
                         return _ServerTile(
@@ -269,6 +293,67 @@ class _ServersTabState extends State<ServersTab> {
           ),
         );
       },
+    );
+  }
+
+  /// 分组操作：与桌面端分组头菜单同一套动作，这里走底部弹层。
+  Future<void> _showGroupActions(ServerGroup group) async {
+    final l10n = AppLocalizations.of(context);
+    final errorColor = Theme.of(context).colorScheme.error;
+    final index = widget.store.groupNames.indexOf(group.name);
+    final last = widget.store.groupNames.length - 1;
+    final action = await showModalBottomSheet<GroupAction>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.add_rounded),
+              title: Text(l10n.groupNewConnection),
+              onTap: () =>
+                  Navigator.pop(sheetContext, GroupAction.createConnection),
+            ),
+            ListTile(
+              leading: const Icon(Icons.create_new_folder_outlined),
+              title: Text(l10n.groupNew),
+              onTap: () => Navigator.pop(sheetContext, GroupAction.createGroup),
+            ),
+            ListTile(
+              leading: const Icon(Icons.drive_file_rename_outline),
+              title: Text(l10n.groupRename),
+              onTap: () => Navigator.pop(sheetContext, GroupAction.rename),
+            ),
+            ListTile(
+              leading: const Icon(Icons.arrow_upward_rounded),
+              title: Text(l10n.groupMoveUp),
+              enabled: index > 0,
+              onTap: () => Navigator.pop(sheetContext, GroupAction.moveUp),
+            ),
+            ListTile(
+              leading: const Icon(Icons.arrow_downward_rounded),
+              title: Text(l10n.groupMoveDown),
+              enabled: index >= 0 && index < last,
+              onTap: () => Navigator.pop(sheetContext, GroupAction.moveDown),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded),
+              iconColor: errorColor,
+              textColor: errorColor,
+              title: Text(l10n.groupDelete),
+              onTap: () => Navigator.pop(sheetContext, GroupAction.delete),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    await runGroupAction(
+      context,
+      store: widget.store,
+      action: action,
+      group: group.name,
+      onCreateInGroup: () => _openEditor(null, group.name),
     );
   }
 
@@ -306,30 +391,64 @@ class _ServersTabState extends State<ServersTab> {
     );
   }
 
-  Widget _groupHeader(BuildContext context, ServerGroup group) {
+  Widget _groupHeader(
+    BuildContext context,
+    ServerGroup group, {
+    required bool searching,
+  }) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
-      child: Row(
-        children: [
-          Text(
-            group.name,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.4,
-              color: theme.secondaryText,
+    final l10n = AppLocalizations.of(context);
+    return InkWell(
+      // 搜索时结果强制展开，这时点折叠没有意义（与桌面端一致）。
+      onTap: searching
+          ? null
+          : () => widget.store.setGroupCollapsed(group.name, !group.collapsed),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 6, 2),
+        child: Row(
+          children: [
+            AnimatedRotation(
+              turns: group.collapsed ? -0.25 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: Icon(
+                Icons.chevron_right_rounded,
+                size: 17,
+                color: theme.secondaryText,
+              ),
             ),
-          ),
-          const Spacer(),
-          Text(
-            '${group.servers.length}',
-            style: TextStyle(
-              fontSize: 11,
-              color: theme.secondaryText.withValues(alpha: 0.7),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                group.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                  color: theme.secondaryText,
+                ),
+              ),
             ),
-          ),
-        ],
+            Text(
+              '${group.servers.length}',
+              style: TextStyle(
+                fontSize: 11,
+                color: theme.secondaryText.withValues(alpha: 0.7),
+              ),
+            ),
+            IconButton(
+              tooltip: l10n.moreActions,
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                Icons.more_horiz_rounded,
+                size: 18,
+                color: theme.secondaryText,
+              ),
+              onPressed: () => _showGroupActions(group),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -190,7 +190,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get pasteMetadataHint =>
-      '名称: fofo\n地址: 127.0.0.1\n端口: 22\n用户: root\n密码: password';
+      '名称: serverName\n地址: 127.0.0.1\n端口: 22\n用户: root\n密码: password';
 
   @override
   String get sessionDesktopHint => '会话未建立 —— 点击右上角「连接」建立 SSH 会话后即可使用终端。\n';
@@ -277,6 +277,62 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get groupHint => '例：生产环境';
+
+  @override
+  String get groupNew => '新建分组';
+
+  @override
+  String get groupRename => '重命名分组';
+
+  @override
+  String get groupDelete => '删除分组';
+
+  @override
+  String groupDeleteConfirm(String name) {
+    return '删除分组「$name」？';
+  }
+
+  @override
+  String get groupDeleteEmptyBody => '该分组下还没有主机。';
+
+  @override
+  String groupDeleteBody(int count, String target) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '其中 $count 台主机将移到「$target」。',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get groupMoveUp => '上移分组';
+
+  @override
+  String get groupMoveDown => '下移分组';
+
+  @override
+  String get groupNewConnection => '在此分组新建连接';
+
+  @override
+  String get groupMoveTo => '移动到分组…';
+
+  @override
+  String groupMoveTitle(String name) {
+    return '移动「$name」到';
+  }
+
+  @override
+  String get groupCreateFirst => '还没有其它分组，先新建一个';
+
+  @override
+  String get groupKeepOne => '至少保留一个分组';
+
+  @override
+  String get groupNameRequired => '请填写分组名';
+
+  @override
+  String get groupNameExists => '同名分组已存在';
 
   @override
   String get navServers => '服务器';

@@ -425,7 +425,7 @@ abstract class AppLocalizations {
   /// No description provided for @pasteMetadataHint.
   ///
   /// In en, this message translates to:
-  /// **'name: fofo\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password'**
+  /// **'name: serverName\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password'**
   String get pasteMetadataHint;
 
   /// No description provided for @sessionDesktopHint.
@@ -589,6 +589,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'e.g. Production'**
   String get groupHint;
+
+  /// No description provided for @groupNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New group'**
+  String get groupNew;
+
+  /// No description provided for @groupRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename group'**
+  String get groupRename;
+
+  /// No description provided for @groupDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete group'**
+  String get groupDelete;
+
+  /// No description provided for @groupDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete group \"{name}\"?'**
+  String groupDeleteConfirm(String name);
+
+  /// No description provided for @groupDeleteEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This group has no hosts.'**
+  String get groupDeleteEmptyBody;
+
+  /// No description provided for @groupDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Its 1 host will move to \"{target}\".} other{Its {count} hosts will move to \"{target}\".}}'**
+  String groupDeleteBody(int count, String target);
+
+  /// No description provided for @groupMoveUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move group up'**
+  String get groupMoveUp;
+
+  /// No description provided for @groupMoveDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move group down'**
+  String get groupMoveDown;
+
+  /// No description provided for @groupNewConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'New connection in this group'**
+  String get groupNewConnection;
+
+  /// No description provided for @groupMoveTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to group…'**
+  String get groupMoveTo;
+
+  /// No description provided for @groupMoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move \"{name}\" to'**
+  String groupMoveTitle(String name);
+
+  /// No description provided for @groupCreateFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'No other group yet — create one first'**
+  String get groupCreateFirst;
+
+  /// No description provided for @groupKeepOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep at least one group'**
+  String get groupKeepOne;
+
+  /// No description provided for @groupNameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a group name'**
+  String get groupNameRequired;
+
+  /// No description provided for @groupNameExists.
+  ///
+  /// In en, this message translates to:
+  /// **'A group with this name already exists'**
+  String get groupNameExists;
 
   /// No description provided for @navServers.
   ///

@@ -103,11 +103,18 @@ class SshServer {
   );
 }
 
+/// 渲染用的分组视图：名字 + 成员 + 折叠态。
+/// 名字是分组的身份（[SshServer.group] 存的就是它），顺序与折叠态由 ServerStore 持有。
 class ServerGroup {
-  const ServerGroup({required this.name, required this.servers});
+  const ServerGroup({
+    required this.name,
+    required this.servers,
+    this.collapsed = false,
+  });
 
   final String name;
   final List<SshServer> servers;
+  final bool collapsed;
 }
 
 /// 相对时间展示：主机「最近连接」与 SFTP「修改时间」共用。

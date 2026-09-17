@@ -9,18 +9,33 @@ import 'package:no_shell/store.dart';
 
 /// 内存落盘通道假实现：记录保存次数，供断言「变更后落盘」。
 final class FakeServerPersistence implements ServerPersistence {
-  List<SshServer>? stored;
+  ServerArchive? stored;
   int saveCount = 0;
 
   @override
-  Future<List<SshServer>?> load() async => stored;
+  Future<ServerArchive?> load() async => stored;
 
   @override
-  Future<void> save(List<SshServer> servers) async {
+  Future<void> save(ServerArchive archive) async {
     saveCount++;
-    stored = List.of(servers);
+    // 与真实实现一致：存快照而不是引用，避免断言到后来才被改的数据。
+    stored = ServerArchive(
+      servers: List.of(archive.servers),
+      groupOrder: List.of(archive.groupOrder),
+      collapsedGroups: Set.of(archive.collapsedGroups),
+    );
   }
 }
+
+ServerArchive _archive(
+  List<SshServer> servers, {
+  List<String> groups = const [],
+  Set<String> collapsed = const {},
+}) => ServerArchive(
+  servers: servers,
+  groupOrder: groups,
+  collapsedGroups: collapsed,
+);
 
 SshServer _fullServer() => SshServer(
   id: 'srv-x',
@@ -118,12 +133,12 @@ void main() {
         host: 'h',
         username: 'u',
       );
-      await persistence.save([_fullServer(), second]);
+      await persistence.save(_archive([_fullServer(), second]));
 
       final loaded = await persistence.load();
-      expect(loaded, hasLength(2));
-      expect(loaded?[0].toJson(), _fullServer().toJson());
-      expect(loaded?[1].id, 'srv-01');
+      expect(loaded?.servers, hasLength(2));
+      expect(loaded?.servers[0].toJson(), _fullServer().toJson());
+      expect(loaded?.servers[1].id, 'srv-01');
     });
 
     test('存档损坏时 load 返回 null（下次保存覆盖）', () async {
@@ -145,8 +160,8 @@ void main() {
       });
       final persistence = SharedPreferencesServerPersistence();
       final loaded = await persistence.load();
-      expect(loaded, hasLength(1));
-      expect(loaded?[0].toJson(), good);
+      expect(loaded?.servers, hasLength(1));
+      expect(loaded?.servers[0].toJson(), good);
     });
   });
 
@@ -165,14 +180,17 @@ void main() {
       final store = ServerStore(persistence: persistence);
 
       await store.load();
+      // 写入在队列里异步执行，等它跑完再断言。
+      await pumpEventQueue();
 
       expect(store.serverCount, 0);
       expect(persistence.saveCount, 1);
-      expect(persistence.stored, hasLength(0));
+      expect(persistence.stored?.servers, hasLength(0));
     });
 
     test('有存档时以存档替换内存列表', () async {
-      final persistence = FakeServerPersistence()..stored = [_fullServer()];
+      final persistence = FakeServerPersistence()
+        ..stored = _archive([_fullServer()], groups: ['生产环境']);
       final store = ServerStore(persistence: persistence);
 
       await store.load();
@@ -190,15 +208,15 @@ void main() {
       store.upsert(_fullServer());
       await pumpEventQueue();
       expect(persistence.saveCount, greaterThan(1));
-      expect(persistence.stored?.any((s) => s.id == 'srv-x'), isTrue);
+      expect(persistence.stored?.servers.any((s) => s.id == 'srv-x'), isTrue);
 
       store.remove('srv-x');
       await pumpEventQueue();
-      expect(persistence.stored?.any((s) => s.id == 'srv-x'), isFalse);
+      expect(persistence.stored?.servers.any((s) => s.id == 'srv-x'), isFalse);
 
       store.restore(_fullServer(), 0);
       await pumpEventQueue();
-      expect(persistence.stored?.first.id, 'srv-x');
+      expect(persistence.stored?.servers.first.id, 'srv-x');
     });
 
     test('markConnected 记录的最近连接时间会落盘', () async {
@@ -212,7 +230,7 @@ void main() {
       store.markConnected('srv-x');
       await pumpEventQueue();
 
-      expect(persistence.stored?.first.lastConnectedAt, isNotNull);
+      expect(persistence.stored?.servers.first.lastConnectedAt, isNotNull);
     });
   });
 }

@@ -188,4 +188,42 @@ void main() {
     // 窄屏下分段标签必须单行：段内边距收窄一档就是为了这个（见 AppTheme）。
     expect(tester.getSize(find.text('English')).height, lessThan(20));
   });
+
+  testWidgets('长按主机可把它移到另一个分组', (tester) async {
+    final store = ServerStore(seed: demoServers);
+    await pumpMobile(tester, store: store);
+
+    await tester.longPress(find.text('db-primary'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('移动到分组…'));
+    await tester.pumpAndSettle();
+    // 背后的列表里也有同名分组头，这里只要弹层里那一个。
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SimpleDialog),
+        matching: find.text('个人服务器'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(store.byId('srv-04')?.group, '个人服务器');
+  });
+
+  testWidgets('点分组头折叠，主机行收起来且折叠态进 store', (tester) async {
+    final store = ServerStore(seed: demoServers);
+    await pumpMobile(tester, store: store);
+    expect(find.text('web-prod-01'), findsOneWidget);
+
+    await tester.tap(find.text('生产环境'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('web-prod-01'), findsNothing);
+    expect(
+      store
+          .groups()
+          .firstWhere((group) => group.name == '生产环境')
+          .collapsed,
+      isTrue,
+    );
+  });
 }

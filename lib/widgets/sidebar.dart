@@ -5,6 +5,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
+import 'group_controls.dart';
 import 'status_badges.dart';
 import 'app_icon_mark.dart';
 import 'window_caption.dart';
@@ -19,6 +20,7 @@ class Sidebar extends StatefulWidget {
     required this.selectedId,
     required this.onSelect,
     required this.onCreate,
+    required this.onCreateInGroup,
     required this.onEdit,
     required this.onDelete,
     required this.onToggleConnect,
@@ -32,6 +34,7 @@ class Sidebar extends StatefulWidget {
   final String? selectedId;
   final ValueChanged<SshServer> onSelect;
   final VoidCallback onCreate;
+  final ValueChanged<String> onCreateInGroup;
   final ValueChanged<SshServer> onEdit;
   final ValueChanged<SshServer> onDelete;
   final ValueChanged<SshServer> onToggleConnect;
@@ -47,7 +50,6 @@ class Sidebar extends StatefulWidget {
 class _SidebarState extends State<Sidebar> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
-  final Set<String> _collapsedGroups = {};
 
   /// 搜索关键词内聚在侧边栏：输入时只重建本子树，不惊动详情面板与终端。
   String _query = '';
@@ -102,6 +104,17 @@ class _SidebarState extends State<Sidebar> {
             ],
           ),
         ),
+        PopupMenuItem(
+          value: 'move',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.drive_file_move_outline, size: 16),
+              const SizedBox(width: 8),
+              Text(l10n.groupMoveTo, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'delete',
@@ -129,9 +142,120 @@ class _SidebarState extends State<Sidebar> {
         widget.onToggleConnect(server);
       case 'edit':
         widget.onEdit(server);
+      case 'move':
+        await moveServerToGroupFlow(
+          context,
+          store: widget.store,
+          server: server,
+        );
       case 'delete':
         widget.onDelete(server);
     }
+  }
+
+  /// 分组头的操作菜单：重命名 / 在此分组新建 / 上下移 / 删除。
+  /// 与主机行一样，右键任意位置或点右侧「⋯」都能唤出。
+  Future<void> _showGroupMenu(ServerGroup group, Offset position) async {
+    final l10n = AppLocalizations.of(context);
+    final index = widget.store.groupNames.indexOf(group.name);
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final action = await showMenu<GroupAction>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromPoints(position, position),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        PopupMenuItem(
+          value: GroupAction.createConnection,
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.add_rounded, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                l10n.groupNewConnection,
+                style: const TextStyle(fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: GroupAction.createGroup,
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.create_new_folder_outlined, size: 16),
+              const SizedBox(width: 8),
+              Text(l10n.groupNew, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: GroupAction.rename,
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.drive_file_rename_outline, size: 16),
+              const SizedBox(width: 8),
+              Text(l10n.groupRename, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: GroupAction.moveUp,
+          height: 36,
+          enabled: index > 0,
+          child: Row(
+            children: [
+              const Icon(Icons.arrow_upward_rounded, size: 16),
+              const SizedBox(width: 8),
+              Text(l10n.groupMoveUp, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: GroupAction.moveDown,
+          height: 36,
+          enabled: index >= 0 && index < widget.store.groupNames.length - 1,
+          child: Row(
+            children: [
+              const Icon(Icons.arrow_downward_rounded, size: 16),
+              const SizedBox(width: 8),
+              Text(l10n.groupMoveDown, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: GroupAction.delete,
+          height: 36,
+          child: Row(
+            children: [
+              Icon(
+                Icons.delete_outline_rounded,
+                size: 16,
+                color: AppPalette.danger,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                l10n.groupDelete,
+                style: TextStyle(fontSize: 13, color: AppPalette.danger),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+    await runGroupAction(
+      context,
+      store: widget.store,
+      action: action,
+      group: group.name,
+      onCreateInGroup: () => widget.onCreateInGroup(group.name),
+    );
   }
 
   @override
@@ -368,16 +492,15 @@ class _SidebarState extends State<Sidebar> {
   }
 
   Widget _buildList() {
-    // 搜索时强制展开所有分组，保证结果可见。
-    // 用临时可变集合承接点击，避免误改 const 集合抛错。
-    final collapsed = _query.isEmpty ? _collapsedGroups : <String>{};
+    // 搜索时强制展开所有分组，保证结果可见；平时折叠态由 store 记着（落盘）。
+    final searching = _query.isNotEmpty;
     // 扁平化为「分组头 / 主机行」序列，交给 ListView.builder 懒构建，
     // 仅可见行会真正创建 Widget，主机数量多时不再整表一次性构建。
     final groups = widget.store.groups(query: _query);
     final rows = <Object>[];
     for (final group in groups) {
       rows.add(group);
-      if (!collapsed.contains(group.name)) {
+      if (searching || !group.collapsed) {
         for (final server in group.servers) {
           rows.add(server);
         }
@@ -397,12 +520,16 @@ class _SidebarState extends State<Sidebar> {
           final row = rows[index];
           if (row is ServerGroup) {
             return _GroupHeader(
-              name: row.name,
-              count: row.servers.length,
-              collapsed: collapsed.contains(row.name),
-              onToggle: () => setState(() {
-                if (!collapsed.remove(row.name)) collapsed.add(row.name);
-              }),
+              group: row,
+              // 搜索时已强制展开，这里点一下就是「退出搜索再折叠」，
+              // 不如直接忽略点击，避免状态对不上。
+              onToggle: searching
+                  ? null
+                  : () => widget.store.setGroupCollapsed(
+                      row.name,
+                      !row.collapsed,
+                    ),
+              onMenu: (offset) => _showGroupMenu(row, offset),
             );
           }
           final server = row as SshServer;
@@ -516,57 +643,117 @@ class _SidebarEmptyState extends StatelessWidget {
   }
 }
 
-class _GroupHeader extends StatelessWidget {
+/// 分组头：整行可点折叠，「⋯」与右键唤出分组操作菜单。
+/// 折叠态由 store 持有，这里只读。
+class _GroupHeader extends StatefulWidget {
   const _GroupHeader({
-    required this.name,
-    required this.count,
-    required this.collapsed,
+    required this.group,
     required this.onToggle,
+    required this.onMenu,
   });
 
-  final String name;
-  final int count;
-  final bool collapsed;
-  final VoidCallback onToggle;
+  final ServerGroup group;
+
+  /// 搜索态下为 null（结果强制展开，折叠没有意义）。
+  final VoidCallback? onToggle;
+  final ValueChanged<Offset> onMenu;
+
+  @override
+  State<_GroupHeader> createState() => _GroupHeaderState();
+}
+
+class _GroupHeaderState extends State<_GroupHeader> {
+  final _menuKey = GlobalKey();
+  bool _hovered = false;
+
+  /// 「⋯」按钮的右下角作为菜单锚点，和右键走同一个回调。
+  void _openMenu() {
+    final box = _menuKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    widget.onMenu(box.localToGlobal(box.size.bottomRight(Offset.zero)));
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: onToggle,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        child: Row(
-          children: [
-            AnimatedRotation(
-              turns: collapsed ? -0.25 : 0,
-              duration: const Duration(milliseconds: 150),
-              child: Icon(
-                Icons.chevron_right_rounded,
-                size: 15,
-                color: theme.secondaryText,
+    final l10n = AppLocalizations.of(context);
+    final collapsed = widget.group.collapsed;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onSecondaryTapUp: (details) => widget.onMenu(details.globalPosition),
+        // 与主机行同一套悬停几何：内缩 8px 的圆角矩形 + 同一个底色 token。
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+          child: InkWell(
+            onTap: widget.onToggle,
+            borderRadius: BorderRadius.circular(8),
+            hoverColor: theme.rowHover,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+              child: Row(
+                children: [
+                  AnimatedRotation(
+                    turns: collapsed ? -0.25 : 0,
+                    duration: const Duration(milliseconds: 150),
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      size: 15,
+                      color: theme.secondaryText,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      widget.group.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.4,
+                        color: theme.secondaryText,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${widget.group.servers.length}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryText.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 120),
+                    opacity: _hovered ? 1 : 0,
+                    child: IgnorePointer(
+                      ignoring: !_hovered,
+                      child: IconButton(
+                        key: _menuKey,
+                        tooltip: l10n.moreActions,
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 26,
+                          height: 26,
+                        ),
+                        iconSize: 16,
+                        icon: Icon(
+                          Icons.more_horiz_rounded,
+                          color: theme.secondaryText,
+                        ),
+                        onPressed: _openMenu,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 4),
-            Text(
-              name,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.4,
-                color: theme.secondaryText,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 11,
-                color: theme.secondaryText.withValues(alpha: 0.7),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -612,82 +799,87 @@ class _ServerTileState extends State<_ServerTile> {
       child: GestureDetector(
         onSecondaryTapUp: (details) =>
             widget.onContextMenu(details.globalPosition),
-        child: InkWell(
-          onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: widget.selected
-                  ? theme.selectedOverlay
-                  : _hovered
-                  ? theme.hoverOverlay
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                StatusDot(status: server.status),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        server.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: widget.selected ? 1 : 0.88,
+        // 整行内缩 8px 后再交给 InkWell：悬停底色与选中底色落在同一个圆角
+        // 矩形里。以前 AnimatedContainer 自己内缩、InkWell 的高亮却铺满整行，
+        // 两层错位，行两侧会露出一圈深浅不一的边。
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(8),
+            hoverColor: theme.rowHover,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                // 悬停由 InkWell 画，这里只管选中态；选中时悬停不再叠一层。
+                color: widget.selected
+                    ? theme.selectedOverlay
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  StatusDot(status: server.status),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          server.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: widget.selected ? 1 : 0.88,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: theme.secondaryText,
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: theme.secondaryText,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 120),
-                  opacity: visible ? 1 : 0,
-                  child: IgnorePointer(
-                    ignoring: !visible,
-                    child: IconButton(
-                      tooltip: server.status == ServerStatus.connected
-                          ? l10n.disconnect
-                          : l10n.connect,
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints.tightFor(
-                        width: 28,
-                        height: 28,
-                      ),
-                      iconSize: 17,
-                      icon: Icon(
-                        server.status == ServerStatus.connected
-                            ? Icons.link_off_rounded
-                            : Icons.play_arrow_rounded,
-                        color: theme.secondaryText,
-                      ),
-                      onPressed: widget.onToggleConnect,
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 120),
+                    opacity: visible ? 1 : 0,
+                    child: IgnorePointer(
+                      ignoring: !visible,
+                      child: IconButton(
+                        tooltip: server.status == ServerStatus.connected
+                            ? l10n.disconnect
+                            : l10n.connect,
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 28,
+                          height: 28,
+                        ),
+                        iconSize: 17,
+                        icon: Icon(
+                          server.status == ServerStatus.connected
+                              ? Icons.link_off_rounded
+                              : Icons.play_arrow_rounded,
+                          color: theme.secondaryText,
+                        ),
+                        onPressed: widget.onToggleConnect,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
