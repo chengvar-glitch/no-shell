@@ -132,9 +132,11 @@ void main() {
       );
 
       final loaded = await persistence.load();
-      expect(loaded?.servers.single.group, '生产');
-      expect(loaded?.groupOrder, ['生产', '预发']);
-      expect(loaded?.collapsedGroups, {'预发'});
+      expect(loaded, isA<ServerArchiveLoaded>());
+      final archive = (loaded as ServerArchiveLoaded).archive;
+      expect(archive.servers.single.group, '生产');
+      expect(archive.groupOrder, ['生产', '预发']);
+      expect(archive.collapsedGroups, {'预发'});
     });
 
     test('旧档只有主机数组时按出现次序重建分组，折叠态为空', () async {
@@ -180,8 +182,9 @@ void main() {
       await pumpEventQueue();
 
       final loaded = await SharedPreferencesServerPersistence().load();
-      expect(loaded?.groupOrder, ['预发', '生产']);
-      expect(loaded?.collapsedGroups, {'预发'});
+      final archive = (loaded as ServerArchiveLoaded).archive;
+      expect(archive.groupOrder, ['预发', '生产']);
+      expect(archive.collapsedGroups, {'预发'});
     });
   });
 

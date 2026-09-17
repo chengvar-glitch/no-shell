@@ -18,6 +18,7 @@ Future<void> showSettingsDialog(
   required ValueChanged<ThemeMode> onThemeModeChanged,
   required AppLanguage language,
   required ValueChanged<AppLanguage> onLanguageChanged,
+  bool archiveUnreadable = false,
 }) {
   return showDialog<void>(
     context: context,
@@ -26,6 +27,7 @@ Future<void> showSettingsDialog(
       onThemeModeChanged: onThemeModeChanged,
       initialLanguage: language,
       onLanguageChanged: onLanguageChanged,
+      archiveUnreadable: archiveUnreadable,
     ),
   );
 }
@@ -36,12 +38,16 @@ final class _SettingsDialog extends StatefulWidget {
     required this.onThemeModeChanged,
     required this.initialLanguage,
     required this.onLanguageChanged,
+    required this.archiveUnreadable,
   });
 
   final ThemeMode initialThemeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage initialLanguage;
   final ValueChanged<AppLanguage> onLanguageChanged;
+
+  /// 主机存档读不出来：设置页顶部给出告警。
+  final bool archiveUnreadable;
 
   @override
   State<_SettingsDialog> createState() => _SettingsDialogState();
@@ -82,6 +88,7 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (widget.archiveUnreadable) const ArchiveWarningCard(),
                     SettingsSection(
                       icon: Icons.palette_outlined,
                       title: l10n.appearance,

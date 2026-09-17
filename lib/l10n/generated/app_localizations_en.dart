@@ -807,4 +807,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupUnreadable => 'This file cannot be read as a host backup';
+
+  @override
+  String get archiveUnreadableTitle => 'Saved host list could not be read';
+
+  @override
+  String get archiveUnreadableHint =>
+      'The saved data is unreadable, so it has been left untouched and changes in this session are not being saved. Re-import a .nsbak backup to get your hosts back.';
 }

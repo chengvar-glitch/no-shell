@@ -776,4 +776,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get backupUnreadable => '无法读取该文件，请确认它是主机备份';
+
+  @override
+  String get archiveUnreadableTitle => '已保存的主机列表读不出来';
+
+  @override
+  String get archiveUnreadableHint =>
+      '磁盘上的存档解析失败，已原样保留、未被覆盖；本次会话的改动不会落盘。可导入一份 .nsbak 备份把主机找回来。';
 }

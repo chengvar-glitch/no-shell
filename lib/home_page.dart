@@ -89,6 +89,7 @@ class _HomePageState extends State<HomePage> {
       onThemeModeChanged: widget.onThemeModeChanged,
       language: widget.language,
       onLanguageChanged: widget.onLanguageChanged,
+      archiveUnreadable: widget.store.archiveUnreadable,
     );
     if (!mounted) return;
     widget.onSettingsClosed?.call();

@@ -1387,6 +1387,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This file cannot be read as a host backup'**
   String get backupUnreadable;
+
+  /// No description provided for @archiveUnreadableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved host list could not be read'**
+  String get archiveUnreadableTitle;
+
+  /// No description provided for @archiveUnreadableHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The saved data is unreadable, so it has been left untouched and changes in this session are not being saved. Re-import a .nsbak backup to get your hosts back.'**
+  String get archiveUnreadableHint;
 }
 
 class _AppLocalizationsDelegate

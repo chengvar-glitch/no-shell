@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:no_shell/app_locale.dart';
 import 'package:no_shell/main.dart';
+import 'package:no_shell/l10n/generated/app_localizations.dart';
 import 'package:no_shell/settings.dart';
 import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/settings_controls.dart';
+import 'package:no_shell/widgets/settings_dialog.dart';
 import 'package:no_shell/widgets/sidebar.dart';
 
 import 'support/credential_store_fake.dart';
@@ -279,4 +282,55 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('English'), findsOneWidget);
   });
+
+  testWidgets('主机存档读不出来时，设置弹窗顶部给出告警', (tester) async {
+    // 存档损坏时改动不会落盘，用户必须知情，否则会以为一切照常保存。
+    await tester.pumpWidget(_settingsHarness(archiveUnreadable: true));
+
+    expect(find.byType(ArchiveWarningCard), findsNothing);
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ArchiveWarningCard), findsOneWidget);
+    expect(find.text('已保存的主机列表读不出来'), findsOneWidget);
+  });
+
+  testWidgets('存档正常时不显示告警', (tester) async {
+    await tester.pumpWidget(_settingsHarness(archiveUnreadable: false));
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ArchiveWarningCard), findsNothing);
+  });
+}
+
+/// 只挂一个「打开设置」按钮的最小外壳：设置弹窗依赖终端样式作用域，
+/// 这里按 NoShellApp 的方式补上，避免拉进整棵应用树。
+Widget _settingsHarness({required bool archiveUnreadable}) {
+  final style = ValueNotifier<TerminalStylePrefs>(const TerminalStylePrefs());
+  return MaterialApp(
+    locale: const Locale('zh'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    builder: (context, child) => TerminalStyleScope(
+      notifier: style,
+      child: child ?? const SizedBox.shrink(),
+    ),
+    home: Builder(
+      builder: (context) => Scaffold(
+        body: TextButton(
+          onPressed: () => showSettingsDialog(
+            context,
+            themeMode: ThemeMode.dark,
+            onThemeModeChanged: (_) {},
+            language: AppLanguage.chinese,
+            onLanguageChanged: (_) {},
+            archiveUnreadable: archiveUnreadable,
+          ),
+          child: const Text('open'),
+        ),
+      ),
+    ),
+  );
 }

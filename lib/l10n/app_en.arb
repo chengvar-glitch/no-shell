@@ -427,5 +427,7 @@
   "backupCreateConfirm": "Export",
   "backupOpenConfirm": "Import",
   "backupWrongPassword": "Wrong backup password, nothing was imported",
-  "backupUnreadable": "This file cannot be read as a host backup"
+  "backupUnreadable": "This file cannot be read as a host backup",
+  "archiveUnreadableTitle": "Saved host list could not be read",
+  "archiveUnreadableHint": "The saved data is unreadable, so it has been left untouched and changes in this session are not being saved. Re-import a .nsbak backup to get your hosts back."
 }

@@ -319,5 +319,7 @@
   "backupCreateConfirm": "导出",
   "backupOpenConfirm": "导入",
   "backupWrongPassword": "备份口令不正确，未导入任何主机",
-  "backupUnreadable": "无法读取该文件，请确认它是主机备份"
+  "backupUnreadable": "无法读取该文件，请确认它是主机备份",
+  "archiveUnreadableTitle": "已保存的主机列表读不出来",
+  "archiveUnreadableHint": "磁盘上的存档解析失败，已原样保留、未被覆盖；本次会话的改动不会落盘。可导入一份 .nsbak 备份把主机找回来。"
 }

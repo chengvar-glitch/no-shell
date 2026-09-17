@@ -52,11 +52,17 @@ class _MobileShellState extends State<MobileShell> {
           ),
           TerminalTab(sessions: widget.sessions),
           const KeysTab(),
-          SettingsTab(
-            themeMode: widget.themeMode,
-            onThemeModeChanged: widget.onThemeModeChanged,
-            language: widget.language,
-            onLanguageChanged: widget.onLanguageChanged,
+          // 告警依赖 store 的可读状态，且 Shell 不随 store 重建，
+          // 因此在这里单独订阅一次，只在设置 Tab 一棵子树内响应。
+          ListenableBuilder(
+            listenable: widget.store,
+            builder: (context, _) => SettingsTab(
+              themeMode: widget.themeMode,
+              onThemeModeChanged: widget.onThemeModeChanged,
+              language: widget.language,
+              onLanguageChanged: widget.onLanguageChanged,
+              archiveUnreadable: widget.store.archiveUnreadable,
+            ),
           ),
         ],
       ),

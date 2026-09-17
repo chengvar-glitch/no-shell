@@ -17,12 +17,16 @@ class SettingsTab extends StatelessWidget {
     required this.onThemeModeChanged,
     required this.language,
     required this.onLanguageChanged,
+    this.archiveUnreadable = false,
   });
 
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage language;
   final ValueChanged<AppLanguage> onLanguageChanged;
+
+  /// 主机存档读不出来：设置页顶部给出告警。
+  final bool archiveUnreadable;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +45,7 @@ class SettingsTab extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
+          if (archiveUnreadable) const ArchiveWarningCard(),
           SettingsSection(
             icon: Icons.palette_outlined,
             title: l10n.appearance,

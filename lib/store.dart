@@ -23,6 +23,13 @@ class ServerStore extends ChangeNotifier {
 
   bool _loaded = false;
 
+  /// 存档存在但读不出来：主机列表可能只读到了一部分。
+  /// 置位后停写存档，避免拿残缺列表覆盖用户仅存的那份数据。
+  bool _archiveUnreadable = false;
+
+  /// 存档不可读，界面据此给出提示；此时的改动不会被落盘。
+  bool get archiveUnreadable => _archiveUnreadable;
+
   final List<SshServer> _servers;
 
   /// 分组注册表：顺序即展示顺序，空分组也留在这里。
@@ -42,29 +49,36 @@ class ServerStore extends ChangeNotifier {
     final backend = persistence;
     if (backend == null || _loaded) return;
     _loaded = true;
-    final ServerArchive? saved;
+    final ServerArchiveLoad result;
     try {
-      saved = await backend.load();
+      result = await backend.load();
     } catch (_) {
+      // 读失败一律停写：手头的空列表不是用户数据，覆盖上去就没了。
+      _archiveUnreadable = true;
       return;
     }
-    if (saved == null) {
-      // 首次运行：写入空列表存档，保证之后变更都有完整基线。
-      _schedulePersist();
-      return;
+    switch (result) {
+      case ServerArchiveMissing():
+        // 确认是首次运行：写入空列表存档，保证之后变更都有完整基线。
+        _schedulePersist();
+        return;
+      case ServerArchiveUnreadable():
+        _archiveUnreadable = true;
+        return;
+      case ServerArchiveLoaded(:final archive):
+        _servers
+          ..clear()
+          ..addAll(archive.servers);
+        _groupOrder
+          ..clear()
+          ..addAll(archive.groupOrder);
+        _collapsedGroups
+          ..clear()
+          ..addAll(archive.collapsedGroups);
+        // 旧存档没有分组布局，或缺了某台主机所属的分组名：按出现次序补齐。
+        _syncGroups();
+        notifyListeners();
     }
-    _servers
-      ..clear()
-      ..addAll(saved.servers);
-    _groupOrder
-      ..clear()
-      ..addAll(saved.groupOrder);
-    _collapsedGroups
-      ..clear()
-      ..addAll(saved.collapsedGroups);
-    // 旧存档没有分组布局，或缺了某台主机所属的分组名：按出现次序补齐。
-    _syncGroups();
-    notifyListeners();
   }
 
   /// 落盘失败只降级为「本次改动未存档」，不打断 UI；下次变更会再次尝试。
@@ -73,6 +87,9 @@ class ServerStore extends ChangeNotifier {
   void _schedulePersist() {
     final backend = persistence;
     if (backend == null) return;
+    // 存档读不出来时停写：当前内存列表是残缺的（甚至就是空的），
+    // 落盘等于把用户仅存的那份数据抹掉。宁可这次改动不存档。
+    if (_archiveUnreadable) return;
     // 快照后再交给异步落盘：编码发生在 await 之后，不能把可变列表交出去。
     final archive = ServerArchive(
       servers: List.of(_servers),
