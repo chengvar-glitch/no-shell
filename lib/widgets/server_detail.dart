@@ -68,10 +68,12 @@ Widget? sidebarExpandButton(
   return Align(
     alignment: Alignment.topLeft,
     child: Padding(
-      // 红绿灯区域约到 x=76、垂直中心 y≈16，这里与之同行并留出间距。
+      // macOS：红绿灯垂直中心 y≈27（trafficLightTopInset 20 + 半个灯高 7），
+      // 按钮（高 26）在 54pt 头部行内垂直居中（top 14）落在同一条中心线上，
+      // 缩进 96 与收起态详情头部同一列；其余平台照旧贴面板左上角。
       padding: EdgeInsets.only(
-        left: isMacOS ? 84 : 6,
-        top: isMacOS ? 3 : windowTopInset(6.0),
+        left: isMacOS ? kMacOSTrafficLightsIndent : 6,
+        top: isMacOS ? kMacOSTrafficLightsCenterY - 13 : windowTopInset(6.0),
       ),
       child: IconButton(
         tooltip: AppLocalizations.of(context)
@@ -259,7 +261,10 @@ class _ServerDetailState extends State<_ServerDetail> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           WindowCaptionBar(leading: header),
-          _HeaderTags(server: server),
+          _HeaderTags(
+            server: server,
+            sidebarCollapsed: widget.sidebarCollapsed,
+          ),
           Expanded(child: tabs),
         ],
       );
@@ -272,13 +277,14 @@ class _ServerDetailState extends State<_ServerDetail> {
           children: [
             if (isMacOS)
               // 收起侧边栏后详情面板顶到窗口左缘，头部必须让开左上角的红绿灯
-              // 区（红绿灯右缘约 82pt），起点平移到 96pt；动画时长与侧边栏
-              // 收起一致，名字不会从灯底下突兀地钻出来。
+              // 区（红绿灯右缘约 82pt），起点平移到 kMacOSTrafficLightsIndent；
+              // 标签行（[_HeaderTags]）以同一时长与曲线跟随，左缘保持成列。
+              // 动画时长与侧边栏收起一致，名字不会从灯底下突兀地钻出来。
               AnimatedPadding(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 padding: EdgeInsets.fromLTRB(
-                  widget.sidebarCollapsed ? 96 : 16,
+                  widget.sidebarCollapsed ? kMacOSTrafficLightsIndent : 16,
                   0,
                   12,
                   0,
@@ -293,7 +299,10 @@ class _ServerDetailState extends State<_ServerDetail> {
                 padding: EdgeInsets.fromLTRB(16, windowTopInset(10.0), 12, 8),
                 child: header,
               ),
-            _HeaderTags(server: server),
+            _HeaderTags(
+              server: server,
+              sidebarCollapsed: widget.sidebarCollapsed,
+            ),
             Expanded(child: tabs),
           ],
         ),
@@ -327,10 +336,9 @@ class _DetailHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final showExpand =
-        sidebarCollapsed &&
-        onToggleSidebar != null &&
-        defaultTargetPlatform != TargetPlatform.macOS;
+    // macOS 收起态同样排进行内：头部已平移到红绿灯右侧（96pt），
+    // 按钮不会与灯重叠，用户不必靠 ⌘B 也能找回侧边栏。
+    final showExpand = sidebarCollapsed && onToggleSidebar != null;
     return Row(
       // 收缩包裹：头部排在标题条左侧，窄窗口下由名字省略号承担收缩。
       mainAxisSize: MainAxisSize.min,
@@ -424,18 +432,32 @@ class _DetailHeader extends StatelessWidget {
 /// 标签行：排在标题条 / 头部之下，没有标签时不占高度。
 /// 始终保留在树上，避免标签增减时把 Tab 容器搬到另一个子树位置。
 class _HeaderTags extends StatelessWidget {
-  const _HeaderTags({required this.server});
+  const _HeaderTags({required this.server, required this.sidebarCollapsed});
 
   final SshServer server;
+  final bool sidebarCollapsed;
 
   @override
   Widget build(BuildContext context) {
     if (server.tags.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
-    return Padding(
-      // 标题条行内时头部左内边距是 12（与侧边栏头部对齐），标签跟着它走；
-      // macOS 的头部仍在面板里、左内边距 16。
-      padding: EdgeInsets.fromLTRB(usesCustomWindowCaption ? 12 : 16, 6, 12, 0),
+    // 左缘始终与头部同一列：自绘标题条行内头部左内边距 12（与侧边栏头部
+    // 对齐）；macOS 头部在面板里、展开态左内边距 16，收起后头部平移到
+    // 红绿灯右侧（96），标签以同一时长与曲线跟随，不再孤零零挂在
+    // 红绿灯那一列。
+    final isMacOS =
+        !usesCustomWindowCaption &&
+        defaultTargetPlatform == TargetPlatform.macOS;
+    final double left = usesCustomWindowCaption
+        ? 12
+        : isMacOS && sidebarCollapsed
+        ? kMacOSTrafficLightsIndent
+        : 16;
+    return AnimatedPadding(
+      key: const ValueKey('detail-header-tags'),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.fromLTRB(left, 6, 12, 0),
       child: Wrap(
         spacing: 6,
         runSpacing: 4,

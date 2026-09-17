@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:no_shell/main.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/store.dart';
+import 'package:no_shell/widgets/window_caption.dart';
 
 import 'support/credential_store_fake.dart';
 import 'support/demo_servers.dart';
@@ -22,6 +24,10 @@ void main() {
     );
     await tester.pump();
   }
+
+  RenderBox sidebarSlot(WidgetTester tester) => tester.renderObject<RenderBox>(
+    find.byKey(const ValueKey('sidebar-slot')),
+  );
 
   testWidgets('分栏布局：侧边栏渲染，选中主机后展示详情', (tester) async {
     await pumpDesktop(tester);
@@ -125,6 +131,82 @@ void main() {
     await tester.pumpAndSettle();
     expect(sidebarSlot().size.width, 264);
     expect(find.byIcon(Icons.view_sidebar), findsNothing);
+  });
+
+  testWidgets('macOS 收起侧边栏：标签行跟随头部缩进，行内按钮可展开', (tester) async {
+    // 回归：收起侧边栏后头部平移到红绿灯右侧（96），标签行却留在面板
+    // 常规内边距 16，孤零零挂在红绿灯那一列；且收起态没有行内展开按钮，
+    // 只能靠 ⌘B 找回侧边栏。
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      await pumpDesktop(tester);
+
+      await tester.tap(find.text('web-prod-01'));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.menu_open));
+      await tester.pumpAndSettle();
+
+      // 标签行与收起后的头部同一列：缩进 96（红绿灯右缘约 82）。
+      final tagsRow = find.descendant(
+        of: find.byKey(const ValueKey('detail-header-tags')),
+        matching: find.byType(Wrap),
+      );
+      expect(tester.getRect(tagsRow).left, kMacOSTrafficLightsIndent);
+
+      // 行内展开按钮可见，点击后侧边栏恢复、标签回到常规内边距。
+      expect(find.byIcon(Icons.view_sidebar), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.view_sidebar));
+      await tester.pumpAndSettle();
+      expect(sidebarSlot(tester).size.width, 264);
+      // 详情面板起点 = 侧边栏 264 + 拖拽条 9，标签回到面板常规内边距 16。
+      expect(tester.getRect(tagsRow).left, 264 + 9 + 16);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('macOS 空态收起侧边栏：浮动展开按钮与红绿灯同一中心线', (tester) async {
+    // 回归：展开按钮用过旧的红绿灯参数（top 3，中心 y≈16），红绿灯北移后
+    // 按钮浮在灯上方 11pt、且左缘贴着灯位；应落在头部行中心线 y≈27、
+    // 缩进 96 与详情头部同列。
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      await pumpDesktop(tester);
+
+      await tester.tap(find.byIcon(Icons.menu_open));
+      await tester.pumpAndSettle();
+
+      // 只断言不随主题密度漂移的几何：本文件里更早的用例以默认平台（Android）
+      // 先建过缓存主题（main.dart 的 static final ThemeData），visualDensity
+      // / 触达目标尺寸已被固化，按钮渲染高度会随先到平台变化；
+      // 而定位由外层 Padding 决定，恒为 left 96、top 中心线 27 - 半高 13。
+      // find.ancestor 由近及远排列，最后一个才是我们加的定位 Padding。
+      final padding = tester.widget<Padding>(
+        find
+            .ancestor(
+              of: find.byIcon(Icons.view_sidebar),
+              matching: find.byType(Padding),
+            )
+            .last,
+      );
+      expect(
+        padding.padding,
+        EdgeInsets.only(
+          left: kMacOSTrafficLightsIndent,
+          top: kMacOSTrafficLightsCenterY - 13,
+        ),
+      );
+      final buttonRect = tester.getRect(
+        find.ancestor(
+          of: find.byIcon(Icons.view_sidebar),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(buttonRect.top, kMacOSTrafficLightsCenterY - 13);
+      expect(buttonRect.left, kMacOSTrafficLightsIndent);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('主题默认跟随系统：系统浅色 → 浅色界面', (tester) async {

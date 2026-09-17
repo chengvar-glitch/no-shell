@@ -23,6 +23,17 @@ const double kWindowCaptionButtonInset = 8.0;
 /// 标题条左侧内容与窗口左边缘的间距，和侧边栏头部同一套内边距。
 const double kWindowCaptionLeadingInset = 12.0;
 
+/// macOS 收起侧边栏后，详情面板头部一列让开左上角红绿灯的缩进量。
+/// 红绿灯左缘 21pt、右缘约 82pt（见 MainFlutterWindow 的
+/// trafficLightLeftInset 与系统灯位间距），96 与之留出约 14pt 间距；
+/// 头部 / 标签行 / 空态展开按钮在收起态都平移到这一列，共享同一条
+/// 垂直中心线 y≈27（trafficLightTopInset 20 + 半个灯高）。
+const double kMacOSTrafficLightsIndent = 96.0;
+
+/// macOS 红绿灯行的垂直中心：顶部条带内红绿灯中心 y≈27pt，
+/// 侧边栏动作行（54）与详情头部行（54）都以它为中心。
+const double kMacOSTrafficLightsCenterY = 27.0;
+
 /// 无论左侧内容多宽都要留出的拖拽区宽度：窗口得拖得动。
 const double _minDragWidth = 48.0;
 
