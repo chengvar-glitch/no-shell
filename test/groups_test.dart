@@ -194,7 +194,11 @@ void main() {
       addTearDown(tester.platformDispatcher.clearAllTestValues);
       final store = ServerStore(seed: demoServers);
       await tester.pumpWidget(
-        NoShellApp(store: store, credentials: FakeCredentialStore()),
+        NoShellApp(
+          store: store,
+          credentials: FakeCredentialStore(),
+          agentKeysProbe: () async => false,
+        ),
       );
       await tester.pumpAndSettle();
       return store;
@@ -314,7 +318,11 @@ void main() {
       final store = ServerStore(seed: [_server('a', '生产')]);
       store.createGroup('预发');
       await tester.pumpWidget(
-        NoShellApp(store: store, credentials: FakeCredentialStore()),
+        NoShellApp(
+          store: store,
+          credentials: FakeCredentialStore(),
+          agentKeysProbe: () async => false,
+        ),
       );
       await tester.pumpAndSettle();
 

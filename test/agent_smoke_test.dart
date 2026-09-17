@@ -19,8 +19,11 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/models.dart';
+import 'package:no_shell/ssh/connect_flow.dart';
+import 'package:no_shell/ssh/session_manager.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
+import 'package:no_shell/store.dart';
 
 final _env = Platform.environment;
 final _host = _env['NOSHELL_SMOKE_HOST'];
@@ -33,19 +36,20 @@ final _skip = _host == null || _agentSock == null
     ? '未设置 NOSHELL_SMOKE_HOST / SSH_AUTH_SOCK，跳过 Agent 认证冒烟'
     : null;
 
+SshServer _server(String id) => SshServer(
+  id: id,
+  group: 'smoke',
+  name: id,
+  host: _host!,
+  port: _port,
+  username: _user,
+  authMethod: AuthMethod.agent,
+);
+
 void main() {
   test('Agent 认证：经本机 agent 连上真实主机并跑通 shell', () async {
-    final server = SshServer(
-      id: 'smoke-agent-target',
-      group: 'smoke',
-      name: 'smoke-agent-target',
-      host: _host!,
-      port: _port,
-      username: _user,
-      authMethod: AuthMethod.agent,
-    );
     final session = TerminalSession(
-      server: server,
+      server: _server('smoke-agent-target'),
       credentials: const SshCredentials(useAgent: true),
       // hostKeys 省略（null）：冒烟不做 TOFU 校验，与其他冒烟一致。
     );
@@ -70,5 +74,29 @@ void main() {
     expect(text, contains(marker), reason: text);
     // ignore: avoid_print
     print('AGENT SMOKE PASS: $_user@$_host:$_port 经 agent 认证连上');
+  }, skip: _skip);
+
+  test('无感 agent：未存凭据的主机经 tryAgentConnect 直连', () async {
+    final sessions = SessionManager(store: ServerStore());
+    addTearDown(sessions.dispose);
+    final server = _server('smoke-agent-seamless');
+
+    expect(
+      await sessions.agentKeysProbe(),
+      isTrue,
+      reason: 'SSH_AUTH_SOCK 里的 agent 应有密钥（见冒烟前置说明）',
+    );
+    final outcome = await tryAgentConnect(sessions, server, const []);
+    expect(
+      outcome,
+      AgentProbeOutcome.connected,
+      reason: '无感连接失败：${sessions.byServerId(server.id)?.error}',
+    );
+
+    final session = sessions.byServerId(server.id);
+    expect(session?.phase, TerminalPhase.connected);
+    expect(session?.credentials.useAgent, isTrue);
+    // ignore: avoid_print
+    print('AGENT SEAMLESS SMOKE PASS: $_user@$_host:$_port 未存凭据直连');
   }, skip: _skip);
 }

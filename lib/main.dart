@@ -138,6 +138,7 @@ class NoShellApp extends StatefulWidget {
     this.hostKeys,
     this.settings,
     this.initialSettings,
+    this.agentKeysProbe,
   });
 
   /// 测试或嵌入方可注入；缺省时主机列表不落盘，凭据走平台安全存储，
@@ -151,6 +152,10 @@ class NoShellApp extends StatefulWidget {
 
   /// 启动前已读出的偏好；为 null 表示按默认值启动。
   final AppSettings? initialSettings;
+
+  /// 「本机 agent 是否可用且有钥匙」的探针；测试注入假探针，
+  /// 缺省连真实的 SSH_AUTH_SOCK。
+  final AgentKeysProbe? agentKeysProbe;
 
   @override
   State<NoShellApp> createState() => _NoShellAppState();
@@ -174,6 +179,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
     store: _store,
     hostKeys: _hostKeys,
     allowLegacyHostKeys: _allowLegacyHostKeys,
+    agentKeysProbe: widget.agentKeysProbe,
   );
 
   /// 主题默认跟随系统；启动时以落盘偏好为准，没有存档才用默认值。

@@ -323,6 +323,38 @@ void main() {
       expect(find.textContaining('已被删除'), findsOneWidget);
       expect(harness.sessions.sessionCount, 0);
     });
+
+    testWidgets('跳板机没存凭据时静默试 agent，免弹窗直连', (tester) async {
+      final servers = [
+        _server(id: 'jump', name: 'jump-host', host: '10.0.0.9'),
+        _server(id: 'target', name: 'target', jump: 'jump'),
+      ];
+      final credentials = FakeCredentialStore()
+        ..write('target', const SshCredentials(password: 'target-pw'));
+      final harness = await _pump(
+        tester,
+        servers: servers,
+        credentials: credentials,
+        target: servers[1],
+        hopAgent: (server, upstream) async {
+          // 只有跳板机这一跳走 agent；上游链路为空。
+          expect(server.id, 'jump');
+          expect(upstream, isEmpty);
+          return const SshCredentials(useAgent: true);
+        },
+      );
+
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+
+      // 全程没弹凭据框，跳板链路带着 agent 凭据连上了目标。
+      expect(find.text('连接「jump-host」'), findsNothing);
+      expect(harness.jumps.single.single.credentials.useAgent, isTrue);
+      expect(
+        harness.sessions.byServerId('target')?.phase,
+        TerminalPhase.connected,
+      );
+    });
   });
 }
 
@@ -375,6 +407,8 @@ Future<_Harness> _pump(
   required List<SshServer> servers,
   required FakeCredentialStore credentials,
   required SshServer target,
+  AgentKeysProbe? agentKeys,
+  HopAgentProbe? hopAgent,
 }) async {
   final harness = _Harness()
     ..credentials = credentials
@@ -382,6 +416,10 @@ Future<_Harness> _pump(
   final store = ServerStore(seed: servers);
   final sessions = SessionManager(
     store: store,
+    // 探针默认「本机没有 agent」：不注入就会碰真实 SSH_AUTH_SOCK，
+    // 结果随开发机环境漂移。
+    agentKeysProbe: agentKeys ?? () async => false,
+    hopAgentProbe: hopAgent,
     sessionFactory: (server, creds, jumps) {
       harness.jumps.add(jumps);
       return TerminalSession(

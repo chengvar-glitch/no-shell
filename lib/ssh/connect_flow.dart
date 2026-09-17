@@ -52,9 +52,11 @@ Future<void> dropStoredCredential(
 
 /// 统一的连接 / 断开入口，桌面端与移动端共用：
 /// 已有活跃会话 → 直接断开；
-/// 有跳板机 → 先逐跳取凭据（没存过的当场弹窗），再连目标主机；
+/// 有跳板机 → 先逐跳取凭据（没存过的先静默试本机 agent，再不行当场弹窗），
+/// 再连目标主机；
 /// 已存凭据 → 免弹窗直连，认证失败自动回退到预填弹窗；
-/// 否则先弹凭据框，勾选「记住凭据」时写入安全存储（取消勾选即清除）。
+/// 没存凭据 → 先静默试一把本机 agent 的钥匙（无感连接，见 [tryAgentConnect]），
+/// 不行再弹凭据框，勾选「记住凭据」时写入安全存储（取消勾选即清除）。
 Future<void> toggleSession(
   BuildContext context, {
   required SessionManager sessions,
@@ -115,6 +117,20 @@ Future<void> toggleSession(
     return;
   }
 
+  // 无感 agent：没有存档凭据时，先静默试一把本机 agent 的钥匙——和 ssh
+  // 命令行的体感一致，「agent 里有能用的钥匙就直接进」。钥匙不被服务器认
+  // 就悄悄收掉探测会话、回常规凭据框；网络 / 主机密钥之类的失败与 agent
+  // 无关，保留错误现场让用户看到真实原因，不拿密码框掩盖。
+  // agentKeysProbe 先做纯本地检查（agent 在不在、有没有钥匙），没有就
+  // 直接走弹窗，不发探测连接。
+  if (!authFailedBefore) {
+    if (await sessions.agentKeysProbe()) {
+      final outcome = await tryAgentConnect(sessions, server, jumps);
+      if (outcome != AgentProbeOutcome.fallback) return;
+    }
+    if (!context.mounted) return;
+  }
+
   await _promptAndConnect(
     context,
     sessions: sessions,
@@ -147,6 +163,7 @@ Future<List<SshHop>?> _resolveJumps(
       sessions: sessions,
       credentials: credentials,
       server: hop,
+      upstream: List.of(hops),
     );
     if (hopCredentials == null || !context.mounted) return null;
     hops.add(SshHop(server: hop, credentials: hopCredentials));
@@ -154,12 +171,14 @@ Future<List<SshHop>?> _resolveJumps(
   return hops;
 }
 
-/// 取一跳的凭据：存过就直接用（认证失败过则重新弹窗），没存过就弹窗。
+/// 取一跳的凭据：存过就直接用（认证失败过则重新弹窗）；没存过先静默试
+/// 本机 agent 的钥匙（逐跳都有份），不行再弹窗。
 Future<SshCredentials?> _hopCredentials(
   BuildContext context, {
   required SessionManager sessions,
   required CredentialStore credentials,
   required SshServer server,
+  required List<SshHop> upstream,
 }) async {
   final saved = await credentials.read(server.id);
   if (!context.mounted) return null;
@@ -169,6 +188,14 @@ Future<SshCredentials?> _hopCredentials(
       previous.phase == TerminalPhase.failed &&
       previous.errorKind == TerminalErrorKind.auth;
   if (saved != null && !authFailedBefore) return saved;
+
+  // 无感 agent：这一跳没存过凭据时，先静默试本机 agent 的钥匙（逐跳都有份）；
+  // 上一次认证刚失败过就不再试，直接弹窗。
+  final hopAgentCredentials = authFailedBefore
+      ? null
+      : await sessions.hopAgentProbe(server, upstream);
+  if (hopAgentCredentials != null) return hopAgentCredentials;
+  if (!context.mounted) return null;
 
   final submission = await showCredentialsDialog(
     context,
@@ -187,6 +214,52 @@ Future<SshCredentials?> _hopCredentials(
     }
   }
   return submission.credentials;
+}
+
+/// 无感 agent 的三种结局。
+enum AgentProbeOutcome {
+  /// agent 钥匙认证成功：会话已连上并留在注册表里，流程到此为止。
+  connected,
+
+  /// 失败与 agent 无关（网络不通、主机密钥不匹配等）：
+  /// 会话留着展示真实错误，不要拿密码框去掩盖。
+  keepError,
+
+  /// 服务器不认 agent 的钥匙（或 agent 中途失联、连接被中断）：
+  /// 探测会话已悄悄收掉，调用方应回退到常规凭据框。
+  fallback,
+}
+
+/// 静默地用本机 agent 的钥匙连一次 [server]（无感连接）。
+///
+/// 成功时会话留在 [SessionManager] 里，宿主界面照常展示终端；只有「认证
+/// 被拒」和「连接中断」才收掉会话并返回 [AgentProbeOutcome.fallback]。
+/// 前置条件是调用方已通过 `sessions.agentKeysProbe()` 确认本机 agent 有钥匙，
+/// 本函数不再重复检查。
+Future<AgentProbeOutcome> tryAgentConnect(
+  SessionManager sessions,
+  SshServer server,
+  List<SshHop> jumps,
+) async {
+  const credentials = SshCredentials(useAgent: true);
+  final session = sessions.open(server, credentials, jumps: jumps);
+  final (phase, kind) = await _awaitTerminal(session);
+  switch (phase) {
+    case TerminalPhase.connected:
+      return AgentProbeOutcome.connected;
+    case TerminalPhase.failed:
+      final agentRelated =
+          kind == TerminalErrorKind.auth || kind == TerminalErrorKind.agent;
+      if (!agentRelated) return AgentProbeOutcome.keepError;
+    case TerminalPhase.closed:
+    case TerminalPhase.connecting:
+      break;
+  }
+  // 认证被拒或连接中断：探测到此为止，收掉会话回常规流程。
+  if (identical(sessions.byServerId(server.id), session)) {
+    sessions.close(server.id);
+  }
+  return AgentProbeOutcome.fallback;
 }
 
 Future<void> _promptAndConnect(
@@ -231,26 +304,33 @@ void _showJumpChainError(BuildContext context, JumpChainException error) {
     ..showSnackBar(SnackBar(content: Text(message)));
 }
 
-/// 等待会话进入首个终态；仅认证失败返回 true。
-Future<bool> _failsWithAuth(TerminalSession session) async {
-  bool isAuthFailure() =>
-      session.phase == TerminalPhase.failed &&
-      session.errorKind == TerminalErrorKind.auth;
-  if (session.phase != TerminalPhase.connecting) return isAuthFailure();
-
-  final completer = Completer<bool>();
+/// 等待会话进入首个终态，返回 (终态, 失败归类)。
+/// 同一个微任务里连着两次通知（例如 failed 紧跟 closed）会重复完成，
+/// 那会抛 StateError——今天的状态机走不到，但这里不该靠运气。
+Future<(TerminalPhase, TerminalErrorKind)> _awaitTerminal(
+  TerminalSession session,
+) async {
+  if (session.phase != TerminalPhase.connecting) {
+    return (session.phase, session.errorKind);
+  }
+  final completer = Completer<void>();
   late final VoidCallback listener;
   listener = () {
     if (session.phase == TerminalPhase.connecting) return;
-    // 同一个微任务里连着两次通知（例如 failed 紧跟 closed）会重复完成，
-    // 那会抛 StateError。今天的状态机走不到，但这里不该靠运气。
     if (completer.isCompleted) return;
-    completer.complete(isAuthFailure());
+    completer.complete();
   };
   session.addListener(listener);
   try {
-    return await completer.future;
+    await completer.future;
   } finally {
     session.removeListener(listener);
   }
+  return (session.phase, session.errorKind);
+}
+
+/// 等待会话进入首个终态；仅认证失败返回 true。
+Future<bool> _failsWithAuth(TerminalSession session) async {
+  final (phase, kind) = await _awaitTerminal(session);
+  return phase == TerminalPhase.failed && kind == TerminalErrorKind.auth;
 }
