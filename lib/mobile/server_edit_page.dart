@@ -232,31 +232,47 @@ class _ServerEditPageState extends State<ServerEditPage> {
               onChanged: (value) => setState(() => _jumpServerId = value),
             ),
             const SizedBox(height: 14),
-            SegmentedButton<AuthMethod>(
-              segments: [
-                ButtonSegment(
-                  value: AuthMethod.password,
-                  label: Text(l10n.authPassword),
-                  icon: const Icon(Icons.password_rounded, size: 16),
+            // 分组 / 跳板机都有自带标签，认证方式补一个同级小标题，
+            // 三选一的语义一眼可读；按钮组与输入框同宽，不按内容居中。
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                l10n.authMethod,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).secondaryText,
                 ),
-                ButtonSegment(
-                  value: AuthMethod.privateKey,
-                  label: Text(l10n.authKey),
-                  icon: const Icon(Icons.vpn_key_outlined, size: 16),
-                ),
-                // 本平台没有 agent 时不给这个入口；主机预设就是 Agent 时
-                // 仍要展示，否则保存的取值在界面上无从呈现。
-                if (sshAgentSupported || _auth == AuthMethod.agent)
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<AuthMethod>(
+                segments: [
                   ButtonSegment(
-                    value: AuthMethod.agent,
-                    label: Text(l10n.authAgent),
-                    icon: const Icon(Icons.extension_outlined, size: 16),
+                    value: AuthMethod.password,
+                    label: Text(l10n.authPassword),
+                    icon: const Icon(Icons.password_rounded, size: 16),
                   ),
-              ],
-              selected: {_auth},
-              showSelectedIcon: false,
-              onSelectionChanged: (selection) =>
-                  setState(() => _auth = selection.first),
+                  ButtonSegment(
+                    value: AuthMethod.privateKey,
+                    label: Text(l10n.authKey),
+                    icon: const Icon(Icons.vpn_key_outlined, size: 16),
+                  ),
+                  // 本平台没有 agent 时不给这个入口；主机预设就是 Agent 时
+                  // 仍要展示，否则保存的取值在界面上无从呈现。
+                  if (sshAgentSupported || _auth == AuthMethod.agent)
+                    ButtonSegment(
+                      value: AuthMethod.agent,
+                      label: Text(l10n.authAgent),
+                      icon: const Icon(Icons.extension_outlined, size: 16),
+                    ),
+                ],
+                selected: {_auth},
+                showSelectedIcon: false,
+                onSelectionChanged: (selection) =>
+                    setState(() => _auth = selection.first),
+              ),
             ),
             if (_auth == AuthMethod.agent) ...[
               const SizedBox(height: 8),

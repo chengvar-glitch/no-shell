@@ -162,36 +162,40 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
               ),
             ],
             const SizedBox(height: 12),
-            SegmentedButton<AuthMethod>(
-              segments: [
-                ButtonSegment(
-                  value: AuthMethod.password,
-                  label: Text(l10n.authPassword),
-                  icon: const Icon(Icons.password_rounded, size: 16),
-                ),
-                ButtonSegment(
-                  value: AuthMethod.privateKey,
-                  label: Text(l10n.authKey),
-                  icon: const Icon(Icons.vpn_key_outlined, size: 16),
-                ),
-                // 本平台没有 agent 时不给这个入口；但主机预设就是 Agent 时
-                // 仍要展示，否则保存的取值在界面上无从呈现。
-                if (sshAgentSupported || _auth == AuthMethod.agent)
+            // 与弹窗其他输入框同宽，不按内容居中。
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<AuthMethod>(
+                segments: [
                   ButtonSegment(
-                    value: AuthMethod.agent,
-                    label: Text(l10n.authAgent),
-                    icon: const Icon(Icons.extension_outlined, size: 16),
+                    value: AuthMethod.password,
+                    label: Text(l10n.authPassword),
+                    icon: const Icon(Icons.password_rounded, size: 16),
                   ),
-              ],
-              selected: {_auth},
-              showSelectedIcon: false,
-              style: const ButtonStyle(
-                textStyle: WidgetStatePropertyAll(
-                  TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+                  ButtonSegment(
+                    value: AuthMethod.privateKey,
+                    label: Text(l10n.authKey),
+                    icon: const Icon(Icons.vpn_key_outlined, size: 16),
+                  ),
+                  // 本平台没有 agent 时不给这个入口；但主机预设就是 Agent 时
+                  // 仍要展示，否则保存的取值在界面上无从呈现。
+                  if (sshAgentSupported || _auth == AuthMethod.agent)
+                    ButtonSegment(
+                      value: AuthMethod.agent,
+                      label: Text(l10n.authAgent),
+                      icon: const Icon(Icons.extension_outlined, size: 16),
+                    ),
+                ],
+                selected: {_auth},
+                showSelectedIcon: false,
+                style: const ButtonStyle(
+                  textStyle: WidgetStatePropertyAll(
+                    TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+                  ),
                 ),
+                onSelectionChanged: (selection) =>
+                    setState(() => _auth = selection.first),
               ),
-              onSelectionChanged: (selection) =>
-                  setState(() => _auth = selection.first),
             ),
             const SizedBox(height: 12),
             if (_auth == AuthMethod.password)
