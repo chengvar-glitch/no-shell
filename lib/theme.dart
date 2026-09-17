@@ -240,6 +240,10 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationThemeData(
         isDense: true,
         filled: true,
+        // 标签一律浮在边框上：默认 auto 会在「空且未聚焦」时把标签缩进
+        // 框内当占位符，与已聚焦 / 已有值的字段（标签在边框上）同屏时
+        // 一半在上一半在下，观感散架。统一浮起后框内只剩提示文案。
+        floatingLabelBehavior: FloatingLabelBehavior.always,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: hairline),

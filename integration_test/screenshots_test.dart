@@ -16,6 +16,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:no_shell/main.dart';
 import 'package:no_shell/models.dart';
+import 'package:no_shell/widgets/sidebar.dart';
 import 'package:no_shell/ssh/terminal_view.dart';
 import 'package:no_shell/store.dart';
 
@@ -154,7 +155,13 @@ void main() {
     await shot('01-desktop-overview');
 
     // 2. 新建连接对话框：本机演示服务端。
-    await tester.tap(find.byIcon(Icons.add_rounded));
+    // 详情面板空态也有同图标按钮，finder 限定侧边栏避免歧义。
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Sidebar),
+        matching: find.byIcon(Icons.add_rounded),
+      ),
+    );
     await settle(600);
     final dialogFields = find.descendant(
       of: find.byType(AlertDialog),
@@ -218,7 +225,8 @@ void main() {
     await shot('04-terminal');
 
     // 5. SFTP：进入 Tab 等目录列表渲染完成。
-    await tester.tap(find.text('SFTP'));
+    // 四个 Tab 子树常驻挂载，SFTP 空态标题也含同文案，Tab 头取树序第一个。
+    await tester.tap(find.text('SFTP').first);
     await tester.runAsync(() async {
       final deadline = DateTime.now().add(const Duration(seconds: 20));
       while (DateTime.now().isBefore(deadline)) {
