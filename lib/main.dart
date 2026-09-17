@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -21,6 +22,7 @@ import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _registerBundledFontLicenses();
   await _setupDesktopWindow();
   // 启动即载入已保存的主机列表与偏好，避免先闪一帧空列表 / 默认主题
   // 再被替换；两者互不依赖，并行读盘。
@@ -34,6 +36,22 @@ Future<void> main() async {
       initialSettings: savedSettings,
     ),
   );
+}
+
+/// 把随包内置字体的 OFL 文本注册进许可清单：SIL OFL 要求分发字体时随附许可，
+/// 注册后「关于 → 查看许可」（showAboutDialog 自带入口）里就能看到。
+/// 读不到 asset 时静默跳过——许可展示失败不该拦下启动。
+void _registerBundledFontLicenses() {
+  for (final entry in kBundledFontLicenses.entries) {
+    LicenseRegistry.addLicense(() async* {
+      try {
+        final text = await rootBundle.loadString(entry.value);
+        yield LicenseEntryWithLineBreaks([entry.key], text);
+      } catch (_) {
+        return;
+      }
+    });
+  }
 }
 
 /// 桌面初始窗口尺寸：在旧版 1280x720 基础上放大 20%。
@@ -139,7 +157,7 @@ class NoShellApp extends StatefulWidget {
 }
 
 class _NoShellAppState extends State<NoShellApp> {
-  // ThemeData 构建开销不小，AppTheme 内部已按（亮度, 字体）缓存。
+  // ThemeData 构建开销不小，AppTheme 内部已按亮度缓存。
   static final _lightTheme = AppTheme.light();
   static final _darkTheme = AppTheme.dark();
 
@@ -157,7 +175,6 @@ class _NoShellAppState extends State<NoShellApp> {
       widget.initialSettings?.themeMode ?? ThemeMode.system;
   late AppLanguage _language =
       widget.initialSettings?.language ?? AppLanguage.system;
-  late UiFont _uiFont = widget.initialSettings?.uiFont ?? UiFont.system;
 
   /// 终端样式（配色预设 + 字体 + 字号）全局偏好，经作用域下发，设置处直写。
   late final ValueNotifier<TerminalStylePrefs> _terminalStyle = ValueNotifier(
@@ -177,7 +194,6 @@ class _NoShellAppState extends State<NoShellApp> {
   AppSettings get _currentSettings => AppSettings(
     themeMode: _themeMode,
     language: _language,
-    uiFont: _uiFont,
     terminalStyle: _terminalStyle.value,
   );
 
@@ -216,11 +232,6 @@ class _NoShellAppState extends State<NoShellApp> {
     _scheduleSave();
   }
 
-  void _setUiFont(UiFont font) {
-    setState(() => _uiFont = font);
-    _scheduleSave();
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -231,8 +242,8 @@ class _NoShellAppState extends State<NoShellApp> {
       supportedLocales: AppLocalizations.supportedLocales,
       // null 表示跟随系统；zh 系统命中 zh，其余回退到首个支持语言 en。
       locale: _language.locale,
-      theme: _uiFont == UiFont.system ? _lightTheme : AppTheme.light(_uiFont),
-      darkTheme: _uiFont == UiFont.system ? _darkTheme : AppTheme.dark(_uiFont),
+      theme: _lightTheme,
+      darkTheme: _darkTheme,
       themeMode: _themeMode,
       // 主题切换由 MaterialApp 内置的 AnimatedTheme 逐帧插值：语义色走
       // AppColors 扩展的 lerp（见 theme.dart），浅深色才能整体同时过渡。
@@ -259,8 +270,6 @@ class _NoShellAppState extends State<NoShellApp> {
                   onThemeModeChanged: _setThemeMode,
                   language: _language,
                   onLanguageChanged: _setLanguage,
-                  uiFont: _uiFont,
-                  onUiFontChanged: _setUiFont,
                 )
               : HomePage(
                   store: _store,
@@ -270,8 +279,6 @@ class _NoShellAppState extends State<NoShellApp> {
                   onThemeModeChanged: _setThemeMode,
                   language: _language,
                   onLanguageChanged: _setLanguage,
-                  uiFont: _uiFont,
-                  onUiFontChanged: _setUiFont,
                   onSettingsClosed: _saveNow,
                 );
         },

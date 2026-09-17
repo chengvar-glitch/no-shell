@@ -399,13 +399,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dark => 'Dark';
 
   @override
-  String get appFont => 'App font';
-
-  @override
-  String get fontSystemDefault => 'System default';
-
-  @override
-  String get fontMonospace => 'Monospace';
+  String get fontSystemMonospace => 'System monospace';
 
   @override
   String get terminalPreset => 'Terminal theme';
@@ -421,15 +415,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fontSizeIncrease => 'Increase font size';
-
-  @override
-  String get fontCustom => 'Custom font…';
-
-  @override
-  String get terminalFontCustomName => 'Font family';
-
-  @override
-  String get terminalFontCustomHint => 'e.g. Fira Code, Sarasa Mono SC';
 
   @override
   String get presetDefaultDark => 'Default dark';

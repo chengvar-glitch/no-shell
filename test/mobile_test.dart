@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:no_shell/main.dart';
 import 'package:no_shell/mobile/servers_tab.dart';
+import 'package:no_shell/mobile/settings_tab.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/settings.dart';
 import 'package:no_shell/store.dart';
@@ -144,12 +145,13 @@ void main() {
     expect(find.text('fofo'), findsWidgets);
   });
 
-  testWidgets('设置面板可切换界面字体与终端配色预设', (tester) async {
+  testWidgets('设置面板可切换终端字体与终端配色预设', (tester) async {
     await pumpMobile(tester);
 
     await tester.tap(navLabel('设置'));
     await tester.pumpAndSettle();
-    expect(find.text('界面字体'), findsOneWidget);
+    // 界面字体不提供自定义：外观分区只剩主题一项。
+    expect(find.text('界面字体'), findsNothing);
     expect(find.text('终端主题'), findsOneWidget);
     expect(find.text('终端字体'), findsOneWidget);
     // 与桌面设置弹窗共用同一套分组卡片：没有分隔线，靠底色与间距分层。
@@ -157,17 +159,26 @@ void main() {
     expect(find.byType(Divider), findsNothing);
     expect(find.byType(SettingsSection), findsWidgets);
 
-    // 界面字体：选择 PingFang 后，ThemeData 文本主题的字体随之生效。
-    await tester.tap(find.byType(DropdownButtonFormField<UiFont>));
+    // 终端字体：切到内置 Fira Code 后写入全局终端样式作用域。
+    await tester.tap(find.byType(DropdownButtonFormField<TerminalFont>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('PingFang 苹方').last);
+    await tester.tap(find.text('Fira Code').last);
     await tester.pumpAndSettle();
     expect(
-      Theme.of(tester.element(find.text('外观')))
-          .textTheme
-          .bodyMedium
-          ?.fontFamily,
-      'PingFang SC',
+      TerminalStyleScope.of(tester.element(find.text('外观')))
+          .notifier
+          .value
+          .font,
+      TerminalFont.firaCode,
+    );
+    // 字体名输入框不存在：字体只能在随包内置与系统等宽之间选。
+    // （IndexedStack 里其它 Tab 的搜索框仍在树上，这里限定在设置页内。）
+    expect(
+      find.descendant(
+        of: find.byType(SettingsTab),
+        matching: find.byType(TextField),
+      ),
+      findsNothing,
     );
 
     // 终端预设：切换为 Dracula 后写入全局终端样式作用域。

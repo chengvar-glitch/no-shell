@@ -161,8 +161,6 @@ void main() {
           onThemeModeChanged: (_) {},
           language: AppLanguage.system,
           onLanguageChanged: (_) {},
-          uiFont: UiFont.system,
-          onUiFontChanged: (_) {},
         ),
       ),
     );
@@ -196,7 +194,8 @@ void main() {
           : slice
                 .map(
                   (t) =>
-                      (t.buildDuration + t.rasterDuration).inMicroseconds / 1000,
+                      (t.buildDuration + t.rasterDuration).inMicroseconds /
+                      1000,
                 )
                 .reduce((a, b) => a > b ? a : b);
       rows.add((
@@ -231,36 +230,15 @@ void main() {
     sessions.open(store.byId('srv-01')!, const SshCredentials(password: 'pw'));
     await tester.pump(const Duration(milliseconds: 600));
     transport.setMode(StreamMode.light);
-    await measure('已连接 + 轻载输出', const [
-      '终端',
-      'SFTP',
-      '概览',
-      '终端',
-      'SFTP',
-      '概览',
-    ]);
+    await measure('已连接 + 轻载输出', const ['终端', 'SFTP', '概览', '终端', 'SFTP', '概览']);
 
     transport.setMode(StreamMode.heavy);
     await Future<void>.delayed(const Duration(milliseconds: 600));
-    await measure('已连接 + 重载输出', const [
-      '终端',
-      'SFTP',
-      '概览',
-      '终端',
-      'SFTP',
-      '概览',
-    ]);
+    await measure('已连接 + 重载输出', const ['终端', 'SFTP', '概览', '终端', 'SFTP', '概览']);
 
     transport.setMode(StreamMode.off);
     await Future<void>.delayed(const Duration(milliseconds: 400));
-    await measure('已连接 + 停止输出', const [
-      '终端',
-      'SFTP',
-      '概览',
-      '终端',
-      'SFTP',
-      '概览',
-    ]);
+    await measure('已连接 + 停止输出', const ['终端', 'SFTP', '概览', '终端', 'SFTP', '概览']);
 
     final lines = <String>[
       '',
@@ -278,7 +256,9 @@ void main() {
             row.maxTotal.toStringAsFixed(1).padLeft(10),
       );
     }
-    lines.add('================================================================');
+    lines.add(
+      '================================================================',
+    );
     for (final line in lines) {
       debugPrint(line);
     }

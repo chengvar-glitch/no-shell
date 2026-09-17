@@ -8,7 +8,7 @@ import '../theme.dart';
 import 'app_icon_mark.dart';
 import 'settings_controls.dart';
 
-/// 桌面端设置弹窗：外观（主题 / 界面字体）、终端（配色 / 字体 / 预览）与语言。
+/// 桌面端设置弹窗：外观（主题）、终端（配色 / 字体 / 字号 / 预览）与语言。
 ///
 /// 所有改动都即时生效——各自回调直接写根状态或全局作用域，
 /// 因此底部只有「完成」，没有也不需要有「保存」。
@@ -18,8 +18,6 @@ Future<void> showSettingsDialog(
   required ValueChanged<ThemeMode> onThemeModeChanged,
   required AppLanguage language,
   required ValueChanged<AppLanguage> onLanguageChanged,
-  required UiFont uiFont,
-  required ValueChanged<UiFont> onUiFontChanged,
 }) {
   return showDialog<void>(
     context: context,
@@ -28,8 +26,6 @@ Future<void> showSettingsDialog(
       onThemeModeChanged: onThemeModeChanged,
       initialLanguage: language,
       onLanguageChanged: onLanguageChanged,
-      initialUiFont: uiFont,
-      onUiFontChanged: onUiFontChanged,
     ),
   );
 }
@@ -40,16 +36,12 @@ final class _SettingsDialog extends StatefulWidget {
     required this.onThemeModeChanged,
     required this.initialLanguage,
     required this.onLanguageChanged,
-    required this.initialUiFont,
-    required this.onUiFontChanged,
   });
 
   final ThemeMode initialThemeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage initialLanguage;
   final ValueChanged<AppLanguage> onLanguageChanged;
-  final UiFont initialUiFont;
-  final ValueChanged<UiFont> onUiFontChanged;
 
   @override
   State<_SettingsDialog> createState() => _SettingsDialogState();
@@ -58,7 +50,6 @@ final class _SettingsDialog extends StatefulWidget {
 final class _SettingsDialogState extends State<_SettingsDialog> {
   late ThemeMode _themeMode = widget.initialThemeMode;
   late AppLanguage _language = widget.initialLanguage;
-  late UiFont _uiFont = widget.initialUiFont;
 
   @override
   Widget build(BuildContext context) {
@@ -135,16 +126,6 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                                 widget.onThemeModeChanged(selection.first);
                               },
                             ),
-                          ),
-                        ),
-                        SettingsRow(
-                          label: l10n.appFont,
-                          child: UiFontDropdown(
-                            value: _uiFont,
-                            onChanged: (font) {
-                              setState(() => _uiFont = font);
-                              widget.onUiFontChanged(font);
-                            },
                           ),
                         ),
                       ],

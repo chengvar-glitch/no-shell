@@ -3,97 +3,60 @@ import 'package:xterm/ui.dart';
 
 import 'l10n/generated/app_localizations.dart';
 
-/// 界面字体预设：字体名 + 回退链，目标字体未安装时按链回退，不打包字体资产。
-enum UiFont {
-  system,
-  pingFang,
-  microsoftYaHei,
-  monospace;
-
-  String? get fontFamily => switch (this) {
-    UiFont.system => null,
-    UiFont.pingFang => 'PingFang SC',
-    UiFont.microsoftYaHei => 'Microsoft YaHei',
-    UiFont.monospace => 'Menlo',
-  };
-
-  List<String> get fallback => switch (this) {
-    UiFont.system => const [],
-    UiFont.pingFang => const [
-      'Helvetica Neue',
-      'Microsoft YaHei',
-      'Noto Sans CJK SC',
-    ],
-    UiFont.microsoftYaHei => const [
-      'PingFang SC',
-      'Noto Sans CJK SC',
-      'Helvetica Neue',
-    ],
-    UiFont.monospace => const [
-      'SF Mono',
-      'Consolas',
-      'DejaVu Sans Mono',
-      'Courier New',
-    ],
-  };
-
-  String label(AppLocalizations l10n) => switch (this) {
-    UiFont.system => l10n.fontSystemDefault,
-    UiFont.pingFang => 'PingFang 苹方',
-    UiFont.microsoftYaHei => 'Microsoft YaHei 雅黑',
-    UiFont.monospace => l10n.fontMonospace,
-  };
-}
-
-/// 终端字体预设：「系统默认」按平台等宽回退链解析。
-/// [custom] 允许用户直接填系统里已安装的字体族名 —— 各平台的系统字体枚举
-/// 手段差异太大（web / iOS 根本拿不到，Linux 要解析字体文件或跑 fc-list），
-/// 这里先给一个跨平台都能用的入口：名字填对就用，填错按回退链降级。
+/// 终端字体：只提供「随包内置」与「系统等宽」两类，不提供自由填写字体名的入口。
+///
+/// 内置族名刻意带 `NoShell ` 前缀：它与系统里任何字体都不同名，文本引擎因此
+/// 必定命中随包的那份文件。反过来，写一个系统里可能存在的名字（如
+/// `JetBrains Mono`）在 Linux 上会被 fontconfig 直接顶替——fontconfig 对任何
+/// 请求名都返回一个替代品，替代品可能是比例字体；而终端是按固定格子绘字的
+/// （格子宽度由 `mmmmmmmmmm` 量出），比例字形落进格子就会散成一堆缝。
+/// 更糟的是这种情况下 `fontFamilyFallback` 不会启用：主族名既然「命中」了替代品，
+/// 回退链就永远轮不到。所以「能被用户选中的字体」必须是我们自带的。
 enum TerminalFont {
-  system,
-  menlo,
-  consolas,
-  jetbrainsMono,
-  custom;
+  jetBrainsMono('NoShell JetBrains Mono'),
+  firaCode('NoShell Fira Code'),
+  systemMonospace('monospace');
 
-  String? get fontFamily => switch (this) {
-    TerminalFont.system => null,
-    TerminalFont.menlo => 'Menlo',
-    TerminalFont.consolas => 'Consolas',
-    TerminalFont.jetbrainsMono => 'JetBrains Mono',
-    // 具体字体名由 [TerminalStylePrefs.customFontName] 提供。
-    TerminalFont.custom => null,
-  };
+  const TerminalFont(this.family);
 
-  List<String> get fallback => switch (this) {
-    TerminalFont.system => const [
-      'SF Mono',
-      'Menlo',
-      'Consolas',
-      'DejaVu Sans Mono',
-    ],
-    TerminalFont.menlo => const ['SF Mono', 'DejaVu Sans Mono', 'Consolas'],
-    TerminalFont.consolas => const [
-      'Cascadia Code',
-      'Menlo',
-      'DejaVu Sans Mono',
-    ],
-    TerminalFont.jetbrainsMono => const [
-      'Menlo',
-      'Consolas',
-      'DejaVu Sans Mono',
-    ],
-    TerminalFont.custom => const ['Menlo', 'Consolas', 'DejaVu Sans Mono'],
-  };
+  /// 交给文本引擎的族名：内置项与 `pubspec.yaml` 的 `fonts:` 声明一一对应。
+  final String family;
 
+  /// 缺字形回退链：只在内置字体没有该字形时逐项尝试（中文、emoji、Nerd 图标）。
+  /// 取自 xterm 自带的默认链，但末尾不收 `sans-serif` —— 比例字形落进终端
+  /// 网格比缺字更难看。注意回退链管的是「缺字形」，管不了「缺字体」。
+  static const List<String> _glyphFallback = [
+    'Menlo',
+    'Monaco',
+    'Consolas',
+    'Liberation Mono',
+    'Courier New',
+    'Noto Sans Mono CJK SC',
+    'Noto Sans Mono CJK TC',
+    'Noto Sans Mono CJK KR',
+    'Noto Sans Mono CJK JP',
+    'Noto Sans Mono CJK HK',
+    'Noto Color Emoji',
+    'Noto Sans Symbols',
+    'monospace',
+  ];
+
+  List<String> get fallback => _glyphFallback;
+
+  /// 字体名是品牌名，不进 l10n；只有「系统等宽」这类描述性文案才翻译。
   String label(AppLocalizations l10n) => switch (this) {
-    TerminalFont.system => l10n.fontSystemDefault,
-    TerminalFont.menlo => 'Menlo（macOS）',
-    TerminalFont.consolas => 'Consolas（Windows）',
-    TerminalFont.jetbrainsMono => 'JetBrains Mono',
-    TerminalFont.custom => l10n.fontCustom,
+    TerminalFont.jetBrainsMono => 'JetBrains Mono',
+    TerminalFont.firaCode => 'Fira Code',
+    TerminalFont.systemMonospace => l10n.fontSystemMonospace,
   };
 }
+
+/// 内置字体的许可文本（显示名 → asset 路径），启动时注册进 [LicenseRegistry]。
+/// 每个内置字体族都必须在这里有一条：OFL 要求分发字体时随附许可。
+const Map<String, String> kBundledFontLicenses = {
+  'JetBrains Mono': 'assets/fonts/jetbrains_mono/OFL.txt',
+  'Fira Code': 'assets/fonts/fira_code/OFL.txt',
+};
 
 /// 终端配色预设：绝对配色表，不随应用明暗主题翻转；默认深色。
 enum TerminalPreset {
@@ -354,8 +317,7 @@ enum TerminalPreset {
 class TerminalStylePrefs {
   const TerminalStylePrefs({
     this.preset = TerminalPreset.githubDark,
-    this.font = TerminalFont.system,
-    this.customFontName = '',
+    this.font = TerminalFont.jetBrainsMono,
     this.fontSize = defaultFontSize,
   });
 
@@ -368,21 +330,14 @@ class TerminalStylePrefs {
   final TerminalPreset preset;
   final TerminalFont font;
 
-  /// [TerminalFont.custom] 使用的字体族名；其它预设忽略。
-  final String customFontName;
-
   /// 终端字号（逻辑像素）。
   final int fontSize;
 
   TerminalTheme get theme => preset.theme;
 
-  /// xterm 的 TerminalStyle 要求具体字体名；
-  /// 「系统默认」沿用 xterm 的通用等宽族名，由平台解析。
-  String get resolvedFontFamily {
-    if (font != TerminalFont.custom) return font.fontFamily ?? 'monospace';
-    final name = customFontName.trim();
-    return name.isEmpty ? 'monospace' : name;
-  }
+  /// 交给 xterm `TerminalStyle` 的族名：内置项是随包族名，[TerminalFont.systemMonospace]
+  /// 是通用族名 `monospace`（由平台解析成真正的系统等宽，绝不会是比例字体）。
+  String get resolvedFontFamily => font.family;
 
   List<String> get fontFallback => font.fallback;
 
@@ -403,12 +358,10 @@ class TerminalStylePrefs {
   TerminalStylePrefs copyWith({
     TerminalPreset? preset,
     TerminalFont? font,
-    String? customFontName,
     int? fontSize,
   }) => TerminalStylePrefs(
     preset: preset ?? this.preset,
     font: font ?? this.font,
-    customFontName: customFontName ?? this.customFontName,
     fontSize: fontSize ?? this.fontSize,
   );
 }

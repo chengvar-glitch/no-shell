@@ -8,7 +8,6 @@ import 'host_portable.dart';
 import 'host_transfer.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'models.dart';
-import 'settings.dart';
 import 'ssh/connect_flow.dart';
 import 'ssh/credential_store.dart';
 import 'ssh/session_manager.dart';
@@ -31,8 +30,6 @@ class HomePage extends StatefulWidget {
     required this.onThemeModeChanged,
     required this.language,
     required this.onLanguageChanged,
-    required this.uiFont,
-    required this.onUiFontChanged,
     this.onSettingsClosed,
   });
 
@@ -43,8 +40,6 @@ class HomePage extends StatefulWidget {
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage language;
   final ValueChanged<AppLanguage> onLanguageChanged;
-  final UiFont uiFont;
-  final ValueChanged<UiFont> onUiFontChanged;
 
   /// 设置弹窗关闭后的回调：把「点完成」当作一次明确提交，立即落盘。
   final VoidCallback? onSettingsClosed;
@@ -94,8 +89,6 @@ class _HomePageState extends State<HomePage> {
       onThemeModeChanged: widget.onThemeModeChanged,
       language: widget.language,
       onLanguageChanged: widget.onLanguageChanged,
-      uiFont: widget.uiFont,
-      onUiFontChanged: widget.onUiFontChanged,
     );
     if (!mounted) return;
     widget.onSettingsClosed?.call();

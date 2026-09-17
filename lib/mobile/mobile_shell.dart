@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../app_locale.dart';
 import '../l10n/generated/app_localizations.dart';
-import '../settings.dart';
 import '../ssh/credential_store.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
@@ -22,8 +21,6 @@ class MobileShell extends StatefulWidget {
     required this.onThemeModeChanged,
     required this.language,
     required this.onLanguageChanged,
-    required this.uiFont,
-    required this.onUiFontChanged,
   });
 
   final ServerStore store;
@@ -33,8 +30,6 @@ class MobileShell extends StatefulWidget {
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage language;
   final ValueChanged<AppLanguage> onLanguageChanged;
-  final UiFont uiFont;
-  final ValueChanged<UiFont> onUiFontChanged;
 
   @override
   State<MobileShell> createState() => _MobileShellState();
@@ -62,8 +57,6 @@ class _MobileShellState extends State<MobileShell> {
             onThemeModeChanged: widget.onThemeModeChanged,
             language: widget.language,
             onLanguageChanged: widget.onLanguageChanged,
-            uiFont: widget.uiFont,
-            onUiFontChanged: widget.onUiFontChanged,
           ),
         ],
       ),

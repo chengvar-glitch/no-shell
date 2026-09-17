@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'models.dart';
-import 'settings.dart';
 
 /// 与 ZCode / Codex 类似的开发者工具配色：低饱和深灰 + 蓝色强调色。
 abstract final class AppPalette {
@@ -119,20 +118,21 @@ extension AppThemeX on ThemeData {
 }
 
 abstract final class AppTheme {
-  static ThemeData light([UiFont font = UiFont.system]) =>
-      _build(Brightness.light, font);
+  static ThemeData light() => _build(Brightness.light);
 
-  static ThemeData dark([UiFont font = UiFont.system]) =>
-      _build(Brightness.dark, font);
+  static ThemeData dark() => _build(Brightness.dark);
 
-  /// 按（亮度, 界面字体）维度缓存：构建 ThemeData 开销不小，
-  /// 主题与字体切换均为低频操作，命中缓存即可零成本重建 MaterialApp。
-  static final _cache = <(Brightness, UiFont), ThemeData>{};
+  /// 按亮度缓存：构建 ThemeData 开销不小，主题切换是低频操作，
+  /// 命中缓存即可零成本重建 MaterialApp。
+  ///
+  /// 界面字体固定用平台默认（不提供自定义）：界面字体是原生观感的一部分，
+  /// 而中文字形只有系统字体覆盖得全；需要统一的等宽字形的是终端，不是界面。
+  static final _cache = <Brightness, ThemeData>{};
 
-  static ThemeData _build(Brightness brightness, UiFont font) =>
-      _cache.putIfAbsent((brightness, font), () => _create(brightness, font));
+  static ThemeData _build(Brightness brightness) =>
+      _cache.putIfAbsent(brightness, () => _create(brightness));
 
-  static ThemeData _create(Brightness brightness, UiFont font) {
+  static ThemeData _create(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     final colors = AppColors.of(brightness);
     final scheme = ColorScheme.fromSeed(
@@ -141,7 +141,7 @@ abstract final class AppTheme {
     );
     final hairline = colors.hairline;
 
-    var data = ThemeData(
+    final data = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       brightness: brightness,
@@ -254,19 +254,6 @@ abstract final class AppTheme {
         ),
       ),
     );
-    // 界面字体：应用到整套文本主题，目标字体未安装时按回退链解析。
-    if (font != UiFont.system) {
-      data = data.copyWith(
-        textTheme: data.textTheme.apply(
-          fontFamily: font.fontFamily,
-          fontFamilyFallback: font.fallback,
-        ),
-        primaryTextTheme: data.primaryTextTheme.apply(
-          fontFamily: font.fontFamily,
-          fontFamilyFallback: font.fallback,
-        ),
-      );
-    }
     return data;
   }
 }

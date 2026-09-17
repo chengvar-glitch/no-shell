@@ -37,11 +37,9 @@ void main() {
     const saved = AppSettings(
       themeMode: ThemeMode.dark,
       language: AppLanguage.chinese,
-      uiFont: UiFont.monospace,
       terminalStyle: TerminalStylePrefs(
         preset: TerminalPreset.tokyoNight,
-        font: TerminalFont.custom,
-        customFontName: 'Sarasa Mono SC',
+        font: TerminalFont.firaCode,
         fontSize: 17,
       ),
     );
@@ -57,11 +55,9 @@ void main() {
     const settings = AppSettings(
       themeMode: ThemeMode.dark,
       language: AppLanguage.english,
-      uiFont: UiFont.monospace,
       terminalStyle: TerminalStylePrefs(
         preset: TerminalPreset.nord,
-        font: TerminalFont.custom,
-        customFontName: 'Fira Code',
+        font: TerminalFont.firaCode,
         fontSize: 18,
       ),
     );
@@ -72,17 +68,52 @@ void main() {
       'themeMode': 'noSuchMode',
       'language': 42,
       'terminalPreset': 'nord',
-      'terminalFont': 'custom',
+      'terminalFont': 'noSuchFont',
       'terminalFontSize': 999,
     });
     expect(dirty.themeMode, ThemeMode.system);
     expect(dirty.language, AppLanguage.system);
     expect(dirty.terminalStyle.preset, TerminalPreset.nord);
-    expect(dirty.terminalStyle.font, TerminalFont.custom);
+    expect(dirty.terminalStyle.font, TerminalFont.jetBrainsMono);
     expect(dirty.terminalStyle.fontSize, TerminalStylePrefs.maxFontSize);
-    expect(dirty.terminalStyle.customFontName, '');
 
     expect(AppSettings.fromJson(const {}), const AppSettings());
+  });
+
+  test('老存档迁移：界面字体字段被忽略，终端字体的旧取值逐个映射', () {
+    // v1 存档里的 uiFont 已随「界面字体不提供自定义」一起删除，读时直接忽略；
+    // 终端字体的旧预设按语义迁移，不让用户停在旧状态上。
+    expect(
+      AppSettings.fromJson({'uiFont': 'pingFang', 'terminalFont': 'menlo'})
+          .terminalStyle
+          .font,
+      TerminalFont.systemMonospace,
+    );
+
+    for (final name in ['system', 'menlo', 'consolas']) {
+      expect(
+        AppSettings.fromJson({'terminalFont': name}).terminalStyle.font,
+        TerminalFont.systemMonospace,
+        reason: '$name 是「系统里的等宽」，迁移到同语义的系统等宽',
+      );
+    }
+
+    // 手填族名的入口已删除，且那种状态在 Linux 上可能已经被 fontconfig
+    // 顶替成比例字体：填过 Fira Code 的落到内置 Fira Code，其余落到内置默认。
+    expect(
+      AppSettings.fromJson({
+        'terminalFont': 'custom',
+        'terminalCustomFontName': 'Fira Code',
+      }).terminalStyle.font,
+      TerminalFont.firaCode,
+    );
+    expect(
+      AppSettings.fromJson({
+        'terminalFont': 'custom',
+        'terminalCustomFontName': 'Sarasa Mono SC',
+      }).terminalStyle.font,
+      TerminalFont.jetBrainsMono,
+    );
   });
 
   testWidgets('启动即应用落盘偏好，改动在防抖后写回', (tester) async {

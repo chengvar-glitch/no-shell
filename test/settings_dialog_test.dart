@@ -103,12 +103,17 @@ void main() {
     expect(find.byType(Dialog), findsNothing, reason: '弹窗应已关闭');
   });
 
-  test('终端样式偏好：默认字号比旧版大两号，越界夹住，自定义字体名可解析', () {
+  test('终端样式偏好：默认字体是随包内置，字号越界夹住', () {
     const defaults = TerminalStylePrefs();
     // 旧版写死 13，用户反馈偏小：默认值上调两号。
     expect(TerminalStylePrefs.defaultFontSize, 15);
     expect(defaults.fontSize, 15);
-    expect(defaults.resolvedFontFamily, 'monospace', reason: '系统默认走等宽族名');
+    expect(defaults.font, TerminalFont.jetBrainsMono);
+    expect(
+      defaults.resolvedFontFamily,
+      'NoShell JetBrains Mono',
+      reason: '默认终端字体是随包内置的族，任何平台都必定命中',
+    );
 
     expect(
       defaults.withFontSize(TerminalStylePrefs.minFontSize - 5).fontSize,
@@ -119,21 +124,13 @@ void main() {
       TerminalStylePrefs.maxFontSize,
     );
 
-    // 自定义字体：名字两端空格不影响，留空退回等宽族名。
-    const custom = TerminalStylePrefs(
-      font: TerminalFont.custom,
-      customFontName: '  Fira Code  ',
-    );
-    expect(custom.resolvedFontFamily, 'Fira Code');
-    expect(
-      const TerminalStylePrefs(font: TerminalFont.custom).resolvedFontFamily,
-      'monospace',
-    );
-    // 其它预设不受自定义名影响。
-    expect(
-      custom.copyWith(font: TerminalFont.menlo).resolvedFontFamily,
-      'Menlo',
-    );
+    // 「系统等宽」走通用族名，由平台解析成真正的等宽字体（不会是比例字体）。
+    const system = TerminalStylePrefs(font: TerminalFont.systemMonospace);
+    expect(system.resolvedFontFamily, 'monospace');
+    // 回退链只用于「缺字形」，末尾必须落在等宽族名上：比例字体落进终端网格
+    // 比缺字更难看，所以链里不能出现 sans-serif。
+    expect(system.fontFallback.last, 'monospace');
+    expect(system.fontFallback, isNot(contains('sans-serif')));
   });
 
   testWidgets('设置弹窗：终端字号可增减，预览字号跟着变', (tester) async {
@@ -173,33 +170,41 @@ void main() {
     expect(previewFontSize(), TerminalStylePrefs.defaultFontSize - 1.0);
   });
 
-  testWidgets('设置弹窗：选「自定义字体」后填字体名即生效', (tester) async {
+  testWidgets('设置弹窗：终端字体只能在随包内置与系统等宽之间选', (tester) async {
     await pumpDesktop(tester);
     await openSettings(tester);
     await tester.ensureVisible(find.text('终端字体'));
     await tester.pumpAndSettle();
 
     final scope = TerminalStyleScope.of(tester.element(find.text('终端字体')));
-    // 「系统默认」在界面字体与终端字体两处都有，这里限定在终端字体控件内。
-    await tester.tap(
+    expect(scope.notifier.value.font, TerminalFont.jetBrainsMono);
+
+    // 没有自由填写字体名的入口：那个入口正是 Linux 上被 fontconfig 顶替成
+    // 比例字体、终端网格散架的事故来源（见 TerminalFont 注释）。
+    // （弹窗背后侧边栏还有搜索框，这里限定在弹窗内。）
+    expect(
       find.descendant(
-        of: find.byType(TerminalFontDropdown),
-        matching: find.text('系统默认'),
+        of: find.byType(Dialog),
+        matching: find.byType(TextField),
       ),
+      findsNothing,
     );
+
+    await tester.tap(find.byType(DropdownButtonFormField<TerminalFont>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('自定义字体…').last);
+    // 选到内置 Fira Code：族名换成随包声明的那一个，预览同步。
+    await tester.tap(find.text('Fira Code').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField).last, 'Fira Code');
-    await tester.pumpAndSettle();
-
-    expect(scope.notifier.value.font, TerminalFont.custom);
-    expect(scope.notifier.value.resolvedFontFamily, 'Fira Code');
+    expect(scope.notifier.value.font, TerminalFont.firaCode);
+    expect(scope.notifier.value.resolvedFontFamily, 'NoShell Fira Code');
     final preview = tester.widget<Text>(
       find.textContaining('ssh deploy@10.0.0.1'),
     );
-    expect((preview.textSpan! as TextSpan).style!.fontFamily, 'Fira Code');
+    expect(
+      (preview.textSpan! as TextSpan).style!.fontFamily,
+      'NoShell Fira Code',
+    );
   });
 
   testWidgets('设置弹窗：卡片不描边、不画分隔线，标签与分区标题同一列', (tester) async {
@@ -239,10 +244,10 @@ void main() {
     await pumpDesktop(tester);
     await openSettings(tester);
 
-    await tester.tap(find.byType(DropdownButtonFormField<UiFont>));
+    await tester.tap(find.byType(DropdownButtonFormField<TerminalFont>));
     await tester.pumpAndSettle();
 
-    final itemContext = tester.element(find.text('PingFang 苹方').last);
+    final itemContext = tester.element(find.text('系统等宽').last);
     final color = DefaultTextStyle.of(itemContext).style.color;
     expect(color, isNotNull);
     expect(

@@ -386,13 +386,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dark => '深色';
 
   @override
-  String get appFont => '界面字体';
-
-  @override
-  String get fontSystemDefault => '系统默认';
-
-  @override
-  String get fontMonospace => '等宽字体';
+  String get fontSystemMonospace => '系统等宽';
 
   @override
   String get terminalPreset => '终端主题';
@@ -408,15 +402,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get fontSizeIncrease => '增大字号';
-
-  @override
-  String get fontCustom => '自定义字体…';
-
-  @override
-  String get terminalFontCustomName => '字体名';
-
-  @override
-  String get terminalFontCustomHint => '例如 Fira Code、Sarasa Mono SC';
 
   @override
   String get presetDefaultDark => '默认深色';

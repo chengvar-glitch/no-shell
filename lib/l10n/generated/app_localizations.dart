@@ -782,23 +782,11 @@ abstract class AppLocalizations {
   /// **'Dark'**
   String get dark;
 
-  /// No description provided for @appFont.
+  /// No description provided for @fontSystemMonospace.
   ///
   /// In en, this message translates to:
-  /// **'App font'**
-  String get appFont;
-
-  /// No description provided for @fontSystemDefault.
-  ///
-  /// In en, this message translates to:
-  /// **'System default'**
-  String get fontSystemDefault;
-
-  /// No description provided for @fontMonospace.
-  ///
-  /// In en, this message translates to:
-  /// **'Monospace'**
-  String get fontMonospace;
+  /// **'System monospace'**
+  String get fontSystemMonospace;
 
   /// No description provided for @terminalPreset.
   ///
@@ -829,24 +817,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Increase font size'**
   String get fontSizeIncrease;
-
-  /// No description provided for @fontCustom.
-  ///
-  /// In en, this message translates to:
-  /// **'Custom font…'**
-  String get fontCustom;
-
-  /// No description provided for @terminalFontCustomName.
-  ///
-  /// In en, this message translates to:
-  /// **'Font family'**
-  String get terminalFontCustomName;
-
-  /// No description provided for @terminalFontCustomHint.
-  ///
-  /// In en, this message translates to:
-  /// **'e.g. Fira Code, Sarasa Mono SC'**
-  String get terminalFontCustomHint;
 
   /// No description provided for @presetDefaultDark.
   ///

@@ -3,13 +3,12 @@ import 'package:flutter/material.dart';
 import '../app_locale.dart';
 import '../app_version.dart';
 import '../l10n/generated/app_localizations.dart';
-import '../settings.dart';
 import '../theme.dart';
 import '../widgets/app_icon_mark.dart';
 import '../widgets/settings_controls.dart';
 
-/// 设置 Tab：外观（主题 / 界面字体）、终端（配色 / 字体 / 字号 / 预览）、语言
-/// 与信息行。分区卡片与控件全部与桌面设置弹窗共用（见 settings_controls.dart），
+/// 设置 Tab：外观（主题）、终端（配色 / 字体 / 字号 / 预览）、语言与信息行。
+/// 分区卡片与控件全部与桌面设置弹窗共用（见 settings_controls.dart），
 /// 两端只有排版宽度与配色选择器的形态不同。
 class SettingsTab extends StatelessWidget {
   const SettingsTab({
@@ -18,16 +17,12 @@ class SettingsTab extends StatelessWidget {
     required this.onThemeModeChanged,
     required this.language,
     required this.onLanguageChanged,
-    required this.uiFont,
-    required this.onUiFontChanged,
   });
 
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage language;
   final ValueChanged<AppLanguage> onLanguageChanged;
-  final UiFont uiFont;
-  final ValueChanged<UiFont> onUiFontChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -80,13 +75,6 @@ class SettingsTab extends StatelessWidget {
                     onSelectionChanged: (selection) =>
                         onThemeModeChanged(selection.first),
                   ),
-                ),
-              ),
-              SettingsRow(
-                label: l10n.appFont,
-                child: UiFontDropdown(
-                  value: uiFont,
-                  onChanged: onUiFontChanged,
                 ),
               ),
             ],

@@ -23,7 +23,7 @@ NoShell — a cross-platform SSH connection manager with terminal, SFTP file bro
 - **Secure credential storage** — with "remember credentials" checked, secrets are encrypted at rest via the system keystore (macOS Keychain / Windows Credential Manager / Linux libsecret); unchecked, they never leave memory
 - **Host management** — groups, tags, notes and last-connected time; export the host list as a text backup and import with automatic Chinese/English key recognition, deduplicated by host + port + user; the new/edit connection form also accepts that same text pasted as metadata to prefill its fields, which stay editable by hand
 - **Bilingual UI** — English and Chinese, following the system or pinned manually
-- **Themes & terminal styles** — light / dark themes follow the system; terminal color presets and fonts are configurable
+- **Themes & terminal styles** — light / dark themes follow the system; terminal color presets, bundled monospace fonts (JetBrains Mono / Fira Code, shipped with the app — nothing to install) and font size are configurable
 
 ## Screenshots
 

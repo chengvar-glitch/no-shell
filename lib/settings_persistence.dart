@@ -6,43 +6,39 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app_locale.dart';
 import 'settings.dart';
 
-/// 落盘的偏好快照：主题 / 语言 / 界面字体 + 终端样式（配色、字体、字号）。
+/// 落盘的偏好快照：主题 / 语言 + 终端样式（配色、字体、字号）。
 ///
 /// 只存枚举名而不是索引：以后往枚举中间插值也不会把旧存档读串。
 /// 单个字段读不出来只退回该字段的默认值，不让一条脏数据带走整份偏好。
+/// 已删除的字段（界面字体、终端自定义字体名）读时忽略、下次保存即被抹掉，
+/// 不需要额外的存档版本号。
 @immutable
 class AppSettings {
   const AppSettings({
     this.themeMode = ThemeMode.system,
     this.language = AppLanguage.system,
-    this.uiFont = UiFont.system,
     this.terminalStyle = const TerminalStylePrefs(),
   });
 
   final ThemeMode themeMode;
   final AppLanguage language;
-  final UiFont uiFont;
   final TerminalStylePrefs terminalStyle;
 
   AppSettings copyWith({
     ThemeMode? themeMode,
     AppLanguage? language,
-    UiFont? uiFont,
     TerminalStylePrefs? terminalStyle,
   }) => AppSettings(
     themeMode: themeMode ?? this.themeMode,
     language: language ?? this.language,
-    uiFont: uiFont ?? this.uiFont,
     terminalStyle: terminalStyle ?? this.terminalStyle,
   );
 
   Map<String, Object?> toJson() => {
     'themeMode': themeMode.name,
     'language': language.name,
-    'uiFont': uiFont.name,
     'terminalPreset': terminalStyle.preset.name,
     'terminalFont': terminalStyle.font.name,
-    'terminalCustomFontName': terminalStyle.customFontName,
     'terminalFontSize': terminalStyle.fontSize,
   };
 
@@ -57,21 +53,13 @@ class AppSettings {
       json['language'],
       AppLanguage.system,
     ),
-    uiFont: _enumByName(UiFont.values, json['uiFont'], UiFont.system),
     terminalStyle: TerminalStylePrefs(
       preset: _enumByName(
         TerminalPreset.values,
         json['terminalPreset'],
         TerminalPreset.githubDark,
       ),
-      font: _enumByName(
-        TerminalFont.values,
-        json['terminalFont'],
-        TerminalFont.system,
-      ),
-      customFontName: json['terminalCustomFontName'] is String
-          ? json['terminalCustomFontName']! as String
-          : '',
+      font: _terminalFont(json['terminalFont'], json['terminalCustomFontName']),
       fontSize: TerminalStylePrefs.clampFontSize(json['terminalFontSize']),
     ),
   );
@@ -81,22 +69,43 @@ class AppSettings {
       other is AppSettings &&
       other.themeMode == themeMode &&
       other.language == language &&
-      other.uiFont == uiFont &&
       other.terminalStyle.preset == terminalStyle.preset &&
       other.terminalStyle.font == terminalStyle.font &&
-      other.terminalStyle.customFontName == terminalStyle.customFontName &&
       other.terminalStyle.fontSize == terminalStyle.fontSize;
 
   @override
   int get hashCode => Object.hash(
     themeMode,
     language,
-    uiFont,
     terminalStyle.preset,
     terminalStyle.font,
-    terminalStyle.customFontName,
     terminalStyle.fontSize,
   );
+}
+
+/// 终端字体的存档迁移：老版本的取值比现在多，逐个映射到现有选项。
+///
+/// - `system` / `menlo` / `consolas`：用户选的是「系统里的等宽」，
+///   换成同语义的 [TerminalFont.systemMonospace]。
+/// - `custom`（手填族名）：入口已删除，而它正是 Linux 上被 fontconfig
+///   顶替成比例字体、终端排版散架的事故来源，不能把用户留在那个状态；
+///   填过 Fira Code 的落到内置 Fira Code，其余统一落到内置默认。
+/// - 新取值原样返回；认不出来（脏档 / 更早的档）一律用内置默认。
+TerminalFont _terminalFont(Object? name, Object? legacyCustomName) {
+  const legacySystemPresets = {'system', 'menlo', 'consolas'};
+  if (name is String) {
+    for (final font in TerminalFont.values) {
+      if (font.name == name) return font;
+    }
+    if (legacySystemPresets.contains(name)) return TerminalFont.systemMonospace;
+    if (name == 'custom') {
+      final custom = legacyCustomName;
+      if (custom is String && custom.toLowerCase().contains('fira')) {
+        return TerminalFont.firaCode;
+      }
+    }
+  }
+  return TerminalFont.jetBrainsMono;
 }
 
 /// 按名字取枚举值；读不到（旧存档 / 脏数据）就退回默认值。

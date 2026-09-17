@@ -80,5 +80,26 @@ flutter:
   generate: true
   # 应用内品牌标（侧边栏头部 / 设置 / 关于）直接用启动图标那份 PNG，
   # 不再单独维护一份应用内图标源。
+  # 字体的 OFL 许可文本必须随包分发（SIL OFL 1.1 要求），启动时经
+  # LicenseRegistry 注册，「关于 → 查看许可」里可见。
   assets:
     - icon/png/icon-128.png
+    - assets/fonts/jetbrains_mono/OFL.txt
+    - assets/fonts/fira_code/OFL.txt
+  # 终端字体随包内置：用户不必安装任何字体，六端渲染一致，也不存在
+  # 「请求的族名在系统里不存在」时被 fontconfig 顶替成比例字体的风险。
+  # 族名带 NoShell 前缀是刻意的——与系统字体彻底解耦，引擎必定命中这里。
+  # 升级字体：替换 ttf 并同步 OFL.txt，族名保持不变（族名是落盘偏好的取值）。
+  fonts:
+    - family: NoShell JetBrains Mono
+      fonts:
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Bold.ttf
+          weight: 700
+    - family: NoShell Fira Code
+      fonts:
+        - asset: assets/fonts/fira_code/FiraCode-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/fira_code/FiraCode-Bold.ttf
+          weight: 700

@@ -7,8 +7,9 @@ import '../theme.dart';
 
 /// 设置面板共用件：分组卡片（[SettingsSection] / [SettingsCard] /
 /// [SettingsRow]）、统一的图标按钮 [SettingsIconButton]，以及各处共用的
-/// 具体控件（界面字体、终端配色 / 字体 / 字号 / 预览）。
+/// 具体控件（终端配色 / 字体 / 字号 / 预览）。
 /// 移动端设置 Tab 与桌面端设置弹窗共用，保证两端观感与行为一致。
+/// 字体只暴露随包内置的两个族与「系统等宽」，不提供自由填写字体名的入口。
 
 /// 分组卡片内容的左内边距：与分区标题文字落在同一条竖线上
 /// （标题图标 [kSettingsSectionIconSize] + 间距 [kSettingsSectionIconGap]）。
@@ -209,45 +210,6 @@ class _SettingsIconButtonState extends State<SettingsIconButton> {
   }
 }
 
-/// 界面字体下拉：受控组件，由调用方持有选中值。
-/// 字段自带标签一律不画，名称由外层 [SettingsRow] 提供。
-class UiFontDropdown extends StatelessWidget {
-  const UiFontDropdown({
-    super.key,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final UiFont value;
-  final ValueChanged<UiFont> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return DropdownButtonFormField<UiFont>(
-      initialValue: value,
-      // 窄屏（手机 390pt）下卡片内边距吃掉宽度，长标签必须能省略而不是溢出。
-      isExpanded: true,
-      style: _dropdownTextStyle(Theme.of(context)),
-      decoration: const InputDecoration(),
-      items: [
-        for (final font in UiFont.values)
-          DropdownMenuItem(
-            value: font,
-            child: Text(
-              font.label(l10n),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-      ],
-      onChanged: (font) {
-        if (font != null) onChanged(font);
-      },
-    );
-  }
-}
-
 /// 终端配色预设下拉：选中态与写入都走全局 [TerminalStyleScope]。
 /// 每个选项带配色缩略色卡，直观区分深浅。窄屏用下拉，宽屏用色卡平铺
 /// （见设置弹窗的配色选择器）。
@@ -297,38 +259,14 @@ class TerminalPresetDropdown extends StatelessWidget {
   }
 }
 
-/// 终端字体下拉：选中态与写入都走全局 [TerminalStyleScope]。
-/// 选到「自定义」时就地展开一个字体名输入框：系统字体枚举各平台差异太大，
-/// 先让用户直接填已安装的字体族名，填错按回退链降级。
-class TerminalFontDropdown extends StatefulWidget {
+/// 终端字体下拉：只列出随包内置的两个族与「系统等宽」，选中态与写入都走
+/// 全局 [TerminalStyleScope]。
+///
+/// 每个选项用它自己的字体渲染：内置字体一定存在，所以列表里看到的就是终端里
+/// 会得到的。不再提供「自定义字体名」入口——名字填错时 Linux 上会被 fontconfig
+/// 顶替成比例字体，终端网格会直接散架（原因见 [TerminalFont] 的注释）。
+class TerminalFontDropdown extends StatelessWidget {
   const TerminalFontDropdown({super.key});
-
-  @override
-  State<TerminalFontDropdown> createState() => _TerminalFontDropdownState();
-}
-
-class _TerminalFontDropdownState extends State<TerminalFontDropdown> {
-  final _nameController = TextEditingController();
-  bool _nameReady = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // 只灌一次初始值：之后以输入框为准，避免每次重建把光标顶回开头。
-    if (!_nameReady) {
-      _nameController.text = TerminalStyleScope.of(context)
-          .notifier
-          .value
-          .customFontName;
-      _nameReady = true;
-    }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -337,47 +275,30 @@ class _TerminalFontDropdownState extends State<TerminalFontDropdown> {
     return ValueListenableBuilder<TerminalStylePrefs>(
       valueListenable: scope.notifier,
       builder: (context, prefs, _) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DropdownButtonFormField<TerminalFont>(
-              initialValue: prefs.font,
-              isExpanded: true,
-              style: _dropdownTextStyle(Theme.of(context)),
-              decoration: const InputDecoration(),
-              items: [
-                for (final font in TerminalFont.values)
-                  DropdownMenuItem(
-                    value: font,
-                    child: Text(
-                      font.label(l10n),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-              onChanged: (font) {
-                if (font != null) {
-                  scope.notifier.value = prefs.copyWith(font: font);
-                }
-              },
-            ),
-            if (prefs.font == TerminalFont.custom) ...[
-              const SizedBox(height: 10),
-              TextField(
-                controller: _nameController,
-                style: const TextStyle(fontSize: 13),
-                decoration: InputDecoration(
-                  isDense: true,
-                  labelText: l10n.terminalFontCustomName,
-                  hintText: l10n.terminalFontCustomHint,
+        return DropdownButtonFormField<TerminalFont>(
+          initialValue: prefs.font,
+          // 窄屏（手机 390pt）下卡片内边距吃掉宽度，长标签必须能省略而不是溢出。
+          isExpanded: true,
+          style: _dropdownTextStyle(Theme.of(context)),
+          decoration: const InputDecoration(),
+          items: [
+            for (final font in TerminalFont.values)
+              DropdownMenuItem(
+                value: font,
+                child: Text(
+                  font.label(l10n),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  // 只覆盖族名，颜色仍由下拉自带的 DefaultTextStyle 提供。
+                  style: TextStyle(fontFamily: font.family),
                 ),
-                onChanged: (name) {
-                  scope.notifier.value = prefs.copyWith(customFontName: name);
-                },
               ),
-            ],
           ],
+          onChanged: (font) {
+            if (font != null) {
+              scope.notifier.value = prefs.copyWith(font: font);
+            }
+          },
         );
       },
     );
