@@ -614,5 +614,10 @@
       }
     }
   },
-  "autoReconnectStop": "Stop auto reconnect"
+  "autoReconnectStop": "Stop auto reconnect",
+  "paste": "Paste",
+  "selectAll": "Select All",
+  "copyOnSelect": "Copy on Select",
+  "copyOnSelectHint": "Automatically copy terminal text to the clipboard when you select it.",
+  "linkOpenFailed": "Could not open link"
 }

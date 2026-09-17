@@ -176,6 +176,10 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                           label: l10n.terminalPreview,
                           child: const TerminalPreview(),
                         ),
+                        SettingsRow(
+                          label: l10n.copyOnSelect,
+                          child: const TerminalCopyOnSelectControl(),
+                        ),
                       ],
                     ),
                     SettingsSection(

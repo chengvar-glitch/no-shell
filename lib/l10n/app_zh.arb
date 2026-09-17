@@ -506,5 +506,10 @@
       }
     }
   },
-  "autoReconnectStop": "停止自动重连"
+  "autoReconnectStop": "停止自动重连",
+  "paste": "粘贴",
+  "selectAll": "全选",
+  "copyOnSelect": "选中即复制",
+  "copyOnSelectHint": "在终端中选中文字后自动复制到剪贴板。",
+  "linkOpenFailed": "无法打开链接"
 }

@@ -1873,6 +1873,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Stop auto reconnect'**
   String get autoReconnectStop;
+
+  /// No description provided for @paste.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste'**
+  String get paste;
+
+  /// No description provided for @selectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get selectAll;
+
+  /// No description provided for @copyOnSelect.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy on Select'**
+  String get copyOnSelect;
+
+  /// No description provided for @copyOnSelectHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically copy terminal text to the clipboard when you select it.'**
+  String get copyOnSelectHint;
+
+  /// No description provided for @linkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open link'**
+  String get linkOpenFailed;
 }
 
 class _AppLocalizationsDelegate

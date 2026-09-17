@@ -423,6 +423,44 @@ class TerminalFontSizeControl extends StatelessWidget {
   }
 }
 
+/// 选中即复制开关：写入走全局 [TerminalStyleScope]，桌面设置弹窗与
+/// 移动端设置 Tab 共用，两处观感一致。
+class TerminalCopyOnSelectControl extends StatelessWidget {
+  const TerminalCopyOnSelectControl({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scope = TerminalStyleScope.of(context);
+    return ValueListenableBuilder<TerminalStylePrefs>(
+      valueListenable: scope.notifier,
+      builder: (context, prefs, _) {
+        return Row(
+          children: [
+            Switch(
+              value: prefs.copyOnSelect,
+              onChanged: (value) =>
+                  scope.notifier.value = prefs.copyWith(copyOnSelect: value),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                l10n.copyOnSelectHint,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: theme.secondaryText,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// 终端实时预览：用当前配色与终端字体画一行提示符 + 光标块，
 /// 换配色 / 字体时立刻能看到实际效果。桌面弹窗与移动端设置 Tab 共用。
 class TerminalPreview extends StatelessWidget {

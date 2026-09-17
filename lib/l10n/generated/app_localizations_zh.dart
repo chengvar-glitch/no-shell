@@ -1052,4 +1052,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get autoReconnectStop => '停止自动重连';
+
+  @override
+  String get paste => '粘贴';
+
+  @override
+  String get selectAll => '全选';
+
+  @override
+  String get copyOnSelect => '选中即复制';
+
+  @override
+  String get copyOnSelectHint => '在终端中选中文字后自动复制到剪贴板。';
+
+  @override
+  String get linkOpenFailed => '无法打开链接';
 }

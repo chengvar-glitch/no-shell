@@ -1101,4 +1101,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoReconnectStop => 'Stop auto reconnect';
+
+  @override
+  String get paste => 'Paste';
+
+  @override
+  String get selectAll => 'Select All';
+
+  @override
+  String get copyOnSelect => 'Copy on Select';
+
+  @override
+  String get copyOnSelectHint =>
+      'Automatically copy terminal text to the clipboard when you select it.';
+
+  @override
+  String get linkOpenFailed => 'Could not open link';
 }
