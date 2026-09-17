@@ -10,6 +10,7 @@ import 'dartssh2_sftp.dart';
 import 'host_key_store.dart';
 import 'jump_host.dart';
 import 'sftp.dart';
+import 'ssh_agent.dart';
 import 'ssh_credentials.dart';
 import 'ssh_transport.dart';
 
@@ -49,6 +50,10 @@ final class DartSsh2Transport implements SshTransport {
   /// 跳板机各跳的客户端：目标连上之后它们只负责转发，不能提前关掉。
   final List<SSHClient> _jumpClients = [];
 
+  /// Agent 认证用到的 agent 连接：签名只发生在认证期间，但连接本身要
+  /// 活到认证结束，因此随传输持有，dispose（或中途失败）时一并关掉。
+  final List<SshAgentClient> _agentClients = [];
+
   /// 已建立但还没交给 [_client] 的连接。用在握手完成到 client 建好之间的
   /// 窗口期：这期间 dispose 只能关到这个 socket，否则它就漏了。
   SSHSocket? _socket;
@@ -81,9 +86,23 @@ final class DartSsh2Transport implements SshTransport {
 
     final SSHClient client;
     try {
-      client = _client = _createClient(_server, _credentials, socket);
+      // 身份先于 client 构造解析：agent 连不上 / PEM 解不开时 socket 已经
+      // 连上了，必须在这里收干净再抛。
+      final identities = await _identitiesOf(_credentials);
+      if (_disposed) {
+        await _closeAgents();
+        await socket.close();
+        return;
+      }
+      client = _client = _createClient(
+        _server,
+        _credentials,
+        socket,
+        identities,
+      );
     } on Object {
-      // 私钥解析失败之类会在构造 client 时就抛，此时 socket 已经连上了。
+      // 私钥解析失败、agent 不可用之类会在构造 client 前后就抛，此时
+      // socket 已经连上了。
       _closeQuietly();
       rethrow;
     }
@@ -169,7 +188,18 @@ final class DartSsh2Transport implements SshTransport {
         await socket.close();
         throw const _Cancelled();
       }
-      final client = _createClient(hop.server, hop.credentials, socket);
+      // 每跳各取各的身份：跳板机也可以走 Agent 认证（一跳一份凭据）。
+      final hopIdentities = await _identitiesOf(hop.credentials);
+      if (_disposed) {
+        await socket.close();
+        throw const _Cancelled();
+      }
+      final client = _createClient(
+        hop.server,
+        hop.credentials,
+        socket,
+        hopIdentities,
+      );
       _jumpClients.add(client);
       try {
         // 跳板机必须先认证完，否则下一跳的 direct-tcpip 请求发不出去。
@@ -203,10 +233,11 @@ final class DartSsh2Transport implements SshTransport {
     SshServer server,
     SshCredentials credentials,
     SSHSocket socket,
+    List<SSHIdentity> identities,
   ) => SSHClient(
     socket,
     username: server.username,
-    identities: _identitiesOf(credentials),
+    identities: identities,
     // 密码认证；OpenSSH 默认开启的 keyboard-interactive 也映射到同一密码。
     onPasswordRequest: () => credentials.password,
     onUserInfoRequest: (request) {
@@ -281,7 +312,18 @@ final class DartSsh2Transport implements SshTransport {
     }
   }
 
-  List<SSHIdentity> _identitiesOf(SshCredentials credentials) {
+  /// 目标 / 各跳的身份清单：Agent 认证从本机 agent 取，否则解析 PEM。
+  /// 失败在这里抛出（agent 不可用 / 私钥格式不支持），由会话层归类文案。
+  Future<List<SSHIdentity>> _identitiesOf(SshCredentials credentials) async {
+    if (credentials.useAgent) {
+      final agent = await connectSshAgent();
+      _agentClients.add(agent);
+      final keys = await agent.listIdentities();
+      if (keys.isEmpty) {
+        throw const SshAgentUnavailableException('agent has no loaded keys');
+      }
+      return agentIdentitiesAsSsh(agent, keys);
+    }
     final pem = credentials.privateKey;
     if (pem == null || pem.isEmpty) return const [];
     try {
@@ -292,6 +334,14 @@ final class DartSsh2Transport implements SshTransport {
       // 指错方向。这里换成专用类型，界面才能给出「换个密钥格式」的提示。
       throw PrivateKeyUnsupportedException(error.toString());
     }
+  }
+
+  /// 关掉本条连接用过的所有 agent 连接。
+  Future<void> _closeAgents() async {
+    for (final agent in _agentClients) {
+      await agent.close();
+    }
+    _agentClients.clear();
   }
 
   @override
@@ -416,6 +466,8 @@ final class DartSsh2Transport implements SshTransport {
       jump.close();
     }
     _jumpClients.clear();
+    // agent 连接只服务于认证，连接结束即无用了。
+    unawaited(_closeAgents());
   }
 }
 

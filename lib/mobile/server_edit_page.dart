@@ -5,8 +5,10 @@ import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../ssh/connect_flow.dart';
 import '../ssh/credential_store.dart';
+import '../ssh/ssh_agent.dart';
 import '../ssh/ssh_credentials.dart';
 import '../store.dart';
+import '../theme.dart';
 import '../widgets/group_controls.dart';
 import '../widgets/jump_host_field.dart';
 
@@ -232,12 +234,30 @@ class _ServerEditPageState extends State<ServerEditPage> {
                   label: Text(l10n.authKey),
                   icon: const Icon(Icons.vpn_key_outlined, size: 16),
                 ),
+                // 本平台没有 agent 时不给这个入口；主机预设就是 Agent 时
+                // 仍要展示，否则保存的取值在界面上无从呈现。
+                if (sshAgentSupported || _auth == AuthMethod.agent)
+                  ButtonSegment(
+                    value: AuthMethod.agent,
+                    label: Text(l10n.authAgent),
+                    icon: const Icon(Icons.extension_outlined, size: 16),
+                  ),
               ],
               selected: {_auth},
               showSelectedIcon: false,
               onSelectionChanged: (selection) =>
                   setState(() => _auth = selection.first),
             ),
+            if (_auth == AuthMethod.agent) ...[
+              const SizedBox(height: 8),
+              Text(
+                l10n.agentAuthHint,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).secondaryText,
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             TextFormField(
               controller: _notes,

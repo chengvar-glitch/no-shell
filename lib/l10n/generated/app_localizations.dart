@@ -392,6 +392,18 @@ abstract class AppLocalizations {
   /// **'SSH key'**
   String get authKey;
 
+  /// No description provided for @authAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent'**
+  String get authAgent;
+
+  /// No description provided for @agentAuthHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Authenticate with keys held by your local SSH agent (macOS / Linux). Load your key with ssh-add first — the connection fails when the agent is not running or has no keys.'**
+  String get agentAuthHint;
+
   /// No description provided for @lastConnected.
   ///
   /// In en, this message translates to:
@@ -499,6 +511,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Authentication failed — check your password or key'**
   String get authFailedMsg;
+
+  /// No description provided for @agentErrorMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot use the local SSH agent — make sure it is running and your key is loaded (ssh-add), then retry.'**
+  String get agentErrorMsg;
 
   /// No description provided for @networkErrorMsg.
   ///

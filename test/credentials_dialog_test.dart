@@ -128,4 +128,33 @@ void main() {
     expect(harness.captured?.credentials.privateKey, '---KEY---');
     expect(harness.captured?.credentials.password, isNull);
   });
+
+  testWidgets('Agent 方式：无需输入，提交 useAgent 凭据', (tester) async {
+    final harness = await _pumpDialog(tester);
+
+    await tester.tap(find.text('Agent'));
+    await tester.pumpAndSettle();
+    // 提示文案替代了输入框。
+    expect(find.byType(TextFormField), findsNothing);
+    expect(find.textContaining('ssh-add'), findsOneWidget);
+
+    await tester.tap(find.text('连接'));
+    await tester.pumpAndSettle();
+    expect(harness.captured?.credentials.useAgent, isTrue);
+    expect(harness.captured?.credentials.password, isNull);
+    expect(harness.captured?.credentials.privateKey, isNull);
+  });
+
+  testWidgets('Agent 预填凭据自动选中 Agent 方式', (tester) async {
+    final harness = await _pumpDialog(
+      tester,
+      initial: const SshCredentials(useAgent: true),
+      allowRemember: true,
+    );
+
+    expect(find.textContaining('ssh-add'), findsOneWidget);
+    await tester.tap(find.text('连接'));
+    await tester.pumpAndSettle();
+    expect(harness.captured?.credentials.useAgent, isTrue);
+  });
 }

@@ -126,6 +126,25 @@ void main() {
       expect(server.lastConnectedAt, isNull);
       expect(server.status, ServerStatus.idle);
     });
+
+    test('Agent 认证：凭据标记与 authMethod roundtrip', () {
+      const credentials = SshCredentials(useAgent: true);
+      final restored = SshCredentials.tryDecode(credentials.encode());
+      expect(restored?.useAgent, isTrue);
+      // 普通凭据不带这个标记。
+      expect(
+        SshCredentials.tryDecode(const SshCredentials(password: 'pw').encode())
+            ?.useAgent,
+        isFalse,
+      );
+
+      final server = SshServer.fromJson({
+        ..._fullServer().toJson(),
+        'authMethod': 'agent',
+      });
+      expect(server.authMethod, AuthMethod.agent);
+      expect(server.toJson()['authMethod'], 'agent');
+    });
   });
 
   group('SharedPreferencesServerPersistence', () {

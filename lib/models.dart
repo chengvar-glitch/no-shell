@@ -5,11 +5,15 @@ import 'l10n/generated/app_localizations.dart';
 
 enum ServerStatus { connected, connecting, idle, error }
 
-enum AuthMethod { password, privateKey }
+enum AuthMethod { password, privateKey, agent }
 
 /// 认证方式的本地化展示名。
 String authMethodLabel(AppLocalizations l10n, AuthMethod method) =>
-    method == AuthMethod.password ? l10n.authPassword : l10n.authKey;
+    switch (method) {
+      AuthMethod.password => l10n.authPassword,
+      AuthMethod.privateKey => l10n.authKey,
+      AuthMethod.agent => l10n.authAgent,
+    };
 
 /// 端口转发的三个方向，与 `ssh -L` / `-R` / `-D` 一一对应。
 enum PortForwardMode {

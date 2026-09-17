@@ -174,6 +174,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authKey => 'SSH 密钥';
 
   @override
+  String get authAgent => 'Agent';
+
+  @override
+  String get agentAuthHint =>
+      '使用本机 SSH agent 里的密钥认证（macOS / Linux）。请先 ssh-add 装入密钥，agent 未运行或没有密钥时会连接失败。';
+
+  @override
   String get lastConnected => '最近连接';
 
   @override
@@ -231,6 +238,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get authFailedMsg => '认证失败，请检查密码或密钥';
+
+  @override
+  String get agentErrorMsg =>
+      '无法使用本机 SSH agent：请确认 agent 正在运行且已装入密钥（ssh-add），必要时重新加载后重试。';
 
   @override
   String get networkErrorMsg => '无法连接主机，请检查地址、端口与网络';

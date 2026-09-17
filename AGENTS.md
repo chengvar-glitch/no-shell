@@ -13,8 +13,9 @@
 - 运行应用：`flutter run -d macos`（或 `-d chrome` / `-d <device-id>`，用 `flutter devices` 查看可用设备）
 - 格式化：`dart format <文件>`（新改动的文件必须格式化）
 - 生成本地化代码：`flutter gen-l10n`（修改 arb 后执行）
-- SSH 链路冒烟：`dart run tool/smoke_ssh.dart <host> <port> <user> --password <密码>`（或 `--identity <PEM路径>`），追加 `--shell` 验证 PTY、`--sftp` 验证 SFTP 浏览与上传下载链路；凭据只经命令行传入
+- SSH 链路冒烟：`dart run tool/smoke_ssh.dart <host> <port> <user> --password <密码>`（或 `--identity <PEM路径>`，或 `--agent` 走本机 SSH agent 的密钥认证，密钥需先 `ssh-add` 装入 `SSH_AUTH_SOCK` 指向的 agent），追加 `--shell` 验证 PTY、`--sftp` 验证 SFTP 浏览与上传下载链路；凭据只经命令行传入
 - 转发 / 跳板机冒烟：`NOSHELL_SMOKE_HOST=<host> NOSHELL_SMOKE_PASSWORD=<密码> flutter test test/forward_smoke_test.dart`（可选 `NOSHELL_SMOKE_USER` / `NOSHELL_SMOKE_PORT`）。它必须跑 App 自己的会话层（models 依赖 Flutter），所以只能在测试 VM 里跑而不是 `dart run`；没给环境变量时整组自动跳过，`flutter test` 照常全绿
+- Agent 认证冒烟：`SSH_AUTH_SOCK=<agent套接字> NOSHELL_SMOKE_HOST=<host> flutter test test/agent_smoke_test.dart`（可选 `NOSHELL_SMOKE_USER` / `NOSHELL_SMOKE_PORT`；不传密码，认证完全交给 agent 里的密钥）。与转发冒烟同样的跳过约定
 
 ## 环境与依赖约束
 
@@ -42,13 +43,14 @@
   - `tunnel_gateway.dart` — 转发本机一侧的网关（监听 / 拨号），条件导出 `tunnel_gateway_io.dart`（真套接字）与 `tunnel_gateway_stub.dart`（web 抛 `UnsupportedError`）
   - `port_forward_runtime.dart` — `PortForwardManager`：把规则绑到某条会话的连接上，负责启停、状态与失败归类；生命周期与会话同生共死
   - `jump_host.dart` — 跳板链路：`resolveJumpChain`（由外到内、环 / 缺主机 / 层数上限）、`connectionChain`、表单候选过滤 `jumpHostCandidates`、按跳包装错误的 `SshHopException` 与 `unwrapHopError`
+  - `ssh_agent.dart` — 本机 SSH agent 客户端：协议编解码（列密钥 / 签名，含 RSA 自动换 `rsa-sha2-256`）、一问一答的请求配对与 dartssh2 身份映射（`shouldProbe` 先探后签）；条件导出 `ssh_agent_io.dart`（macOS / Linux 走 `SSH_AUTH_SOCK`）与 `ssh_agent_stub.dart`（web）。Windows 的命名管道 agent 第一版不做（dart:io 连不上），`sshAgentSupported` 对其返回 false，UI 不给入口
   - `sftp.dart` / `dartssh2_sftp.dart` — SFTP 领域模型、抽象接口与 dartssh2 适配器
   - `sftp_browser.dart` / `sftp_transfer.dart` — SFTP 面板状态：目录浏览与串行传输队列
   - `local_files.dart` — 本地文件网关（选文件 / 落盘 / 导出落点）；`local_write*.dart` 为按平台条件导出的落盘实现（含 `promote` 改名与 `ownerOnly` 权限收紧），`local_chmod.dart` 是只为 0600 存在的最小 FFI 绑定，`local_share*.dart` 为按平台条件导出的分享面板实现
 - `lib/mobile/` — 移动端四个 Tab 及详情/编辑页
 - `lib/l10n/` — arb 源文件（`app_en.arb` / `app_zh.arb`）；`lib/l10n/generated/` 为生成代码
 - `assets/fonts/` — 随包内置的终端字体（`jetbrains_mono/`、`fira_code/` 各含 Regular + Bold 与 `OFL.txt`，合计约 1.2 MB），由 `pubspec.yaml` 的 `fonts:` 声明、`assets:` 声明许可文本。族名一律带 `NoShell ` 前缀（如 `NoShell JetBrains Mono`）：与系统字体彻底解耦，引擎必定命中随包文件
-- `test/` — widget、mobile、session_manager、localization、persistence（序列化与持久化）、groups（分组建模 / 排序 / 落盘迁移与两端交互）、credentials_dialog、connect_flow、host_key（TOFU 决策与处置入口）、host_transfer（主机文本格式解析）、host_backup（备份信封与导入 / 导出流程）、sftp（browser / adapter / tab 三组）、window_caption（自绘标题条）、font_assets（内置字体与 pubspec / 许可 / FontManifest 的接线校验）、port_forward（规则模型 + 三种模式的运行时）、port_forward_panel（转发页交互）、jump_host（链路解析 / 候选过滤 / 逐跳失败归类 / 连接流程弹窗）测试；`forward_smoke_test.dart` 是需要真实主机的冒烟（无环境变量时自动跳过）；`test/support/` 放共享假实现（含 `FakeCredentialStore`、`forward_fakes.dart` 里的假通道 / 假网关 / 假转发传输）
+- `test/` — widget、mobile、session_manager、localization、persistence（序列化与持久化）、groups（分组建模 / 排序 / 落盘迁移与两端交互）、credentials_dialog、connect_flow、host_key（TOFU 决策与处置入口）、host_transfer（主机文本格式解析）、host_backup（备份信封与导入 / 导出流程）、sftp（browser / adapter / tab 三组）、window_caption（自绘标题条）、font_assets（内置字体与 pubspec / 许可 / FontManifest 的接线校验）、port_forward（规则模型 + 三种模式的运行时）、port_forward_panel（转发页交互）、jump_host（链路解析 / 候选过滤 / 逐跳失败归类 / 连接流程弹窗）、ssh_agent（agent 协议 / 身份映射 / 会话归类）测试；`forward_smoke_test.dart` / `agent_smoke_test.dart` 是需要真实主机的冒烟（无环境变量时自动跳过）；`test/support/` 放共享假实现（含 `FakeCredentialStore`、`forward_fakes.dart` 里的假通道 / 假网关 / 假转发传输）
 - `integration_test/` — 驱动真实应用的集成测试（`screenshots_test.dart` 为 README 截图生成器，演示链路走本地一次性服务端，输出 `docs/screenshots/`）
 - `tool/` — 开发脚本（`smoke_ssh.dart` 冒烟脚本，`dev_sftp_server.py` 是配套的一次性本地 SFTP + 假 shell 服务端，只绑 127.0.0.1、账号 smoke/smoke，供 `--sftp` / `--shell` 冒烟与截图使用）
 - `docs/screenshots/` — README 截图，由 `integration_test/screenshots_test.dart` 生成，禁止放入真实主机信息
