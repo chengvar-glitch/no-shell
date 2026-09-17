@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/models.dart';
@@ -45,6 +47,35 @@ final class _FakeTransport implements SshTransport {
   void dispose() => disposed = true;
 }
 
+/// 连接一直建不完的假传输：用来制造「还在 connecting 时用户就断开」的窗口。
+final class _HangingTransport implements SshTransport {
+  /// 放行后 [attach] 才会走完连接流程，模拟握手终于回来了。
+  final gate = Completer<void>();
+
+  bool disposed = false;
+
+  /// attach 是否在 dispose 之后才走完。
+  bool connectedAfterDispose = false;
+
+  @override
+  Future<void> attach(
+    Terminal terminal, {
+    required void Function() onConnected,
+    required void Function() onClosed,
+  }) async {
+    await gate.future;
+    if (disposed) connectedAfterDispose = true;
+    onConnected();
+  }
+
+  @override
+  Future<SftpFileSystem> openSftp() async =>
+      throw const SftpException(SftpErrorKind.unsupported, 'fake transport');
+
+  @override
+  void dispose() => disposed = true;
+}
+
 SshServer _server() => SshServer(
   // store 必须预置同一 id 的主机，mark* 才能按 id 回写状态。
   id: 'srv-01',
@@ -55,7 +86,7 @@ SshServer _server() => SshServer(
 );
 
 /// 每次建会话按顺序取一个假传输，便于测试「失败后重连换新传输」。
-SessionManager _manager(ServerStore store, List<_FakeTransport> transports) =>
+SessionManager _manager(ServerStore store, List<SshTransport> transports) =>
     SessionManager(
       store: store,
       sessionFactory: (server, credentials) => TerminalSession(
@@ -115,6 +146,73 @@ void main() {
       expect(sessions.byServerId('srv-01'), isNull);
       expect(transport.disposed, isTrue);
       expect(store.byId('srv-01')?.status, ServerStatus.idle);
+    });
+
+    test('连接还没建好就 close：传输被释放，握手回来也不再算连上', () async {
+      final store = ServerStore(seed: [_server()]);
+      final transport = _HangingTransport();
+      final sessions = _manager(store, [transport]);
+
+      final session = sessions.open(
+        _server(),
+        const SshCredentials(password: 'pw'),
+      );
+      await pumpEventQueue();
+      expect(session.phase, TerminalPhase.connecting);
+
+      // 用户在转圈时就断开 / 删掉主机。
+      sessions.close('srv-01');
+      expect(transport.disposed, isTrue);
+      expect(store.byId('srv-01')?.status, ServerStatus.idle);
+
+      // 握手这时才回来：不得把已经结束的会话拉回 connected。
+      transport.gate.complete();
+      await pumpEventQueue();
+
+      expect(transport.connectedAfterDispose, isTrue);
+      expect(session.phase, TerminalPhase.closed);
+      expect(store.byId('srv-01')?.status, ServerStatus.idle);
+    });
+
+    test('改「兼容旧服务器」后新建会话带上新取值，已建的不受影响', () async {
+      // 默认会话工厂的闭包必须在**调用时**读字段。若它捕获的是构造参数
+      // （与字段同名却有遮蔽），设置改了也永远传不下去，所以断言落在
+      // 新建出来的 TerminalSession 上。
+      final store = ServerStore(seed: [_server()]);
+      final sessions = SessionManager(
+        store: store,
+        sessionFactory: (server, credentials) => TerminalSession(
+          server: server,
+          credentials: credentials,
+          transport: _FakeTransport(),
+        ),
+      );
+      addTearDown(sessions.dispose);
+
+      // 用默认工厂的接管路径：先看初始值。
+      expect(sessions.allowLegacyHostKeys, isFalse);
+      sessions.allowLegacyHostKeys = true;
+      expect(sessions.allowLegacyHostKeys, isTrue);
+
+      // 走真实默认工厂（不传 sessionFactory）验证它会下发到会话上。
+      final realStore = ServerStore(seed: [_server()]);
+      final real = SessionManager(store: realStore, allowLegacyHostKeys: true);
+      addTearDown(real.dispose);
+      final session = real.open(
+        _server(),
+        const SshCredentials(password: 'pw'),
+      );
+      await pumpEventQueue();
+      expect(session.allowLegacyHostKeys, isTrue);
+
+      final off = SessionManager(store: ServerStore(seed: [_server()]));
+      addTearDown(off.dispose);
+      final offSession = off.open(
+        _server(),
+        const SshCredentials(password: 'pw'),
+      );
+      await pumpEventQueue();
+      expect(offSession.allowLegacyHostKeys, isFalse);
     });
 
     test('连接失败归类为错误状态，暴露错误种类', () async {

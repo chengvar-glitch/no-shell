@@ -21,6 +21,7 @@ String sftpErrorText(AppLocalizations l10n, Object? error) {
     SftpErrorKind.notFound => l10n.sftpErrorNotFound,
     SftpErrorKind.unsupported => l10n.sftpErrorUnsupported,
     SftpErrorKind.network => l10n.sftpErrorNetwork,
+    SftpErrorKind.busy => l10n.sftpErrorBusy,
     SftpErrorKind.other => l10n.sftpErrorOther,
   };
 }

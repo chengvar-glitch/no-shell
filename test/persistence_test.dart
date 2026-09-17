@@ -12,8 +12,18 @@ final class FakeServerPersistence implements ServerPersistence {
   ServerArchive? stored;
   int saveCount = 0;
 
+  /// 非 null 时 [load] 抛出该错误，用来验证「读失败必须停写」。
+  Object? loadError;
+
   @override
-  Future<ServerArchive?> load() async => stored;
+  Future<ServerArchiveLoad> load() async {
+    final error = loadError;
+    if (error != null) throw error;
+    final archive = stored;
+    return archive == null
+        ? const ServerArchiveMissing()
+        : ServerArchiveLoaded(archive);
+  }
 
   @override
   Future<void> save(ServerArchive archive) async {
@@ -26,6 +36,10 @@ final class FakeServerPersistence implements ServerPersistence {
     );
   }
 }
+
+/// 取出读回的存档；结果不是「读到了」时直接失败，省得每处都写模式匹配。
+ServerArchive? _loadedArchive(ServerArchiveLoad result) =>
+    result is ServerArchiveLoaded ? result.archive : null;
 
 ServerArchive _archive(
   List<SshServer> servers, {
@@ -119,9 +133,9 @@ void main() {
       SharedPreferences.setMockInitialValues(<String, Object>{});
     });
 
-    test('无存档时 load 返回 null', () async {
+    test('无存档时 load 报「从未保存过」', () async {
       final persistence = SharedPreferencesServerPersistence();
-      expect(await persistence.load(), isNull);
+      expect(await persistence.load(), isA<ServerArchiveMissing>());
     });
 
     test('save → load roundtrip', () async {
@@ -135,18 +149,20 @@ void main() {
       );
       await persistence.save(_archive([_fullServer(), second]));
 
-      final loaded = await persistence.load();
+      final loaded = _loadedArchive(await persistence.load());
       expect(loaded?.servers, hasLength(2));
       expect(loaded?.servers[0].toJson(), _fullServer().toJson());
       expect(loaded?.servers[1].id, 'srv-01');
     });
 
-    test('存档损坏时 load 返回 null（下次保存覆盖）', () async {
+    test('存档损坏时报「读不出来」，不再冒充首次运行', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
         'ssh_servers_v1': 'not-json',
       });
       final persistence = SharedPreferencesServerPersistence();
-      expect(await persistence.load(), isNull);
+      // 关键区别：null 会被调用方当成首次运行、进而写空列表覆盖掉，
+      // 所以损坏必须有自己的结果类型。
+      expect(await persistence.load(), isA<ServerArchiveUnreadable>());
     });
 
     test('单条记录损坏只跳过该条，其余照常读回', () async {
@@ -159,7 +175,7 @@ void main() {
         ]),
       });
       final persistence = SharedPreferencesServerPersistence();
-      final loaded = await persistence.load();
+      final loaded = _loadedArchive(await persistence.load());
       expect(loaded?.servers, hasLength(1));
       expect(loaded?.servers[0].toJson(), good);
     });
@@ -200,6 +216,50 @@ void main() {
       expect(store.byId('srv-x')?.status, ServerStatus.idle);
     });
 
+    test('存档读不出来时停写，绝不拿残缺列表覆盖', () async {
+      final persistence = FakeServerPersistence()
+        ..stored = _archive([_fullServer()], groups: ['生产环境']);
+      final store = ServerStore(persistence: persistence);
+      // 磁盘上的存档解开时炸了（或存档只丢了一半）。
+      persistence.loadError = const FormatException('corrupt');
+
+      await store.load();
+      expect(store.archiveUnreadable, isTrue);
+      final savesBefore = persistence.saveCount;
+
+      // 用户照常操作；这些改动只留在内存里，不能落盘。
+      store.upsert(_fullServer());
+      store.createGroup('新分组');
+      store.remove('srv-x');
+      await pumpEventQueue();
+
+      expect(persistence.saveCount, savesBefore, reason: '存档不可读期间一次都不该写盘');
+      expect(
+        persistence.stored?.servers,
+        hasLength(1),
+        reason: '磁盘上的原存档必须原封不动',
+      );
+    });
+
+    test('主机记录损坏时同样停写（不是首次运行）', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'ssh_servers_v1': 'not-json',
+      });
+      final store = ServerStore(
+        persistence: SharedPreferencesServerPersistence(),
+      );
+
+      await store.load();
+      expect(store.archiveUnreadable, isTrue);
+
+      store.upsert(_fullServer());
+      await pumpEventQueue();
+
+      // 损坏的原档还在，没有被空列表顶掉。
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('ssh_servers_v1'), 'not-json');
+    });
+
     test('增删改后异步落盘', () async {
       final persistence = FakeServerPersistence();
       final store = ServerStore(persistence: persistence);
@@ -217,6 +277,24 @@ void main() {
       store.restore(_fullServer(), 0);
       await pumpEventQueue();
       expect(persistence.stored?.servers.first.id, 'srv-x');
+    });
+
+    test('flush 等到排队中的落盘全部完成', () async {
+      final persistence = FakeServerPersistence();
+      final store = ServerStore(persistence: persistence);
+      await store.load();
+      await pumpEventQueue();
+      final before = persistence.saveCount;
+
+      // 连着改三次：三次快照串在同一条 future 链上，都还没跑完。
+      store.upsert(_fullServer());
+      store.createGroup('新分组');
+      store.setGroupCollapsed('新分组', true);
+
+      await store.flush();
+
+      expect(persistence.saveCount, greaterThan(before));
+      expect(persistence.stored?.collapsedGroups, contains('新分组'));
     });
 
     test('markConnected 记录的最近连接时间会落盘', () async {

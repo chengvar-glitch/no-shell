@@ -80,40 +80,14 @@ void main() {
     expect(AppSettings.fromJson(const {}), const AppSettings());
   });
 
-  test('老存档迁移：界面字体字段被忽略，终端字体的旧取值逐个映射', () {
-    // v1 存档里的 uiFont 已随「界面字体不提供自定义」一起删除，读时直接忽略；
-    // 终端字体的旧预设按语义迁移，不让用户停在旧状态上。
-    expect(
-      AppSettings.fromJson({'uiFont': 'pingFang', 'terminalFont': 'menlo'})
-          .terminalStyle
-          .font,
-      TerminalFont.systemMonospace,
-    );
-
-    for (final name in ['system', 'menlo', 'consolas']) {
-      expect(
-        AppSettings.fromJson({'terminalFont': name}).terminalStyle.font,
-        TerminalFont.systemMonospace,
-        reason: '$name 是「系统里的等宽」，迁移到同语义的系统等宽',
-      );
-    }
-
-    // 手填族名的入口已删除，且那种状态在 Linux 上可能已经被 fontconfig
-    // 顶替成比例字体：填过 Fira Code 的落到内置 Fira Code，其余落到内置默认。
-    expect(
-      AppSettings.fromJson({
-        'terminalFont': 'custom',
-        'terminalCustomFontName': 'Fira Code',
-      }).terminalStyle.font,
-      TerminalFont.firaCode,
-    );
-    expect(
-      AppSettings.fromJson({
-        'terminalFont': 'custom',
-        'terminalCustomFontName': 'Sarasa Mono SC',
-      }).terminalStyle.font,
-      TerminalFont.jetBrainsMono,
-    );
+  test('认不出的字体取值退回内置默认，不带走其余字段', () {
+    // 不认得的取值（脏档 / 旧档）一律退回默认；同一条 JSON 里的其他字段照常读回。
+    final restored = AppSettings.fromJson({
+      'themeMode': 'dark',
+      'terminalFont': 'menlo',
+    });
+    expect(restored.terminalStyle.font, TerminalFont.jetBrainsMono);
+    expect(restored.themeMode, ThemeMode.dark);
   });
 
   testWidgets('启动即应用落盘偏好，改动在防抖后写回', (tester) async {
@@ -190,10 +164,91 @@ void main() {
     tester.platformDispatcher.localesTestValue = const [Locale('zh')];
     addTearDown(tester.platformDispatcher.clearAllTestValues);
 
+    // 注入一个「记录型」通道但**不**把它交给 NoShellApp：改动应当只留在
+    // 内存里。原先这条只断言界面上有「设置」文字，删掉整条落盘逻辑也照样
+    // 通过——等于没测。
+    final recorder = _RecordingPersistence();
     await tester.pumpWidget(NoShellApp(credentials: FakeCredentialStore()));
     await tester.pump();
 
-    expect(find.text('设置'), findsOneWidget);
-    expect(Theme.of(tester.element(find.text('设置'))).brightness, isNotNull);
+    // 改主题（这条路径一定会调 _scheduleSave）。
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    // 「浅色」同时出现在分段按钮与终端预览说明里，限定到分段按钮内的那个。
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SegmentedButton<ThemeMode>),
+        matching: find.text('浅色'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 等过防抖窗口，仍未注入通道 ⇒ 一次都没写。
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(recorder.saves, isEmpty);
+    expect(recorder.stored, isNull);
+  });
+
+  group('连接兼容性开关', () {
+    test('默认关闭，且缺字段的旧存档读成关闭', () {
+      expect(const AppSettings().allowLegacyHostKeys, isFalse);
+      final legacy = AppSettings.fromJson(const {
+        'themeMode': 'system',
+        'language': 'system',
+      });
+      expect(legacy.allowLegacyHostKeys, isFalse);
+    });
+
+    test('JSON 往返保留取值', () {
+      const on = AppSettings(allowLegacyHostKeys: true);
+      expect(AppSettings.fromJson(on.toJson()).allowLegacyHostKeys, isTrue);
+      expect(
+        const AppSettings()
+            .copyWith(allowLegacyHostKeys: true)
+            .allowLegacyHostKeys,
+        isTrue,
+      );
+    });
+
+    test('参与相等判定', () {
+      expect(
+        const AppSettings() == const AppSettings(allowLegacyHostKeys: true),
+        isFalse,
+      );
+    });
+  });
+
+  group('TerminalStylePrefs 值语义', () {
+    test('内容相同即相等（ValueNotifier 的无变化守卫依赖它）', () {
+      const a = TerminalStylePrefs();
+      const b = TerminalStylePrefs();
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+    });
+
+    test('任一项不同即不等', () {
+      const base = TerminalStylePrefs();
+      expect(base == base.copyWith(fontSize: base.fontSize + 1), isFalse);
+      expect(
+        base == base.copyWith(preset: TerminalPreset.solarizedDark),
+        isFalse,
+      );
+      expect(base == base.copyWith(font: TerminalFont.firaCode), isFalse);
+    });
+
+    test('重复写入相同值不触发通知', () {
+      final notifier = ValueNotifier<TerminalStylePrefs>(
+        const TerminalStylePrefs(),
+      );
+      addTearDown(notifier.dispose);
+      var notifications = 0;
+      notifier.addListener(() => notifications++);
+
+      notifier.value = const TerminalStylePrefs();
+      expect(notifications, 0, reason: '内容没变就不该通知下游重建');
+
+      notifier.value = const TerminalStylePrefs(fontSize: 18);
+      expect(notifications, 1);
+    });
   });
 }

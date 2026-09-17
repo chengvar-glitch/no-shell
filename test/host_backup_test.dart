@@ -34,13 +34,13 @@ void main() {
 
   group('备份信封', () {
     test('往返：解出来的清单文本与原文一致', () async {
-      final contents = encodeHostsBackup(hostsText, 'correct horse battery');
+      final contents = await _encode(hostsText, 'correct horse battery');
 
-      expect(decodeHostsBackup(contents, 'correct horse battery'), hostsText);
+      expect(await _decode(contents, 'correct horse battery'), hostsText);
     });
 
-    test('信封只带密文，明文与口令都不出现在文件里', () {
-      final contents = encodeHostsBackup(hostsText, 'correct horse battery');
+    test('信封只带密文，明文与口令都不出现在文件里', () async {
+      final contents = await _encode(hostsText, 'correct horse battery');
       final decoded = jsonDecode(contents) as Map<String, Object?>;
 
       // 信封里只有解密必需的参数，没有版本号之类的冗余字段。
@@ -49,32 +49,36 @@ void main() {
         unorderedEquals([
           'scheme',
           'kdf',
-          'iterations',
+          'N',
+          'r',
+          'p',
           'cipher',
           'salt',
           'nonce',
           'payload',
         ]),
       );
+      // 当前写入的是内存硬的 scrypt。
+      expect(decoded['kdf'], 'scrypt');
       expect(contents, isNot(contains('s3cret-pass')));
       expect(contents, isNot(contains('192.0.2.10')));
       expect(contents, isNot(contains('correct horse battery')));
     });
 
-    test('每次加密都用新的盐与随机数', () {
-      final first = jsonDecode(encodeHostsBackup(hostsText, 'pw-123456'));
-      final second = jsonDecode(encodeHostsBackup(hostsText, 'pw-123456'));
+    test('每次加密都用新的盐与随机数', () async {
+      final first = jsonDecode(await _encode(hostsText, 'pw-123456'));
+      final second = jsonDecode(await _encode(hostsText, 'pw-123456'));
 
       expect(first['salt'], isNot(second['salt']));
       expect(first['nonce'], isNot(second['nonce']));
       expect(first['payload'], isNot(second['payload']));
     });
 
-    test('口令不对报 wrongPassword', () {
-      final contents = encodeHostsBackup(hostsText, 'right-password');
+    test('口令不对报 wrongPassword', () async {
+      final contents = await _encode(hostsText, 'right-password');
 
       expect(
-        () => decodeHostsBackup(contents, 'wrong-password'),
+        () async => await _decode(contents, 'wrong-password'),
         throwsA(
           isA<BackupFormatException>().having(
             (error) => error.problem,
@@ -85,15 +89,15 @@ void main() {
       );
     });
 
-    test('被改动的密文解不出来', () {
-      final decoded = jsonDecode(encodeHostsBackup(hostsText, 'pw-123456'));
+    test('被改动的密文解不出来', () async {
+      final decoded = jsonDecode(await _encode(hostsText, 'pw-123456'));
       final payload = base64.decode(decoded['payload'] as String);
       payload[0] ^= 0xff;
       decoded['payload'] = base64.encode(payload);
 
       // 认证标签对不上：和口令不对是同一种失败，不会解出乱码。
       expect(
-        () => decodeHostsBackup(jsonEncode(decoded), 'pw-123456'),
+        () async => await _decode(jsonEncode(decoded), 'pw-123456'),
         throwsA(
           isA<BackupFormatException>().having(
             (error) => error.problem,
@@ -105,7 +109,7 @@ void main() {
     });
 
     test('文件识别：备份认得出，主机清单与空文件认不出', () async {
-      expect(isHostsBackup(encodeHostsBackup(hostsText, 'pw-123456')), isTrue);
+      expect(isHostsBackup(await _encode(hostsText, 'pw-123456')), isTrue);
       expect(isHostsBackup(hostsText), isFalse);
       expect(isHostsBackup(''), isFalse);
       expect(isHostsBackup('{}'), isFalse);
@@ -118,17 +122,21 @@ void main() {
       );
     });
 
-    test('算法名、迭代次数与字段长度不合规一律判为不可读', () {
+    test('算法名、迭代次数与字段长度不合规一律判为不可读', () async {
       final base = jsonDecode(
-        encodeHostsBackup(hostsText, 'pw-123456'),
+        await _encode(hostsText, 'pw-123456'),
       ) as Map<String, Object?>;
       Map<String, Object?> clone() => Map<String, Object?>.of(base);
 
       final otherScheme = clone()..['scheme'] = 'some-other-app';
-      final otherKdf = clone()..['kdf'] = 'scrypt';
+      final otherKdf = clone()..['kdf'] = 'rot13';
       final otherCipher = clone()..['cipher'] = 'aes-128-cbc';
-      final hugeIterations = clone()..['iterations'] = 50000000;
-      final tinyIterations = clone()..['iterations'] = 1;
+      final hugeN = clone()..['N'] = 1 << 24; // 会吃掉几十 GB 内存
+      final tinyN = clone()..['N'] = 1;
+      final nonPowerOfTwoN = clone()..['N'] = 1000;
+      final badR = clone()..['r'] = 0;
+      final badP = clone()..['p'] = 0;
+      final missingN = clone()..remove('N');
       final shortSalt = clone()..['salt'] = base64.encode(const [1, 2, 3]);
       final shortNonce = clone()..['nonce'] = base64.encode(const [1, 2, 3]);
       final emptyPayload = clone()..['payload'] = '';
@@ -137,19 +145,22 @@ void main() {
         otherScheme,
         otherKdf,
         otherCipher,
-        hugeIterations,
-        tinyIterations,
+        hugeN,
+        tinyN,
+        nonPowerOfTwoN,
+        badR,
+        badP,
+        missingN,
         shortSalt,
         shortNonce,
         emptyPayload,
       ]) {
-        expect(isHostsBackup(jsonEncode(broken)), isFalse);
+        expect(
+          isHostsBackup(jsonEncode(broken)),
+          isFalse,
+          reason: '不合规的信封必须被判为不可读：$broken',
+        );
       }
-    });
-
-    test('空清单也能往返：解出来是空文本', () async {
-      final contents = encodeHostsBackup('', 'pw-123456');
-      expect(decodeHostsBackup(contents, 'pw-123456'), '');
     });
   });
 
@@ -306,7 +317,13 @@ void main() {
         authMethod: AuthMethod.password,
       );
       store.upsert(plain);
-      await credentials.write(plain.id, const SshCredentials(password: 'pw'));
+      // 口令用足够长且有辨识度的串：太短的哨兵（比如 'pw'）会在 base64
+      // 密文里偶然出现，让「明文不落地」这条断言变成掷骰子。
+      const plainPassword = 'correct-horse-battery-staple-42';
+      await credentials.write(
+        plain.id,
+        const SshCredentials(password: plainPassword),
+      );
 
       await pump(tester);
       final exporting = exportHostsFlow(
@@ -314,25 +331,26 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await confirmExportDialog(tester, 'file-password');
       await exporting;
 
       final written = utf8.decode(gateway.bytesOf('/tmp/backup.nsbak'));
-      expect(written, isNot(contains('pw')));
+      expect(written, isNot(contains(plainPassword)));
       expect(written, isNot(contains('192.0.2.10')));
       expect(isHostsBackup(written), isTrue);
       expect(find.text('已导出 1 台主机'), findsOneWidget);
 
       // 用同一个口令解密后就是原本的清单。
-      final text = decodeHostsBackup(written, 'file-password');
+      final text = await _decode(written, 'file-password');
       final drafts = parseHostsText(text, defaultGroup: '默认');
       expect(drafts, hasLength(1));
       expect(drafts.single.host, '192.0.2.10');
       expect(drafts.single.port, 2222);
       expect(drafts.single.username, 'deploy');
       expect(drafts.single.group, '生产');
-      expect(drafts.single.password, 'pw');
+      expect(drafts.single.password, plainPassword);
     });
 
     testWidgets('导出：两次口令不一致时留在弹窗里，不写文件', (tester) async {
@@ -352,6 +370,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField).first, 'one-password');
@@ -390,6 +409,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, '取消'));
@@ -402,7 +422,7 @@ void main() {
 
     testWidgets('导入：解密后写入主机与密码，重复条目跳过', (tester) async {
       await pump(tester);
-      final contents = encodeHostsBackup(hostsText, 'file-password');
+      final contents = await _encode(hostsText, 'file-password');
       gateway.uploads = [uploadOf(contents)];
 
       final importing = importHostsFlow(
@@ -410,6 +430,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        derive: deriveSyncForTest,
       );
       await confirmImportDialog(tester, 'file-password');
       await importing;
@@ -434,6 +455,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        derive: deriveSyncForTest,
       );
       await confirmImportDialog(tester, 'file-password');
       await second;
@@ -444,13 +466,14 @@ void main() {
 
     testWidgets('导入：口令不对时提示且不改动列表', (tester) async {
       await pump(tester);
-      gateway.uploads = [uploadOf(encodeHostsBackup(hostsText, 'right-one'))];
+      gateway.uploads = [uploadOf(await _encode(hostsText, 'right-one'))];
 
       final importing = importHostsFlow(
         context,
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        derive: deriveSyncForTest,
       );
       await confirmImportDialog(tester, 'wrong-one');
       await importing;
@@ -468,6 +491,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        derive: deriveSyncForTest,
       );
       await tester.pumpAndSettle();
 
@@ -485,6 +509,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        derive: deriveSyncForTest,
       );
       await tester.pumpAndSettle();
 
@@ -500,6 +525,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await tester.pumpAndSettle();
 
@@ -526,6 +552,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await tester.pumpAndSettle();
 
@@ -556,6 +583,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await confirmExportDialog(tester, 'file-password');
       await exporting;
@@ -588,6 +616,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await confirmExportDialog(tester, 'file-password');
       await exporting;
@@ -598,3 +627,18 @@ void main() {
     });
   });
 }
+
+/// 测试用低参数信封：参数写在信封里、解密按文件里的值走，所以解密侧
+/// 走的仍是生产代码路径。生产参数一次派生约 0.35 秒、占 32 MiB。
+Future<String> _encode(String hostsText, String password) =>
+    encodeHostsBackupForTest(hostsText, password);
+
+/// 测试用的低 scrypt 参数：生产参数一次派生约 0.35 秒，在 widget 测试里
+/// 会与 pumpAndSettle 抢时序（偶发：提示还没出现就断言），而且生产参数会开
+/// isolate，fake-async 区域根本等不到它完成。流程的加密 / 解密都由它驱动。
+const _testParams = HostBackupParams(n: 1024, r: 8, p: 1);
+
+/// 测试统一走同步派生：生产参数会开 isolate，而 widget 测试的 fake-async
+/// 区域看不见 isolate 的完成（见 HostBackupParams.useIsolate）。
+Future<String> _decode(String contents, String password) =>
+    decodeHostsBackup(contents, password, derive: deriveSyncForTest);

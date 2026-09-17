@@ -324,7 +324,12 @@ final class SftpBrowserController extends ChangeNotifier {
       ], confirmLabel: confirmLabel);
       if (destinations == null) return SftpDownloadOutcome.canceled;
     }
-    if (destinations.isEmpty) return SftpDownloadOutcome.unavailable;
+    // 落点数量必须与目标一一对应。网关换了实现（移动端的 SAF 选择器
+    // 就可能只回一个目录）时宁可整体不下载，也不能在下标越界处半途炸掉：
+    // 那时前面的任务已经入队，用户看到的是「下了一半 + 一个异常」。
+    if (destinations.length < targets.length) {
+      return SftpDownloadOutcome.unavailable;
+    }
     for (var i = 0; i < targets.length; i++) {
       transfers.enqueueDownload(entry: targets[i], target: destinations[i]);
     }
@@ -377,17 +382,27 @@ final class SftpBrowserController extends ChangeNotifier {
   }
 
   /// 结构性操作：期间禁用工具栏，结束后刷新列表；失败向上抛由界面提示。
+  ///
+  /// 已经在忙时抛 [SftpErrorKind.busy] 而不是静默返回：调用方 await 之后
+  /// 会去报「完成」，静默返回等于告诉用户改成功了，而其实什么都没做。
+  /// 工具栏在忙时会禁用按钮，正常路径到不了这里，这是兜底。
+  ///
+  /// [isMutating] 必须一直保持到**刷新结束**：刷新在大目录 / 慢链路上要花
+  /// 几百毫秒，那段时间同样是「结构性操作进行中」，提前放开守卫等于允许
+  /// 第二个操作挤进刷新窗口。
   Future<void> _mutate(Future<void> Function() action) async {
-    if (_isMutating) return;
+    if (_isMutating) {
+      throw const SftpException(SftpErrorKind.busy);
+    }
     _isMutating = true;
     notifyListeners();
     try {
       await action();
+      // 等刷新落地再返回：调用方 await 结束后列表已经是新状态。
+      await refresh();
     } finally {
       _isMutating = false;
       if (!_disposed) notifyListeners();
-      // 等刷新落地再返回：调用方 await 结束后列表已经是新状态。
-      await refresh();
     }
   }
 

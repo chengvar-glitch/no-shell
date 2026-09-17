@@ -343,10 +343,97 @@ void main() {
       controller.startUpload(gateway.uploads);
       await pumpEventQueue();
 
+      // 半截内容只落在临时文件上，清理它，目标路径始终没被碰过。
+      expect(fs.contents.containsKey(sftpJoin(fs.home, 'big.bin')), isFalse);
+      expect(
+        fs.listings[fs.home]!.any((entry) => entry.name == 'big.bin'),
+        isFalse,
+      );
       final transfer = controller.transfers.transfers.single;
       expect(transfer.state, SftpTransferState.failed);
       expect(transfer.errorKind, SftpErrorKind.network);
-      expect(fs.contents.containsKey(sftpJoin(fs.home, 'big.bin')), isFalse);
+    });
+
+    test('上传走临时文件再改名，失败不毁掉远端原有的同名文件', () async {
+      final gateway = FakeLocalFileGateway()..uploads = [_upload('app.log')];
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      // 远端已有一份重要文件，本次上传要在中途失败。
+      fs.addFile(fs.home, 'app.log', content: const [9, 9, 9]);
+      fs.writeError = const SftpException(SftpErrorKind.network);
+
+      controller.startUpload(gateway.uploads);
+      await pumpEventQueue();
+
+      expect(
+        controller.transfers.transfers.single.state,
+        SftpTransferState.failed,
+      );
+      expect(fs.contents[sftpJoin(fs.home, 'app.log')], [
+        9,
+        9,
+        9,
+      ], reason: '覆盖写失败时远端原有的文件必须原封不动');
+    });
+
+    test('上传成功后才把临时文件改名到目标', () async {
+      final gateway = FakeLocalFileGateway()
+        ..uploads = [
+          _upload('app.log', content: const [1, 2, 3, 4]),
+        ];
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      fs.addFile(fs.home, 'app.log', content: const [9, 9, 9]);
+
+      controller.startUpload(gateway.uploads);
+      await pumpEventQueue();
+
+      expect(fs.contents[sftpJoin(fs.home, 'app.log')], [
+        1,
+        2,
+        3,
+        4,
+      ], reason: '成功时新内容顶替旧内容');
+      // 临时文件不留在远端目录里。
+      expect(
+        fs.listings[fs.home]!.any(
+          (entry) => entry.name.contains('.noshell-part'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('传输中途销毁队列不炸：不再对已 dispose 的任务发通知', () async {
+      final gateway = FakeLocalFileGateway()
+        ..downloadTarget = const LocalTarget(
+          path: '/tmp/raw.bin',
+          name: 'raw.bin',
+        );
+      final fs = GatedReadFileSystem()
+        ..addFile(
+          '/home/deploy',
+          'raw.bin',
+          content: List.generate(64, (i) => i),
+        );
+      final controller = SftpBrowserController(
+        openFileSystem: () async => fs,
+        localFiles: gateway,
+      );
+      await controller.ensureReady();
+
+      controller.transfers.enqueueDownload(
+        entry: fs.entryNamed('raw.bin'),
+        target: gateway.downloadTarget!,
+      );
+      await fs.readStarted.future; // 传输进行中
+
+      // 用户此时断开连接 / 删掉主机：控制器被销毁，队列跟着销毁。
+      controller.dispose();
+      fs.releaseRead();
+      await pumpEventQueue();
+
+      // 修复前这里会抛 FlutterError: A SftpTransfer was used after being disposed
+      expect(fs.disposed, isTrue);
     });
 
     test('下载写盘并支持取消', () async {
@@ -400,30 +487,43 @@ void main() {
       );
     });
 
-    test('取消下载清掉半成品文件', () async {
+    test('取消下载只清临时文件，落点上原有的文件不动', () async {
       final gateway = FakeLocalFileGateway()
         ..downloadTarget = const LocalTarget(
           path: '/tmp/raw.bin',
           name: 'raw.bin',
         );
-      final (:controller, :fs) = await ready(gateway: gateway);
-      addTearDown(controller.dispose);
-      final file = fs.addFile(
-        fs.home,
-        'raw.bin',
-        content: List.generate(64, (index) => index),
+      // 落点已有一份旧文件：取消下载绝不能把它毁掉。
+      gateway.written['/tmp/raw.bin'] = const [1, 2, 3];
+      final fs = GatedReadFileSystem()
+        ..addFile(
+          '/home/deploy',
+          'raw.bin',
+          content: List.generate(64, (i) => i),
+        );
+      final controller = SftpBrowserController(
+        openFileSystem: () async => fs,
+        localFiles: gateway,
       );
+      addTearDown(controller.dispose);
+      await controller.ensureReady();
 
       final transfer = controller.transfers.enqueueDownload(
-        entry: file,
+        entry: fs.entryNamed('raw.bin'),
         target: gateway.downloadTarget!,
       );
+      await fs.readStarted.future; // 已经读到中途
       transfer.cancel();
+      fs.releaseRead();
       await pumpEventQueue();
 
       expect(transfer.state, SftpTransferState.canceled);
-      expect(gateway.discarded, ['/tmp/raw.bin']);
-      expect(gateway.written.containsKey('/tmp/raw.bin'), isFalse);
+      expect(gateway.discarded, ['/tmp/raw.bin.part'], reason: '半成品是临时文件');
+      expect(gateway.written['/tmp/raw.bin'], [
+        1,
+        2,
+        3,
+      ], reason: '落点上原有的文件必须原封不动');
     });
 
     test('清除已完成的任务', () async {
@@ -438,6 +538,94 @@ void main() {
       expect(controller.transfers.transfers, hasLength(1));
 
       controller.transfers.clearFinished();
+      expect(controller.transfers.transfers, isEmpty);
+    });
+
+    test('下载中途失败：报错、清掉半成品，落点上原有的文件不动', () async {
+      final gateway = FakeLocalFileGateway()
+        ..downloadTarget = const LocalTarget(
+          path: '/tmp/raw.bin',
+          name: 'raw.bin',
+        );
+      // 落点上已有一份旧文件。
+      gateway.written['/tmp/raw.bin'] = const [9, 9];
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      final file = fs.addFile(
+        fs.home,
+        'raw.bin',
+        content: List.generate(64, (i) => i),
+      );
+      // 吐出一块之后连接断掉。
+      fs.readError = const SftpException(SftpErrorKind.network);
+      fs.readErrorAfterChunks = 1;
+
+      controller.transfers.enqueueDownload(
+        entry: file,
+        target: gateway.downloadTarget!,
+      );
+      await pumpEventQueue();
+
+      final transfer = controller.transfers.transfers.single;
+      expect(transfer.state, SftpTransferState.failed);
+      expect(transfer.errorKind, SftpErrorKind.network);
+      expect(gateway.discarded, ['/tmp/raw.bin.part']);
+      expect(gateway.written['/tmp/raw.bin'], [
+        9,
+        9,
+      ], reason: '下载失败不该动落点上原有的文件');
+    });
+
+    test('已有结构性操作在执行时，后续请求明确报错而不是假装成功', () async {
+      final fs = GatedListFileSystem();
+      final controller = SftpBrowserController(
+        openFileSystem: () async => fs,
+        localFiles: FakeLocalFileGateway(),
+      );
+      addTearDown(controller.dispose);
+      // 首次载入先放行，避免它把后面的闸门吃掉。
+      final ready = controller.ensureReady();
+      fs.releaseList();
+      fs.arm();
+      await ready;
+
+      // 钉住这次操作收尾时的刷新，让 isMutating 保持为 true。
+      final mutating = controller.createFolder('new-dir');
+      await fs.listStarted.future;
+      expect(controller.isMutating, isTrue);
+
+      // 静默 return 会让调用方以为改成功了，其实什么都没做。
+      await expectLater(
+        controller.createFolder('another'),
+        throwsA(
+          isA<SftpException>().having(
+            (e) => e.kind,
+            'kind',
+            SftpErrorKind.busy,
+          ),
+        ),
+      );
+
+      fs.releaseList();
+      await mutating;
+    });
+
+    test('落点数量少于目标时整体不下载，不半途下标越界', () async {
+      final gateway = FakeLocalFileGateway()
+        // 选择器只回了一个落点，但要下两个文件。
+        ..downloadDirectory = const [
+          LocalTarget(path: '/tmp/a.txt', name: 'a.txt'),
+        ];
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      final a = fs.addFile(fs.home, 'a.txt', content: const [1]);
+      final b = fs.addFile(fs.home, 'b.txt', content: const [2]);
+
+      expect(
+        await controller.downloadEntries([a, b], '保存'),
+        SftpDownloadOutcome.unavailable,
+      );
+      // 一个都不该入队：要么整批下载，要么都不下。
       expect(controller.transfers.transfers, isEmpty);
     });
   });

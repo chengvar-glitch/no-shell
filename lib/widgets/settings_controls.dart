@@ -103,6 +103,66 @@ class SettingsCard extends StatelessWidget {
   }
 }
 
+/// 存档读不出来时的告警卡片。
+///
+/// 这件事必须说出来：此时主机列表是残缺的、改动也不会落盘，
+/// 用户若以为一切正常，就会在「以为已经保存」的情况下继续用下去。
+/// 桌面设置弹窗与移动端设置 Tab 顶部共用。
+class ArchiveWarningCard extends StatelessWidget {
+  const ArchiveWarningCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
+        decoration: BoxDecoration(
+          color: AppPalette.warning.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.warning_amber_rounded,
+              size: 18,
+              color: AppPalette.warning,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.archiveUnreadableTitle,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.archiveUnreadableHint,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.5,
+                      color: theme.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// 一块设置：名称一行、控件一行。
 /// 控件拿到的是整行宽度，配色选择器 / 预览这类宽控件才排得开。
 class SettingsRow extends StatelessWidget {

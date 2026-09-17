@@ -364,6 +364,22 @@ class TerminalStylePrefs {
     font: font ?? this.font,
     fontSize: fontSize ?? this.fontSize,
   );
+
+  /// 值相等即同一份偏好。
+  ///
+  /// 这不只是整洁问题：`TerminalStyleScope` 用 [ValueNotifier] 承载它，
+  /// 而 ValueNotifier 的守卫是**身份**比较。没有 `==` 时，重复点选同一个
+  /// 预设也会发出一次通知，下游终端随之重建（xterm 会重新量字符宽度并
+  /// 清空段落缓存），还会多写一次盘。无变化守卫在这一层就得成立。
+  @override
+  bool operator ==(Object other) =>
+      other is TerminalStylePrefs &&
+      other.preset == preset &&
+      other.font == font &&
+      other.fontSize == fontSize;
+
+  @override
+  int get hashCode => Object.hash(preset, font, fontSize);
 }
 
 /// 终端样式作用域：挂在 MaterialApp.builder 之上，

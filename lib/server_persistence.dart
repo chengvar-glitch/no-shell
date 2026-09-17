@@ -23,12 +23,40 @@ class ServerArchive {
   final Set<String> collapsedGroups;
 }
 
+/// 存档读取结果。刻意与「没有存档」分开：存档损坏时若按首次运行处理，
+/// 紧接着的空列表落盘就把用户攒下的主机列表永久抹掉了。
+sealed class ServerArchiveLoad {
+  const ServerArchiveLoad();
+}
+
+/// 从未保存过（首次运行）。只有这种情况才允许写一份空基线。
+final class ServerArchiveMissing extends ServerArchiveLoad {
+  const ServerArchiveMissing();
+}
+
+/// 读到了完整存档。
+final class ServerArchiveLoaded extends ServerArchiveLoad {
+  const ServerArchiveLoaded(this.archive);
+
+  final ServerArchive archive;
+}
+
+/// 存档存在但读不出来：内容解不开，或存储层读操作本身失败。
+///
+/// 调用方必须据此停写存档：手头这份内存列表是空的（或残缺的），
+/// 落盘就等于拿它覆盖用户仅存的那份数据。
+final class ServerArchiveUnreadable extends ServerArchiveLoad {
+  const ServerArchiveUnreadable();
+}
+
 /// 主机与分组布局的落盘通道；内存中的唯一状态源仍是 ServerStore。
 /// 测试可注入内存假实现。
+///
+/// 存档格式处于开发阶段，不背历史包袱：读不出当前格式即 [ServerArchiveUnreadable]，
+/// 没有旧格式迁移分支。
 abstract interface class ServerPersistence {
-  /// 读取存档；从未保存过返回 null，由调用方播种示例数据。
-  /// 存档损坏同样返回 null，让下次保存覆盖为干净数据。
-  Future<ServerArchive?> load();
+  /// 读取存档；三种结果见 [ServerArchiveLoad]。
+  Future<ServerArchiveLoad> load();
 
   Future<void> save(ServerArchive archive);
 }
@@ -36,30 +64,31 @@ abstract interface class ServerPersistence {
 /// 基于 shared_preferences 的 JSON 实现，六个平台均可用（web 为 localStorage）。
 /// 注意：只存主机元数据，凭据一律走 CredentialStore 的系统安全存储。
 final class SharedPreferencesServerPersistence implements ServerPersistence {
-  /// 主机条目沿用 v1 的纯数组格式：旧版本读得懂，降级不丢主机。
+  /// 主机条目是纯数组；分组顺序 / 折叠态另存一份。
   static const _serversKey = 'ssh_servers_v1';
-
-  /// 分组布局（顺序 / 折叠态）；缺失即按主机出现次序重建。
   static const _groupsKey = 'ssh_groups_v1';
 
   @override
-  Future<ServerArchive?> load() async {
-    final String rawServers;
+  Future<ServerArchiveLoad> load() async {
+    final String? rawServers;
     final String? rawGroups;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final value = prefs.getString(_serversKey);
-      if (value == null) return null;
-      rawServers = value;
+      rawServers = prefs.getString(_serversKey);
       rawGroups = prefs.getString(_groupsKey);
     } catch (_) {
-      return null;
+      // 读不到不等于没存过：钥匙串 / 存储层出问题时必须停写，
+      // 否则一次瞬时故障就会把磁盘上的存档覆盖成空列表。
+      return const ServerArchiveUnreadable();
     }
+    // 主机记录不在就是没存过（分组布局是随主机一起写的，不单独存在）。
+    if (rawServers == null) return const ServerArchiveMissing();
     try {
-      final list = jsonDecode(rawServers) as List<Object?>;
+      final decoded = jsonDecode(rawServers);
+      if (decoded is! List) return const ServerArchiveUnreadable();
       // 逐条解析：一条坏记录只跳过那一条，不再让整份主机列表清零。
       final servers = <SshServer>[];
-      for (final item in list) {
+      for (final item in decoded) {
         if (item is! Map) continue;
         try {
           servers.add(SshServer.fromJson(item.cast<String, Object?>()));
@@ -69,15 +98,17 @@ final class SharedPreferencesServerPersistence implements ServerPersistence {
           continue;
         }
       }
-      return ServerArchive(
-        servers: servers,
-        groupOrder: _readNames(rawGroups, 'order'),
-        collapsedGroups: _readNames(rawGroups, 'collapsed').toSet(),
+      return ServerArchiveLoaded(
+        ServerArchive(
+          servers: servers,
+          groupOrder: _readNames(rawGroups, 'order'),
+          collapsedGroups: _readNames(rawGroups, 'collapsed').toSet(),
+        ),
       );
     } on FormatException {
-      return null;
+      return const ServerArchiveUnreadable();
     } on TypeError {
-      return null;
+      return const ServerArchiveUnreadable();
     }
   }
 

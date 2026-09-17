@@ -15,7 +15,12 @@ import 'ssh_transport.dart';
 /// dartssh2 实现。web 平台下 [SSHSocket.connect] 会在运行时抛出
 /// [UnsupportedError]（浏览器没有原始 TCP），由上层统一归类为不支持。
 final class DartSsh2Transport implements SshTransport {
-  DartSsh2Transport(this._server, this._credentials, [this._hostKeys]);
+  DartSsh2Transport(
+    this._server,
+    this._credentials, [
+    this._hostKeys,
+    this._allowLegacyHostKeys = false,
+  ]);
 
   static const _connectTimeout = Duration(seconds: 12);
 
@@ -25,12 +30,20 @@ final class DartSsh2Transport implements SshTransport {
   /// TOFU 指纹存储；为空时不做主机密钥校验（仅测试场景）。
   final HostKeyStore? _hostKeys;
 
+  /// 允许只提供 `ssh-rsa`（SHA-1）主机密钥的老设备（见 SSHAlgorithms 的构造）。
+  final bool _allowLegacyHostKeys;
+
   /// [_verifyHostKey] 无法向 dartssh2 抛自定义异常（回调错误会在传输层
   /// 内部消化），改为记下详情，attach 里再换成更明确的错误抛出。
   HostKeyChangedException? _hostKeyMismatch;
+  HostKeyUnavailableException? _hostKeyUnavailable;
 
   SSHClient? _client;
   SSHSession? _session;
+
+  /// 已建立但还没交给 [_client] 的连接。用在握手完成到 client 建好之间的
+  /// 窗口期：这期间 dispose 只能关到这个 socket，否则它就漏了。
+  SSHSocket? _socket;
   final List<StreamSubscription<Object?>> _subscriptions = [];
   bool _disposed = false;
 
@@ -45,21 +58,56 @@ final class DartSsh2Transport implements SshTransport {
       _server.port,
       timeout: _connectTimeout,
     );
-    final client = _client = SSHClient(
-      socket,
-      username: _server.username,
-      identities: _identities,
-      // 密码认证；OpenSSH 默认开启的 keyboard-interactive 也映射到同一密码。
-      onPasswordRequest: () => _credentials.password,
-      onUserInfoRequest: (request) {
-        final password = _credentials.password;
-        if (password == null) return null;
-        return List.filled(request.prompts.length, password);
-      },
-      handshakeTimeout: _connectTimeout,
-      // known_hosts / TOFU 指纹校验：首次记录、变更拒绝（见 host_key_store.dart）。
-      onVerifyHostKey: _hostKeys == null ? null : _verifyHostKey,
-    );
+    // 连接是异步的：用户可能在这十几秒里已经断开了这个会话。
+    // 此处的 dispose 当时只看到 _client / _session 都还是 null，
+    // 什么也没关掉，所以必须在这里补一次检查——否则接下来会建成一个
+    // 完全认证过、却再也没人持有的 SSH 会话，一直挂到进程退出。
+    if (_disposed) {
+      await socket.close();
+      return;
+    }
+    _socket = socket;
+
+    final SSHClient client;
+    try {
+      client = _client = SSHClient(
+        socket,
+        username: _server.username,
+        identities: _identities,
+        // 密码认证；OpenSSH 默认开启的 keyboard-interactive 也映射到同一密码。
+        onPasswordRequest: () => _credentials.password,
+        onUserInfoRequest: (request) {
+          final password = _credentials.password;
+          if (password == null) return null;
+          return List.filled(request.prompts.length, password);
+        },
+        handshakeTimeout: _connectTimeout,
+        // 算法集：默认沿用 dartssh2 的现代默认值；只有用户显式打开
+        // 「兼容旧服务器」时才把 ssh-rsa（SHA-1）加回主机密钥列表。
+        // 不加这一步，老设备会在握手时报 StateError('No matching host key
+        // algorithm')，而那是用户看不懂的英文原文。
+        algorithms: _allowLegacyHostKeys
+            ? const SSHAlgorithms(
+                hostkey: [
+                  SSHHostkeyType.ed25519,
+                  SSHHostkeyType.rsaSha512,
+                  SSHHostkeyType.rsaSha256,
+                  SSHHostkeyType.ecdsa521,
+                  SSHHostkeyType.ecdsa384,
+                  SSHHostkeyType.ecdsa256,
+                  // 追加在末尾：现代算法优先，旧算法只是兜底。
+                  SSHHostkeyType.rsaSha1,
+                ],
+              )
+            : const SSHAlgorithms(),
+        // known_hosts / TOFU 指纹校验：首次记录、变更拒绝（见 host_key_store.dart）。
+        onVerifyHostKey: _hostKeys == null ? null : _verifyHostKey,
+      );
+    } on Object {
+      // 私钥解析失败之类会在构造 client 时就抛，此时 socket 已经连上了。
+      _closeQuietly();
+      rethrow;
+    }
 
     final SSHSession session;
     try {
@@ -72,11 +120,20 @@ final class DartSsh2Transport implements SshTransport {
         ),
       );
     } on SSHHostkeyError {
-      _client?.close();
-      throw _hostKeyMismatch ?? SSHHostkeyError('Hostkey verification failed');
+      _closeQuietly();
+      // 指纹读不出来时不能给「清除指纹」这条路：那会真的丢掉可信记录。
+      throw _hostKeyUnavailable ??
+          _hostKeyMismatch ??
+          SSHHostkeyError('Hostkey verification failed');
     } on Object {
-      _client?.close();
+      _closeQuietly();
       rethrow;
+    }
+
+    // 认证同样要花时间，窗口期内被断开的话到这里收手。
+    if (_disposed) {
+      _closeQuietly();
+      return;
     }
 
     void sendOutput(String data) => session.stdin.add(utf8.encode(data));
@@ -122,22 +179,38 @@ final class DartSsh2Transport implements SshTransport {
       keyType: keyType,
       fingerprint: fingerprint,
     );
-    if (decision == HostKeyDecision.mismatch) {
-      _hostKeyMismatch = HostKeyChangedException(
-        host: _server.host,
-        port: _server.port,
-        keyType: keyType,
-        fingerprint: fingerprint,
-      );
-      return false;
+    switch (decision) {
+      case HostKeyDecision.trusted:
+      case HostKeyDecision.firstUse:
+        return true;
+      case HostKeyDecision.mismatch:
+        _hostKeyMismatch = HostKeyChangedException(
+          host: _server.host,
+          port: _server.port,
+          keyType: keyType,
+          fingerprint: fingerprint,
+        );
+        return false;
+      case HostKeyDecision.unavailable:
+        _hostKeyUnavailable = HostKeyUnavailableException(
+          host: _server.host,
+          port: _server.port,
+        );
+        return false;
     }
-    return true;
   }
 
   List<SSHIdentity> get _identities {
     final pem = _credentials.privateKey;
     if (pem == null || pem.isEmpty) return const [];
-    return SSHKeyPair.fromPem(pem, _credentials.passphrase);
+    try {
+      return SSHKeyPair.fromPem(pem, _credentials.passphrase);
+    } on Object catch (error) {
+      // dartssh2 对不认识的 PEM 头（典型的 PKCS#8 `BEGIN PRIVATE KEY`）
+      // 抛 UnsupportedError，那会被上层当成「平台不支持 SSH」——报错完全
+      // 指错方向。这里换成专用类型，界面才能给出「换个密钥格式」的提示。
+      throw PrivateKeyUnsupportedException(error.toString());
+    }
   }
 
   @override
@@ -179,11 +252,23 @@ final class DartSsh2Transport implements SshTransport {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _closeQuietly();
+  }
+
+  /// 关掉当前持有的一切：已建好的 client，或只连上、还没交给 client 的 socket。
+  /// 三处清理路径（dispose 与两种失败）都走它，避免漏掉中间态的 socket。
+  void _closeQuietly() {
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }
     _subscriptions.clear();
     _session?.close();
-    _client?.close();
+    final client = _client;
+    if (client != null) {
+      client.close();
+      return;
+    }
+    // client 还没建起来时，socket 是唯一持有的资源。
+    unawaited(_socket?.close());
   }
 }

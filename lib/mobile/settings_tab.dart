@@ -17,12 +17,22 @@ class SettingsTab extends StatelessWidget {
     required this.onThemeModeChanged,
     required this.language,
     required this.onLanguageChanged,
+    this.archiveUnreadable = false,
+    this.allowLegacyHostKeys = false,
+    this.onAllowLegacyHostKeysChanged,
   });
 
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage language;
   final ValueChanged<AppLanguage> onLanguageChanged;
+
+  /// 主机存档读不出来：设置页顶部给出告警。
+  final bool archiveUnreadable;
+
+  /// 连接老设备时是否允许 ssh-rsa（SHA-1）主机密钥。
+  final bool allowLegacyHostKeys;
+  final ValueChanged<bool>? onAllowLegacyHostKeysChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +51,7 @@ class SettingsTab extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
+          if (archiveUnreadable) const ArchiveWarningCard(),
           SettingsSection(
             icon: Icons.palette_outlined,
             title: l10n.appearance,
@@ -121,6 +132,35 @@ class SettingsTab extends StatelessWidget {
                     onSelectionChanged: (selection) =>
                         onLanguageChanged(selection.first),
                   ),
+                ),
+              ),
+            ],
+          ),
+          SettingsSection(
+            icon: Icons.lan_outlined,
+            title: l10n.connectionSection,
+            children: [
+              SettingsRow(
+                label: l10n.allowLegacyHostKeys,
+                child: Row(
+                  children: [
+                    Switch(
+                      value: allowLegacyHostKeys,
+                      onChanged: (value) =>
+                          onAllowLegacyHostKeysChanged?.call(value),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l10n.allowLegacyHostKeysHint,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: theme.secondaryText,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

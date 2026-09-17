@@ -166,6 +166,10 @@ final class SftpTransferQueue extends ChangeNotifier {
   /// 本地缓冲区达到该阈值就 flush 一次，避免高带宽下内存无限增长。
   static const _flushThreshold = 4 * 1024 * 1024;
 
+  /// 上传临时文件的后缀。与目标同目录，收尾的 rename 才是同卷操作。
+  /// 队列串行执行，同一目标的上传不会并发，因此这个后缀够用。
+  static const _partialSuffix = '.noshell-part';
+
   final List<SftpTransfer> _transfers = [];
   final List<_PendingJob> _pending = [];
   bool _draining = false;
@@ -191,15 +195,19 @@ final class SftpTransferQueue extends ChangeNotifier {
       total: source.length,
     );
     return _enqueue(transfer, (transfer) async {
+      // 先传到同目录的临时文件，成功后再改名到目标：直接往目标上写
+      // （truncate）一旦中途失败或取消，用户原有的同名文件就没了。
+      final temporaryPath = '$remotePath$_partialSuffix';
       try {
         await fileSystem().write(
-          remotePath,
+          temporaryPath,
           _guarded(source, transfer),
           onProgress: transfer._report,
         );
+        await fileSystem().rename(temporaryPath, remotePath);
       } on Object {
-        // 失败 / 取消都会留下半截远端文件，尽力清掉并同步列表。
-        await _discardRemote(remotePath);
+        // 失败 / 取消留下的半截内容是临时文件，删它不动目标。
+        await _discardRemote(temporaryPath);
         await onRemoteMutated?.call();
         rethrow;
       }
@@ -219,12 +227,19 @@ final class SftpTransferQueue extends ChangeNotifier {
       total: entry.size,
     );
     return _enqueue(transfer, (transfer) async {
-      final sink = localFiles.openWrite(target.path);
+      // 同理：先写临时文件，成功了再改名到落点。桌面的「另存为」可以
+      // 选中一个已存在的文件，直接覆写再失败会把那份旧文件毁掉。
+      final temporaryPath = localFiles.temporaryPath(target.path);
+      final sink = localFiles.openWrite(temporaryPath);
       var written = 0;
       var unflushed = 0;
       try {
         await for (final chunk in fileSystem().read(entry.path)) {
-          if (transfer.isCancelRequested) throw const _TransferCanceled();
+          // 取消，或队列已在传输途中被销毁（会话断开 / 删主机）：
+          // 立刻收手，别继续往一个已经没人要的文件里写。
+          if (transfer.isCancelRequested || _disposed) {
+            throw const _TransferCanceled();
+          }
           sink.add(chunk);
           written += chunk.length;
           transfer._report(written);
@@ -236,10 +251,11 @@ final class SftpTransferQueue extends ChangeNotifier {
         }
         await sink.flush();
         await sink.close();
+        await localFiles.promote(temporaryPath, target.path);
       } on Object {
         await _closeQuietly(sink);
-        // 中断的下载不留下半截文件。
-        await localFiles.discard(target.path);
+        // 中断的下载只清掉临时文件，落点上原有的文件保持不动。
+        await localFiles.discard(temporaryPath);
         rethrow;
       }
     });
@@ -293,18 +309,26 @@ final class SftpTransferQueue extends ChangeNotifier {
         // 排队期间被取消（或队列已销毁）的任务直接跳过。
         if (transfer.isFinished) continue;
         transfer._start();
+        var canceled = false;
         try {
           await job.run(transfer);
-          transfer._finish(
-            transfer.isCancelRequested
-                ? SftpTransferState.canceled
-                : SftpTransferState.done,
-          );
         } on _TransferCanceled {
-          transfer._finish(SftpTransferState.canceled);
+          canceled = true;
         } catch (error) {
+          // 队列在传输途中被销毁（会话断开 / 删主机）时也会走到这里。
+          // dispose 只清了自己的记录，transfer 已经 dispose 过，再改状态
+          // 或通知就是「used after being disposed」，而且队列早已无人订阅。
+          if (_disposed) return;
           transfer._fail(error);
+          notifyListeners();
+          continue;
         }
+        if (_disposed) return;
+        transfer._finish(
+          canceled || transfer.isCancelRequested
+              ? SftpTransferState.canceled
+              : SftpTransferState.done,
+        );
         notifyListeners();
         // 界面提示回调不许打断队列：抛了异常剩下的任务还得继续跑。
         try {

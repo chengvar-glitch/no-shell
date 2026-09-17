@@ -1130,6 +1130,12 @@ abstract class AppLocalizations {
   /// **'Clear finished'**
   String get sftpClearFinished;
 
+  /// No description provided for @sftpCanceling.
+  ///
+  /// In en, this message translates to:
+  /// **'Canceling…'**
+  String get sftpCanceling;
+
   /// No description provided for @sftpCanceled.
   ///
   /// In en, this message translates to:
@@ -1219,6 +1225,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connection lost'**
   String get sftpErrorNetwork;
+
+  /// No description provided for @sftpErrorBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Another file operation is still running'**
+  String get sftpErrorBusy;
 
   /// No description provided for @sftpErrorOther.
   ///
@@ -1387,6 +1399,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This file cannot be read as a host backup'**
   String get backupUnreadable;
+
+  /// No description provided for @connectionSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get connectionSection;
+
+  /// No description provided for @allowLegacyHostKeys.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow legacy ssh-rsa hosts'**
+  String get allowLegacyHostKeys;
+
+  /// No description provided for @allowLegacyHostKeysHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on only for old devices that offer nothing but an ssh-rsa (SHA-1) host key, such as switches and embedded gear. Modern servers are unaffected.'**
+  String get allowLegacyHostKeysHint;
+
+  /// No description provided for @archiveUnreadableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved host list could not be read'**
+  String get archiveUnreadableTitle;
+
+  /// No description provided for @archiveUnreadableHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The saved data is unreadable, so it has been left untouched and changes in this session are not being saved. Re-import a .nsbak backup to get your hosts back.'**
+  String get archiveUnreadableHint;
+
+  /// No description provided for @hostKeyChangedMsgWithFingerprint.
+  ///
+  /// In en, this message translates to:
+  /// **'Host key verification failed — the server presented {keyType} {fingerprint}, which does not match what was recorded at first connection. If the server was rebuilt on purpose, forget the recorded fingerprint and reconnect; otherwise beware of a man-in-the-middle attack.'**
+  String hostKeyChangedMsgWithFingerprint(String keyType, String fingerprint);
+
+  /// No description provided for @hostKeyUnavailableMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the recorded host key fingerprint, so the connection was refused. This is a local storage problem, not a key change — your recorded fingerprint has been left untouched.'**
+  String get hostKeyUnavailableMsg;
+
+  /// No description provided for @privateKeyUnsupportedMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'This private key format is not supported. Paste a key in OpenSSH or PEM (RSA/EC) format — a PKCS#8 key starting with \"BEGIN PRIVATE KEY\" must be converted first.'**
+  String get privateKeyUnsupportedMsg;
 }
 
 class _AppLocalizationsDelegate

@@ -595,6 +595,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sftpClearFinished => '清除已完成';
 
   @override
+  String get sftpCanceling => '正在取消…';
+
+  @override
   String get sftpCanceled => '已取消';
 
   @override
@@ -650,6 +653,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sftpErrorNetwork => '连接已断开';
+
+  @override
+  String get sftpErrorBusy => '上一个文件操作还没结束';
 
   @override
   String get sftpErrorOther => '操作失败';
@@ -776,4 +782,34 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get backupUnreadable => '无法读取该文件，请确认它是主机备份';
+
+  @override
+  String get connectionSection => '连接';
+
+  @override
+  String get allowLegacyHostKeys => '允许连接旧式 ssh-rsa 主机';
+
+  @override
+  String get allowLegacyHostKeysHint =>
+      '仅用于只提供 ssh-rsa（SHA-1）主机密钥的老设备，例如交换机与嵌入式设备。现代服务器不受影响。';
+
+  @override
+  String get archiveUnreadableTitle => '已保存的主机列表读不出来';
+
+  @override
+  String get archiveUnreadableHint =>
+      '磁盘上的存档解析失败，已原样保留、未被覆盖；本次会话的改动不会落盘。可导入一份 .nsbak 备份把主机找回来。';
+
+  @override
+  String hostKeyChangedMsgWithFingerprint(String keyType, String fingerprint) {
+    return '主机密钥校验失败：服务器出示的是 $keyType $fingerprint，与首次连接时记录的不一致。若服务器确实是重建过，可清除记录的指纹后重连；否则请警惕中间人攻击。';
+  }
+
+  @override
+  String get hostKeyUnavailableMsg =>
+      '已记录的主机密钥指纹读不出来，连接被拒绝。这是本地存储故障、不是密钥变更，原有记录未被改动。';
+
+  @override
+  String get privateKeyUnsupportedMsg =>
+      '不支持这份私钥的格式。请粘贴 OpenSSH 或 PEM（RSA / EC）格式的私钥——以 \"BEGIN PRIVATE KEY\" 开头的 PKCS#8 密钥需要先转换。';
 }

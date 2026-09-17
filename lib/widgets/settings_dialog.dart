@@ -18,6 +18,9 @@ Future<void> showSettingsDialog(
   required ValueChanged<ThemeMode> onThemeModeChanged,
   required AppLanguage language,
   required ValueChanged<AppLanguage> onLanguageChanged,
+  bool archiveUnreadable = false,
+  bool allowLegacyHostKeys = false,
+  ValueChanged<bool>? onAllowLegacyHostKeysChanged,
 }) {
   return showDialog<void>(
     context: context,
@@ -26,6 +29,9 @@ Future<void> showSettingsDialog(
       onThemeModeChanged: onThemeModeChanged,
       initialLanguage: language,
       onLanguageChanged: onLanguageChanged,
+      archiveUnreadable: archiveUnreadable,
+      initialAllowLegacyHostKeys: allowLegacyHostKeys,
+      onAllowLegacyHostKeysChanged: onAllowLegacyHostKeysChanged,
     ),
   );
 }
@@ -36,12 +42,22 @@ final class _SettingsDialog extends StatefulWidget {
     required this.onThemeModeChanged,
     required this.initialLanguage,
     required this.onLanguageChanged,
+    required this.archiveUnreadable,
+    required this.initialAllowLegacyHostKeys,
+    required this.onAllowLegacyHostKeysChanged,
   });
 
   final ThemeMode initialThemeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage initialLanguage;
   final ValueChanged<AppLanguage> onLanguageChanged;
+
+  /// 主机存档读不出来：设置页顶部给出告警。
+  final bool archiveUnreadable;
+
+  /// 连接老设备时是否允许 ssh-rsa（SHA-1）主机密钥。
+  final bool initialAllowLegacyHostKeys;
+  final ValueChanged<bool>? onAllowLegacyHostKeysChanged;
 
   @override
   State<_SettingsDialog> createState() => _SettingsDialogState();
@@ -50,6 +66,7 @@ final class _SettingsDialog extends StatefulWidget {
 final class _SettingsDialogState extends State<_SettingsDialog> {
   late ThemeMode _themeMode = widget.initialThemeMode;
   late AppLanguage _language = widget.initialLanguage;
+  late bool _allowLegacyHostKeys = widget.initialAllowLegacyHostKeys;
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +99,7 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (widget.archiveUnreadable) const ArchiveWarningCard(),
                     SettingsSection(
                       icon: Icons.palette_outlined,
                       title: l10n.appearance,
@@ -174,6 +192,39 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                                 widget.onLanguageChanged(selection.first);
                               },
                             ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SettingsSection(
+                      icon: Icons.lan_outlined,
+                      title: l10n.connectionSection,
+                      children: [
+                        SettingsRow(
+                          label: l10n.allowLegacyHostKeys,
+                          child: Row(
+                            children: [
+                              Switch(
+                                value: _allowLegacyHostKeys,
+                                onChanged: (value) {
+                                  setState(() => _allowLegacyHostKeys = value);
+                                  widget.onAllowLegacyHostKeysChanged?.call(
+                                    value,
+                                  );
+                                },
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  l10n.allowLegacyHostKeysHint,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    height: 1.4,
+                                    color: theme.secondaryText,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],

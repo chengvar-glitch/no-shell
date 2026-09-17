@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_locale.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../ssh/credential_store.dart';
+import '../ssh/host_key_store.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
 import 'keys_tab.dart';
@@ -17,19 +18,29 @@ class MobileShell extends StatefulWidget {
     required this.store,
     required this.sessions,
     required this.credentials,
+    this.hostKeys,
     required this.themeMode,
     required this.onThemeModeChanged,
     required this.language,
     required this.onLanguageChanged,
+    this.allowLegacyHostKeys = false,
+    this.onAllowLegacyHostKeysChanged,
   });
 
   final ServerStore store;
   final SessionManager sessions;
   final CredentialStore credentials;
+
+  /// 已记录的主机指纹；删除主机时一并清理，可选（测试可省）。
+  final HostKeyStore? hostKeys;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage language;
   final ValueChanged<AppLanguage> onLanguageChanged;
+
+  /// 连接老设备时是否允许 ssh-rsa（SHA-1）主机密钥。
+  final bool allowLegacyHostKeys;
+  final ValueChanged<bool>? onAllowLegacyHostKeysChanged;
 
   @override
   State<MobileShell> createState() => _MobileShellState();
@@ -49,14 +60,23 @@ class _MobileShellState extends State<MobileShell> {
             store: widget.store,
             sessions: widget.sessions,
             credentials: widget.credentials,
+            hostKeys: widget.hostKeys,
           ),
           TerminalTab(sessions: widget.sessions),
           const KeysTab(),
-          SettingsTab(
-            themeMode: widget.themeMode,
-            onThemeModeChanged: widget.onThemeModeChanged,
-            language: widget.language,
-            onLanguageChanged: widget.onLanguageChanged,
+          // 告警依赖 store 的可读状态，且 Shell 不随 store 重建，
+          // 因此在这里单独订阅一次，只在设置 Tab 一棵子树内响应。
+          ListenableBuilder(
+            listenable: widget.store,
+            builder: (context, _) => SettingsTab(
+              themeMode: widget.themeMode,
+              onThemeModeChanged: widget.onThemeModeChanged,
+              language: widget.language,
+              onLanguageChanged: widget.onLanguageChanged,
+              archiveUnreadable: widget.store.archiveUnreadable,
+              allowLegacyHostKeys: widget.allowLegacyHostKeys,
+              onAllowLegacyHostKeysChanged: widget.onAllowLegacyHostKeysChanged,
+            ),
           ),
         ],
       ),

@@ -615,6 +615,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sftpClearFinished => 'Clear finished';
 
   @override
+  String get sftpCanceling => 'Canceling…';
+
+  @override
   String get sftpCanceled => 'Canceled';
 
   @override
@@ -670,6 +673,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sftpErrorNetwork => 'Connection lost';
+
+  @override
+  String get sftpErrorBusy => 'Another file operation is still running';
 
   @override
   String get sftpErrorOther => 'Operation failed';
@@ -807,4 +813,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupUnreadable => 'This file cannot be read as a host backup';
+
+  @override
+  String get connectionSection => 'Connection';
+
+  @override
+  String get allowLegacyHostKeys => 'Allow legacy ssh-rsa hosts';
+
+  @override
+  String get allowLegacyHostKeysHint =>
+      'Turn on only for old devices that offer nothing but an ssh-rsa (SHA-1) host key, such as switches and embedded gear. Modern servers are unaffected.';
+
+  @override
+  String get archiveUnreadableTitle => 'Saved host list could not be read';
+
+  @override
+  String get archiveUnreadableHint =>
+      'The saved data is unreadable, so it has been left untouched and changes in this session are not being saved. Re-import a .nsbak backup to get your hosts back.';
+
+  @override
+  String hostKeyChangedMsgWithFingerprint(String keyType, String fingerprint) {
+    return 'Host key verification failed — the server presented $keyType $fingerprint, which does not match what was recorded at first connection. If the server was rebuilt on purpose, forget the recorded fingerprint and reconnect; otherwise beware of a man-in-the-middle attack.';
+  }
+
+  @override
+  String get hostKeyUnavailableMsg =>
+      'Could not read the recorded host key fingerprint, so the connection was refused. This is a local storage problem, not a key change — your recorded fingerprint has been left untouched.';
+
+  @override
+  String get privateKeyUnsupportedMsg =>
+      'This private key format is not supported. Paste a key in OpenSSH or PEM (RSA/EC) format — a PKCS#8 key starting with \"BEGIN PRIVATE KEY\" must be converted first.';
 }

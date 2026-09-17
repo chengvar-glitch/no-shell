@@ -249,7 +249,8 @@ final class _TransferRow extends StatelessWidget {
         return sftpErrorText(l10n, transfer.errorKind);
       case SftpTransferState.queued:
       case SftpTransferState.running:
-        if (transfer.isCanceling) return l10n.sftpCanceled;
+        // 还在收尾（等当前数据块结束）：「已取消」会让人以为已经完事了。
+        if (transfer.isCanceling) return l10n.sftpCanceling;
         final progress = transfer.progress;
         final parts = <String>[
           if (progress != null) '${(progress * 100).round()}%',

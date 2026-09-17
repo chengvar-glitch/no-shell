@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../host_portable.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
+import '../ssh/connect_flow.dart';
 import '../ssh/credential_store.dart';
 import '../ssh/ssh_credentials.dart';
 import '../store.dart';
@@ -95,6 +96,10 @@ class _ServerEditPageState extends State<ServerEditPage> {
         _auth == AuthMethod.password &&
         widget.credentials.supported) {
       await widget.credentials.write(id, SshCredentials(password: password));
+    } else if (_auth != AuthMethod.password &&
+        widget.initial?.authMethod == AuthMethod.password) {
+      // 改成密钥认证后旧密码没人再用，但导出备份时会把它一起打包走。
+      await dropStoredCredential(widget.credentials, id);
     }
     if (!mounted) return;
     widget.store.upsert(
