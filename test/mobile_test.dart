@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:no_shell/main.dart';
+import 'package:no_shell/mobile/server_edit_page.dart';
 import 'package:no_shell/mobile/servers_tab.dart';
 import 'package:no_shell/mobile/settings_tab.dart';
+import 'package:no_shell/l10n/generated/app_localizations.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/settings.dart';
+import 'package:no_shell/ssh/jump_host.dart';
 import 'package:no_shell/store.dart';
 import 'package:no_shell/widgets/settings_controls.dart';
 
@@ -308,5 +311,65 @@ void main() {
         expect(find.byType(SettingsSection), findsWidgets);
       });
     }
+  });
+
+  testWidgets('编辑主机：跳板机可选，且不会顺手抹掉端口转发规则', (tester) async {
+    // 这两条都是「一次编辑就静默丢配置」的高危路径：编辑页是从零构造
+    // SshServer 的，没显式带上的字段全部归零。用测试把契约钉住。
+    const jump = SshServer(
+      id: 'srv-jump',
+      group: '默认分组',
+      name: 'jump-host',
+      host: '10.0.0.9',
+      username: 'root',
+    );
+    const rule = PortForwardRule(
+      id: 'fwd-1',
+      mode: PortForwardMode.local,
+      localPort: 8080,
+      remotePort: 80,
+    );
+    const target = SshServer(
+      id: 'srv-target',
+      group: '默认分组',
+      name: 'target-host',
+      host: '10.0.0.1',
+      username: 'root',
+      forwards: [rule],
+    );
+    final store = ServerStore(seed: [jump, target]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('zh'),
+        home: ServerEditPage(
+          store: store,
+          credentials: FakeCredentialStore(),
+          initial: target,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 跳板机下拉在表单靠下的位置，先滚到可见再点（否则点击落不到它身上）。
+    await tester.ensureVisible(find.text('不使用'));
+    await tester.pumpAndSettle();
+    // 默认「不使用」，展开后选中 jump-host。
+    await tester.tap(find.text('不使用'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('jump-host').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    final saved = store.byId('srv-target')!;
+    expect(saved.jumpServerId, 'srv-jump');
+    expect(saved.forwards, hasLength(1));
+    expect(saved.forwards.single.id, 'fwd-1');
+    // 下游连接流程据此解析链路：存进去的必须是「外」那一跳的 id。
+    expect(resolveJumpChain(saved, store.byId).map((s) => s.id), ['srv-jump']);
   });
 }

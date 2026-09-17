@@ -34,19 +34,19 @@ import 'package:no_shell/settings.dart';
 import 'package:no_shell/ssh/session_manager.dart';
 import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
-import 'package:no_shell/ssh/ssh_transport.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
 import 'package:no_shell/store.dart';
 import 'package:no_shell/theme.dart';
 
 import '../test/support/credential_store_fake.dart';
+import '../test/support/forward_fakes.dart';
 import '../test/support/sftp_fakes.dart';
 
 /// 输出档位。
 enum StreamMode { off, light, heavy }
 
 /// 持续输出 ANSI 彩色日志的假传输层：模拟 `tail -f` / 构建日志级别的终端流量。
-final class _StreamingTransport implements SshTransport {
+final class _StreamingTransport with NoForwardingTransport {
   _StreamingTransport({required this.fileSystem});
 
   /// 输出节奏：约 60 行 / 秒，接近构建日志或 tail -f 的流量。
@@ -134,7 +134,7 @@ void main() {
     final store = ServerStore(seed: [testServer()]);
     final sessions = SessionManager(
       store: store,
-      sessionFactory: (server, credentials) => TerminalSession(
+      sessionFactory: (server, credentials, _) => TerminalSession(
         server: server,
         credentials: credentials,
         transport: transport,

@@ -7,13 +7,13 @@ import 'package:no_shell/settings.dart';
 import 'package:no_shell/ssh/host_key_store.dart';
 import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
-import 'package:no_shell/ssh/ssh_transport.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
 import 'package:no_shell/ssh/terminal_view.dart';
 import 'package:no_shell/theme.dart';
 import 'package:xterm/core.dart';
 
 import 'support/host_key_store_fake.dart';
+import 'support/forward_fakes.dart';
 
 const _server = SshServer(
   id: 'srv-hostkey',
@@ -24,7 +24,7 @@ const _server = SshServer(
 );
 
 /// attach 即抛密钥变更异常的假传输。
-final class HostKeyChangedTransport implements SshTransport {
+final class HostKeyChangedTransport with NoForwardingTransport {
   @override
   Future<void> attach(
     Terminal terminal, {
@@ -49,7 +49,7 @@ final class HostKeyChangedTransport implements SshTransport {
 }
 
 /// attach 即抛普通异常的假传输，对照「非密钥类失败」。
-final class BrokenTransport implements SshTransport {
+final class BrokenTransport with NoForwardingTransport {
   @override
   Future<void> attach(
     Terminal terminal, {

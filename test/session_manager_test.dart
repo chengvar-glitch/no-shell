@@ -11,8 +11,10 @@ import 'package:no_shell/ssh/ssh_transport.dart';
 import 'package:no_shell/store.dart';
 import 'package:xterm/core.dart';
 
+import 'support/forward_fakes.dart';
+
 /// 可编程假传输：成功时向终端写入欢迎语，可配置抛错 / 主动关闭。
-final class _FakeTransport implements SshTransport {
+final class _FakeTransport with NoForwardingTransport {
   _FakeTransport({this.error, this.closeAfterConnect = false});
 
   /// 非 null 时 [attach] 抛出该错误，模拟连接 / 认证失败。
@@ -48,7 +50,7 @@ final class _FakeTransport implements SshTransport {
 }
 
 /// 连接一直建不完的假传输：用来制造「还在 connecting 时用户就断开」的窗口。
-final class _HangingTransport implements SshTransport {
+final class _HangingTransport with NoForwardingTransport {
   /// 放行后 [attach] 才会走完连接流程，模拟握手终于回来了。
   final gate = Completer<void>();
 
@@ -89,7 +91,7 @@ SshServer _server() => SshServer(
 SessionManager _manager(ServerStore store, List<SshTransport> transports) =>
     SessionManager(
       store: store,
-      sessionFactory: (server, credentials) => TerminalSession(
+      sessionFactory: (server, credentials, _) => TerminalSession(
         server: server,
         credentials: credentials,
         transport: transports.removeAt(0),
@@ -181,7 +183,7 @@ void main() {
       final store = ServerStore(seed: [_server()]);
       final sessions = SessionManager(
         store: store,
-        sessionFactory: (server, credentials) => TerminalSession(
+        sessionFactory: (server, credentials, _) => TerminalSession(
           server: server,
           credentials: credentials,
           transport: _FakeTransport(),
