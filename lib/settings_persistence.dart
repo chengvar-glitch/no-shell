@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app_locale.dart';
 import 'settings.dart';
 
-/// 落盘的偏好快照：主题 / 语言 + 终端样式（配色、字体、字号）。
+/// 落盘的偏好快照：主题 / 语言 + 终端样式（配色、字体、字号）+ 连接兼容性。
 ///
 /// 只存枚举名而不是索引：以后往枚举中间插值也不会把旧存档读串。
 /// 单个字段读不出来只退回该字段的默认值，不让一条脏数据带走整份偏好。
@@ -18,20 +18,30 @@ class AppSettings {
     this.themeMode = ThemeMode.system,
     this.language = AppLanguage.system,
     this.terminalStyle = const TerminalStylePrefs(),
+    this.allowLegacyHostKeys = false,
   });
 
   final ThemeMode themeMode;
   final AppLanguage language;
   final TerminalStylePrefs terminalStyle;
 
+  /// 是否允许连接只提供 `ssh-rsa`（SHA-1）主机密钥的老设备。
+  ///
+  /// 默认关闭：SHA-1 签名早已不该被信任，现代 sshd 也默认不再提供它。
+  /// 但交换机 / 嵌入式设备这类只在旧固件上跑的机器确实还会用到，
+  /// 因此给一个显式开关，而不是把算法放宽成默认行为。
+  final bool allowLegacyHostKeys;
+
   AppSettings copyWith({
     ThemeMode? themeMode,
     AppLanguage? language,
     TerminalStylePrefs? terminalStyle,
+    bool? allowLegacyHostKeys,
   }) => AppSettings(
     themeMode: themeMode ?? this.themeMode,
     language: language ?? this.language,
     terminalStyle: terminalStyle ?? this.terminalStyle,
+    allowLegacyHostKeys: allowLegacyHostKeys ?? this.allowLegacyHostKeys,
   );
 
   Map<String, Object?> toJson() => {
@@ -40,6 +50,7 @@ class AppSettings {
     'terminalPreset': terminalStyle.preset.name,
     'terminalFont': terminalStyle.font.name,
     'terminalFontSize': terminalStyle.fontSize,
+    'allowLegacyHostKeys': allowLegacyHostKeys,
   };
 
   factory AppSettings.fromJson(Map<String, Object?> json) => AppSettings(
@@ -62,6 +73,8 @@ class AppSettings {
       font: _terminalFont(json['terminalFont'], json['terminalCustomFontName']),
       fontSize: TerminalStylePrefs.clampFontSize(json['terminalFontSize']),
     ),
+    // 缺字段（旧存档）即默认关闭。
+    allowLegacyHostKeys: json['allowLegacyHostKeys'] == true,
   );
 
   @override
@@ -71,7 +84,8 @@ class AppSettings {
       other.language == language &&
       other.terminalStyle.preset == terminalStyle.preset &&
       other.terminalStyle.font == terminalStyle.font &&
-      other.terminalStyle.fontSize == terminalStyle.fontSize;
+      other.terminalStyle.fontSize == terminalStyle.fontSize &&
+      other.allowLegacyHostKeys == allowLegacyHostKeys;
 
   @override
   int get hashCode => Object.hash(

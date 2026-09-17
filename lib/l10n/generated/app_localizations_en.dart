@@ -812,6 +812,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backupUnreadable => 'This file cannot be read as a host backup';
 
   @override
+  String get connectionSection => 'Connection';
+
+  @override
+  String get allowLegacyHostKeys => 'Allow legacy ssh-rsa hosts';
+
+  @override
+  String get allowLegacyHostKeysHint =>
+      'Turn on only for old devices that offer nothing but an ssh-rsa (SHA-1) host key, such as switches and embedded gear. Modern servers are unaffected.';
+
+  @override
   String get archiveUnreadableTitle => 'Saved host list could not be read';
 
   @override

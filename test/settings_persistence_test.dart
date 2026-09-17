@@ -197,6 +197,35 @@ void main() {
     expect(Theme.of(tester.element(find.text('设置'))).brightness, isNotNull);
   });
 
+  group('连接兼容性开关', () {
+    test('默认关闭，且缺字段的旧存档读成关闭', () {
+      expect(const AppSettings().allowLegacyHostKeys, isFalse);
+      final legacy = AppSettings.fromJson(const {
+        'themeMode': 'system',
+        'language': 'system',
+      });
+      expect(legacy.allowLegacyHostKeys, isFalse);
+    });
+
+    test('JSON 往返保留取值', () {
+      const on = AppSettings(allowLegacyHostKeys: true);
+      expect(AppSettings.fromJson(on.toJson()).allowLegacyHostKeys, isTrue);
+      expect(
+        const AppSettings()
+            .copyWith(allowLegacyHostKeys: true)
+            .allowLegacyHostKeys,
+        isTrue,
+      );
+    });
+
+    test('参与相等判定', () {
+      expect(
+        const AppSettings() == const AppSettings(allowLegacyHostKeys: true),
+        isFalse,
+      );
+    });
+  });
+
   group('TerminalStylePrefs 值语义', () {
     test('内容相同即相等（ValueNotifier 的无变化守卫依赖它）', () {
       const a = TerminalStylePrefs();

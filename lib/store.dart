@@ -103,6 +103,12 @@ class ServerStore extends ChangeNotifier {
 
   Future<void> _pendingSave = Future<void>.value();
 
+  /// 等待排队中的落盘全部写完。
+  ///
+  /// 退出前必须调一次：落盘是「链在一条 future 上」异步跑的，进程直接
+  /// 退出会把最后一次改动丢掉（用户刚改完分组就关窗就是这种节奏）。
+  Future<void> flush() => _pendingSave;
+
   SshServer? byId(String? id) {
     if (id == null) return null;
     for (final server in _servers) {

@@ -23,6 +23,8 @@ class MobileShell extends StatefulWidget {
     required this.onThemeModeChanged,
     required this.language,
     required this.onLanguageChanged,
+    this.allowLegacyHostKeys = false,
+    this.onAllowLegacyHostKeysChanged,
   });
 
   final ServerStore store;
@@ -35,6 +37,10 @@ class MobileShell extends StatefulWidget {
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage language;
   final ValueChanged<AppLanguage> onLanguageChanged;
+
+  /// 连接老设备时是否允许 ssh-rsa（SHA-1）主机密钥。
+  final bool allowLegacyHostKeys;
+  final ValueChanged<bool>? onAllowLegacyHostKeysChanged;
 
   @override
   State<MobileShell> createState() => _MobileShellState();
@@ -68,6 +74,8 @@ class _MobileShellState extends State<MobileShell> {
               language: widget.language,
               onLanguageChanged: widget.onLanguageChanged,
               archiveUnreadable: widget.store.archiveUnreadable,
+              allowLegacyHostKeys: widget.allowLegacyHostKeys,
+              onAllowLegacyHostKeysChanged: widget.onAllowLegacyHostKeysChanged,
             ),
           ),
         ],

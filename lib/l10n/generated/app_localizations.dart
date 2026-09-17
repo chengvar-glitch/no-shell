@@ -1394,6 +1394,24 @@ abstract class AppLocalizations {
   /// **'This file cannot be read as a host backup'**
   String get backupUnreadable;
 
+  /// No description provided for @connectionSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get connectionSection;
+
+  /// No description provided for @allowLegacyHostKeys.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow legacy ssh-rsa hosts'**
+  String get allowLegacyHostKeys;
+
+  /// No description provided for @allowLegacyHostKeysHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on only for old devices that offer nothing but an ssh-rsa (SHA-1) host key, such as switches and embedded gear. Modern servers are unaffected.'**
+  String get allowLegacyHostKeysHint;
+
   /// No description provided for @archiveUnreadableTitle.
   ///
   /// In en, this message translates to:

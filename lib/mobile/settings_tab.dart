@@ -18,6 +18,8 @@ class SettingsTab extends StatelessWidget {
     required this.language,
     required this.onLanguageChanged,
     this.archiveUnreadable = false,
+    this.allowLegacyHostKeys = false,
+    this.onAllowLegacyHostKeysChanged,
   });
 
   final ThemeMode themeMode;
@@ -27,6 +29,10 @@ class SettingsTab extends StatelessWidget {
 
   /// 主机存档读不出来：设置页顶部给出告警。
   final bool archiveUnreadable;
+
+  /// 连接老设备时是否允许 ssh-rsa（SHA-1）主机密钥。
+  final bool allowLegacyHostKeys;
+  final ValueChanged<bool>? onAllowLegacyHostKeysChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +132,35 @@ class SettingsTab extends StatelessWidget {
                     onSelectionChanged: (selection) =>
                         onLanguageChanged(selection.first),
                   ),
+                ),
+              ),
+            ],
+          ),
+          SettingsSection(
+            icon: Icons.lan_outlined,
+            title: l10n.connectionSection,
+            children: [
+              SettingsRow(
+                label: l10n.allowLegacyHostKeys,
+                child: Row(
+                  children: [
+                    Switch(
+                      value: allowLegacyHostKeys,
+                      onChanged: (value) =>
+                          onAllowLegacyHostKeysChanged?.call(value),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l10n.allowLegacyHostKeysHint,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: theme.secondaryText,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

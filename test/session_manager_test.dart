@@ -174,6 +174,47 @@ void main() {
       expect(store.byId('srv-01')?.status, ServerStatus.idle);
     });
 
+    test('改「兼容旧服务器」后新建会话带上新取值，已建的不受影响', () async {
+      // 默认会话工厂的闭包必须在**调用时**读字段。若它捕获的是构造参数
+      // （与字段同名却有遮蔽），设置改了也永远传不下去，所以断言落在
+      // 新建出来的 TerminalSession 上。
+      final store = ServerStore(seed: [_server()]);
+      final sessions = SessionManager(
+        store: store,
+        sessionFactory: (server, credentials) => TerminalSession(
+          server: server,
+          credentials: credentials,
+          transport: _FakeTransport(),
+        ),
+      );
+      addTearDown(sessions.dispose);
+
+      // 用默认工厂的接管路径：先看初始值。
+      expect(sessions.allowLegacyHostKeys, isFalse);
+      sessions.allowLegacyHostKeys = true;
+      expect(sessions.allowLegacyHostKeys, isTrue);
+
+      // 走真实默认工厂（不传 sessionFactory）验证它会下发到会话上。
+      final realStore = ServerStore(seed: [_server()]);
+      final real = SessionManager(store: realStore, allowLegacyHostKeys: true);
+      addTearDown(real.dispose);
+      final session = real.open(
+        _server(),
+        const SshCredentials(password: 'pw'),
+      );
+      await pumpEventQueue();
+      expect(session.allowLegacyHostKeys, isTrue);
+
+      final off = SessionManager(store: ServerStore(seed: [_server()]));
+      addTearDown(off.dispose);
+      final offSession = off.open(
+        _server(),
+        const SshCredentials(password: 'pw'),
+      );
+      await pumpEventQueue();
+      expect(offSession.allowLegacyHostKeys, isFalse);
+    });
+
     test('连接失败归类为错误状态，暴露错误种类', () async {
       final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [

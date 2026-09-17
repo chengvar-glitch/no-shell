@@ -19,14 +19,24 @@ final class SessionManager extends ChangeNotifier {
   SessionManager({
     required this.store,
     this.hostKeys,
+    this.allowLegacyHostKeys = false,
     TerminalSessionFactory? sessionFactory,
   }) : _sessionFactory =
            sessionFactory ??
+           // 闭包读取的是**实例字段**（初始化形参不留同名局部变量，
+           // 没有遮蔽）：用户改完设置后新建的会话才带得上新取值。
            ((server, credentials) => TerminalSession(
              server: server,
              credentials: credentials,
              hostKeys: hostKeys,
+             allowLegacyHostKeys: allowLegacyHostKeys,
            ));
+
+  /// 连接老设备时是否允许 `ssh-rsa`（SHA-1）主机密钥；设置面板可改。
+  ///
+  /// 刻意是可变字段：默认会话工厂的闭包引用它，改完设置后新建的会话
+  /// 才会带上新取值（已建立的连接不受影响）。
+  bool allowLegacyHostKeys;
 
   final ServerStore store;
 

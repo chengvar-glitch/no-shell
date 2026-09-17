@@ -156,7 +156,7 @@ class NoShellApp extends StatefulWidget {
   State<NoShellApp> createState() => _NoShellAppState();
 }
 
-class _NoShellAppState extends State<NoShellApp> {
+class _NoShellAppState extends State<NoShellApp> with WindowListener {
   // ThemeData 构建开销不小，AppTheme 内部已按亮度缓存。
   static final _lightTheme = AppTheme.light();
   static final _darkTheme = AppTheme.dark();
@@ -165,9 +165,15 @@ class _NoShellAppState extends State<NoShellApp> {
   late final CredentialStore _credentials =
       widget.credentials ?? createCredentialStore();
   late final HostKeyStore _hostKeys = widget.hostKeys ?? createHostKeyStore();
+
+  /// 连接老设备时是否允许 ssh-rsa（SHA-1）主机密钥；改动即时下发给会话层。
+  late bool _allowLegacyHostKeys =
+      widget.initialSettings?.allowLegacyHostKeys ?? false;
+
   late final SessionManager _sessions = SessionManager(
     store: _store,
     hostKeys: _hostKeys,
+    allowLegacyHostKeys: _allowLegacyHostKeys,
   );
 
   /// 主题默认跟随系统；启动时以落盘偏好为准，没有存档才用默认值。
@@ -189,13 +195,47 @@ class _NoShellAppState extends State<NoShellApp> {
   void initState() {
     super.initState();
     _terminalStyle.addListener(_scheduleSave);
+    // 关窗时先把排队中的落盘写完再真的退出：主机的增删改是异步链式写盘，
+    // 直接退出会把最后一次改动丢掉（刚改完分组就关窗正是这种节奏）。
+    // 注册失败（平台通道不可用，如组件测试环境）就算了，不影响界面。
+    try {
+      windowManager.addListener(this);
+      _windowHooked = true;
+    } catch (_) {
+      _windowHooked = false;
+    }
+  }
+
+  /// 是否成功挂上了窗口监听；没挂上时 [_flushAndClose] 不碰窗口管理器。
+  bool _windowHooked = false;
+
+  /// 关窗：拦住默认关闭，落盘与偏好补写完成后再真的退出。
+  @override
+  void onWindowClose() {
+    unawaited(_flushAndClose());
+  }
+
+  Future<void> _flushAndClose() async {
+    _saveNow();
+    await _store.flush();
+    if (!_windowHooked) return;
+    await windowManager.destroy();
   }
 
   AppSettings get _currentSettings => AppSettings(
     themeMode: _themeMode,
     language: _language,
     terminalStyle: _terminalStyle.value,
+    allowLegacyHostKeys: _allowLegacyHostKeys,
   );
+
+  void _setAllowLegacyHostKeys(bool value) {
+    if (_allowLegacyHostKeys == value) return;
+    setState(() => _allowLegacyHostKeys = value);
+    // 会话层持有的是可变字段，新建会话才读它；已建连接不受影响。
+    _sessions.allowLegacyHostKeys = value;
+    _scheduleSave();
+  }
 
   void _scheduleSave() {
     if (widget.settings == null) return;
@@ -213,6 +253,7 @@ class _NoShellAppState extends State<NoShellApp> {
 
   @override
   void dispose() {
+    if (_windowHooked) windowManager.removeListener(this);
     _terminalStyle.removeListener(_scheduleSave);
     // 先补写这次会话最后的改动，再拆状态；写盘失败不影响退出。
     _saveNow();
@@ -271,6 +312,8 @@ class _NoShellAppState extends State<NoShellApp> {
                   onThemeModeChanged: _setThemeMode,
                   language: _language,
                   onLanguageChanged: _setLanguage,
+                  allowLegacyHostKeys: _allowLegacyHostKeys,
+                  onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
                 )
               : HomePage(
                   store: _store,
@@ -282,6 +325,8 @@ class _NoShellAppState extends State<NoShellApp> {
                   language: _language,
                   onLanguageChanged: _setLanguage,
                   onSettingsClosed: _saveNow,
+                  allowLegacyHostKeys: _allowLegacyHostKeys,
+                  onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
                 );
         },
       ),

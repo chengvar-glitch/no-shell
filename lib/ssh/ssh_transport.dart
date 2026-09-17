@@ -26,11 +26,13 @@ abstract interface class SshTransport {
 }
 
 /// [hostKeys] 为空时不做主机密钥校验，仅测试场景使用。
+/// [allowLegacyHostKeys] 见 [DartSsh2Transport]。
 SshTransport createSshTransport(
   SshServer server,
   SshCredentials credentials,
-  HostKeyStore? hostKeys,
-) => DartSsh2Transport(server, credentials, hostKeys);
+  HostKeyStore? hostKeys, {
+  bool allowLegacyHostKeys = false,
+}) => DartSsh2Transport(server, credentials, hostKeys, allowLegacyHostKeys);
 
 /// 私钥解不出来：PEM 格式不受支持（典型是 PKCS#8 的 `BEGIN PRIVATE KEY`）
 /// 或口令不对。

@@ -15,7 +15,12 @@ import 'ssh_transport.dart';
 /// dartssh2 实现。web 平台下 [SSHSocket.connect] 会在运行时抛出
 /// [UnsupportedError]（浏览器没有原始 TCP），由上层统一归类为不支持。
 final class DartSsh2Transport implements SshTransport {
-  DartSsh2Transport(this._server, this._credentials, [this._hostKeys]);
+  DartSsh2Transport(
+    this._server,
+    this._credentials, [
+    this._hostKeys,
+    this._allowLegacyHostKeys = false,
+  ]);
 
   static const _connectTimeout = Duration(seconds: 12);
 
@@ -24,6 +29,9 @@ final class DartSsh2Transport implements SshTransport {
 
   /// TOFU 指纹存储；为空时不做主机密钥校验（仅测试场景）。
   final HostKeyStore? _hostKeys;
+
+  /// 允许只提供 `ssh-rsa`（SHA-1）主机密钥的老设备（见 SSHAlgorithms 的构造）。
+  final bool _allowLegacyHostKeys;
 
   /// [_verifyHostKey] 无法向 dartssh2 抛自定义异常（回调错误会在传输层
   /// 内部消化），改为记下详情，attach 里再换成更明确的错误抛出。
@@ -74,6 +82,24 @@ final class DartSsh2Transport implements SshTransport {
           return List.filled(request.prompts.length, password);
         },
         handshakeTimeout: _connectTimeout,
+        // 算法集：默认沿用 dartssh2 的现代默认值；只有用户显式打开
+        // 「兼容旧服务器」时才把 ssh-rsa（SHA-1）加回主机密钥列表。
+        // 不加这一步，老设备会在握手时报 StateError('No matching host key
+        // algorithm')，而那是用户看不懂的英文原文。
+        algorithms: _allowLegacyHostKeys
+            ? const SSHAlgorithms(
+                hostkey: [
+                  SSHHostkeyType.ed25519,
+                  SSHHostkeyType.rsaSha512,
+                  SSHHostkeyType.rsaSha256,
+                  SSHHostkeyType.ecdsa521,
+                  SSHHostkeyType.ecdsa384,
+                  SSHHostkeyType.ecdsa256,
+                  // 追加在末尾：现代算法优先，旧算法只是兜底。
+                  SSHHostkeyType.rsaSha1,
+                ],
+              )
+            : const SSHAlgorithms(),
         // known_hosts / TOFU 指纹校验：首次记录、变更拒绝（见 host_key_store.dart）。
         onVerifyHostKey: _hostKeys == null ? null : _verifyHostKey,
       );

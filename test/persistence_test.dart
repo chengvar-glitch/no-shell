@@ -287,6 +287,24 @@ void main() {
       expect(persistence.stored?.servers.first.id, 'srv-x');
     });
 
+    test('flush 等到排队中的落盘全部完成', () async {
+      final persistence = FakeServerPersistence();
+      final store = ServerStore(persistence: persistence);
+      await store.load();
+      await pumpEventQueue();
+      final before = persistence.saveCount;
+
+      // 连着改三次：三次快照串在同一条 future 链上，都还没跑完。
+      store.upsert(_fullServer());
+      store.createGroup('新分组');
+      store.setGroupCollapsed('新分组', true);
+
+      await store.flush();
+
+      expect(persistence.saveCount, greaterThan(before));
+      expect(persistence.stored?.collapsedGroups, contains('新分组'));
+    });
+
     test('markConnected 记录的最近连接时间会落盘', () async {
       final persistence = FakeServerPersistence();
       final store = ServerStore(

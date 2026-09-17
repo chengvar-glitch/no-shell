@@ -781,6 +781,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backupUnreadable => '无法读取该文件，请确认它是主机备份';
 
   @override
+  String get connectionSection => '连接';
+
+  @override
+  String get allowLegacyHostKeys => '允许连接旧式 ssh-rsa 主机';
+
+  @override
+  String get allowLegacyHostKeysHint =>
+      '仅用于只提供 ssh-rsa（SHA-1）主机密钥的老设备，例如交换机与嵌入式设备。现代服务器不受影响。';
+
+  @override
   String get archiveUnreadableTitle => '已保存的主机列表读不出来';
 
   @override

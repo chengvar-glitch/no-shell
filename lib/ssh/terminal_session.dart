@@ -39,8 +39,15 @@ final class TerminalSession extends ChangeNotifier {
     SshTransport? transport,
     this.hostKeys,
     this.localFiles = const NativeLocalFileGateway(),
+    this.allowLegacyHostKeys = false,
   }) : _transport =
-           transport ?? createSshTransport(server, credentials, hostKeys);
+           transport ??
+           createSshTransport(
+             server,
+             credentials,
+             hostKeys,
+             allowLegacyHostKeys: allowLegacyHostKeys,
+           );
 
   final SshServer server;
   final SshCredentials credentials;
@@ -50,6 +57,9 @@ final class TerminalSession extends ChangeNotifier {
 
   /// 本地文件交互（上传选择 / 下载落盘），测试中可替换为假实现。
   final LocalFileGateway localFiles;
+
+  /// 是否允许 ssh-rsa（SHA-1）主机密钥；建连时由 [SshTransport] 读取。
+  final bool allowLegacyHostKeys;
 
   final SshTransport _transport;
 

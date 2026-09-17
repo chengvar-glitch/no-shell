@@ -33,6 +33,8 @@ class HomePage extends StatefulWidget {
     required this.language,
     required this.onLanguageChanged,
     this.onSettingsClosed,
+    this.allowLegacyHostKeys = false,
+    this.onAllowLegacyHostKeysChanged,
   });
 
   final ServerStore store;
@@ -48,6 +50,10 @@ class HomePage extends StatefulWidget {
 
   /// 设置弹窗关闭后的回调：把「点完成」当作一次明确提交，立即落盘。
   final VoidCallback? onSettingsClosed;
+
+  /// 连接老设备时是否允许 ssh-rsa（SHA-1）主机密钥。
+  final bool allowLegacyHostKeys;
+  final ValueChanged<bool>? onAllowLegacyHostKeysChanged;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -95,6 +101,8 @@ class _HomePageState extends State<HomePage> {
       language: widget.language,
       onLanguageChanged: widget.onLanguageChanged,
       archiveUnreadable: widget.store.archiveUnreadable,
+      allowLegacyHostKeys: widget.allowLegacyHostKeys,
+      onAllowLegacyHostKeysChanged: widget.onAllowLegacyHostKeysChanged,
     );
     if (!mounted) return;
     widget.onSettingsClosed?.call();

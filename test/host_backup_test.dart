@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:async';
 import 'dart:convert';
 
@@ -34,13 +35,16 @@ void main() {
 
   group('备份信封', () {
     test('往返：解出来的清单文本与原文一致', () async {
-      final contents = encodeHostsBackup(hostsText, 'correct horse battery');
+      final contents = await _encode(hostsText, 'correct horse battery');
 
-      expect(decodeHostsBackup(contents, 'correct horse battery'), hostsText);
+      expect(
+        await decodeHostsBackup(contents, 'correct horse battery'),
+        hostsText,
+      );
     });
 
-    test('信封只带密文，明文与口令都不出现在文件里', () {
-      final contents = encodeHostsBackup(hostsText, 'correct horse battery');
+    test('信封只带密文，明文与口令都不出现在文件里', () async {
+      final contents = await _encode(hostsText, 'correct horse battery');
       final decoded = jsonDecode(contents) as Map<String, Object?>;
 
       // 信封里只有解密必需的参数，没有版本号之类的冗余字段。
@@ -49,32 +53,36 @@ void main() {
         unorderedEquals([
           'scheme',
           'kdf',
-          'iterations',
+          'N',
+          'r',
+          'p',
           'cipher',
           'salt',
           'nonce',
           'payload',
         ]),
       );
+      // 当前写入的是内存硬的 scrypt。
+      expect(decoded['kdf'], 'scrypt');
       expect(contents, isNot(contains('s3cret-pass')));
       expect(contents, isNot(contains('192.0.2.10')));
       expect(contents, isNot(contains('correct horse battery')));
     });
 
-    test('每次加密都用新的盐与随机数', () {
-      final first = jsonDecode(encodeHostsBackup(hostsText, 'pw-123456'));
-      final second = jsonDecode(encodeHostsBackup(hostsText, 'pw-123456'));
+    test('每次加密都用新的盐与随机数', () async {
+      final first = jsonDecode(await _encode(hostsText, 'pw-123456'));
+      final second = jsonDecode(await _encode(hostsText, 'pw-123456'));
 
       expect(first['salt'], isNot(second['salt']));
       expect(first['nonce'], isNot(second['nonce']));
       expect(first['payload'], isNot(second['payload']));
     });
 
-    test('口令不对报 wrongPassword', () {
-      final contents = encodeHostsBackup(hostsText, 'right-password');
+    test('口令不对报 wrongPassword', () async {
+      final contents = await _encode(hostsText, 'right-password');
 
       expect(
-        () => decodeHostsBackup(contents, 'wrong-password'),
+        () async => await decodeHostsBackup(contents, 'wrong-password'),
         throwsA(
           isA<BackupFormatException>().having(
             (error) => error.problem,
@@ -85,15 +93,15 @@ void main() {
       );
     });
 
-    test('被改动的密文解不出来', () {
-      final decoded = jsonDecode(encodeHostsBackup(hostsText, 'pw-123456'));
+    test('被改动的密文解不出来', () async {
+      final decoded = jsonDecode(await _encode(hostsText, 'pw-123456'));
       final payload = base64.decode(decoded['payload'] as String);
       payload[0] ^= 0xff;
       decoded['payload'] = base64.encode(payload);
 
       // 认证标签对不上：和口令不对是同一种失败，不会解出乱码。
       expect(
-        () => decodeHostsBackup(jsonEncode(decoded), 'pw-123456'),
+        () async => await decodeHostsBackup(jsonEncode(decoded), 'pw-123456'),
         throwsA(
           isA<BackupFormatException>().having(
             (error) => error.problem,
@@ -105,7 +113,7 @@ void main() {
     });
 
     test('文件识别：备份认得出，主机清单与空文件认不出', () async {
-      expect(isHostsBackup(encodeHostsBackup(hostsText, 'pw-123456')), isTrue);
+      expect(isHostsBackup(await _encode(hostsText, 'pw-123456')), isTrue);
       expect(isHostsBackup(hostsText), isFalse);
       expect(isHostsBackup(''), isFalse);
       expect(isHostsBackup('{}'), isFalse);
@@ -118,17 +126,21 @@ void main() {
       );
     });
 
-    test('算法名、迭代次数与字段长度不合规一律判为不可读', () {
+    test('算法名、迭代次数与字段长度不合规一律判为不可读', () async {
       final base = jsonDecode(
-        encodeHostsBackup(hostsText, 'pw-123456'),
+        await _encode(hostsText, 'pw-123456'),
       ) as Map<String, Object?>;
       Map<String, Object?> clone() => Map<String, Object?>.of(base);
 
       final otherScheme = clone()..['scheme'] = 'some-other-app';
-      final otherKdf = clone()..['kdf'] = 'scrypt';
+      final otherKdf = clone()..['kdf'] = 'rot13';
       final otherCipher = clone()..['cipher'] = 'aes-128-cbc';
-      final hugeIterations = clone()..['iterations'] = 50000000;
-      final tinyIterations = clone()..['iterations'] = 1;
+      final hugeN = clone()..['N'] = 1 << 24; // 会吃掉几十 GB 内存
+      final tinyN = clone()..['N'] = 1;
+      final nonPowerOfTwoN = clone()..['N'] = 1000;
+      final badR = clone()..['r'] = 0;
+      final badP = clone()..['p'] = 0;
+      final missingN = clone()..remove('N');
       final shortSalt = clone()..['salt'] = base64.encode(const [1, 2, 3]);
       final shortNonce = clone()..['nonce'] = base64.encode(const [1, 2, 3]);
       final emptyPayload = clone()..['payload'] = '';
@@ -137,19 +149,72 @@ void main() {
         otherScheme,
         otherKdf,
         otherCipher,
-        hugeIterations,
-        tinyIterations,
+        hugeN,
+        tinyN,
+        nonPowerOfTwoN,
+        badR,
+        badP,
+        missingN,
         shortSalt,
         shortNonce,
         emptyPayload,
       ]) {
-        expect(isHostsBackup(jsonEncode(broken)), isFalse);
+        expect(
+          isHostsBackup(jsonEncode(broken)),
+          isFalse,
+          reason: '不合规的信封必须被判为不可读：$broken',
+        );
       }
     });
 
+    test('旧备份（五万轮 PBKDF2）仍然解得开', () async {
+      // 解密按信封里的 kdf 分派：换成 scrypt 之后，早先导出的备份
+      // 不能因为「我们换了算法」就作废。这里手工构造一份旧格式信封。
+      final salt = Uint8List.fromList(List.generate(16, (i) => i));
+      final nonce = Uint8List.fromList(List.generate(12, (i) => i + 1));
+      final key = derivePbkdf2ForTest('legacy-pw', salt, 50000);
+      final sealed = sealForTest(key, nonce, 'no-shell-hosts\n$hostsText');
+      final legacy = jsonEncode({
+        'scheme': 'no-shell-hosts',
+        'kdf': 'pbkdf2-hmac-sha256',
+        'iterations': 50000,
+        'cipher': 'aes-256-gcm',
+        'salt': base64.encode(salt),
+        'nonce': base64.encode(nonce),
+        'payload': base64.encode(sealed),
+      });
+
+      expect(isHostsBackup(legacy), isTrue);
+      expect(await decodeHostsBackup(legacy, 'legacy-pw'), hostsText);
+      // 口令不对仍然解不出来。
+      expect(
+        () async => await decodeHostsBackup(legacy, 'wrong'),
+        throwsA(isA<BackupFormatException>()),
+      );
+    });
+
+    test('旧格式的违规参数同样判为不可读', () async {
+      final salt = base64.encode(List.generate(16, (i) => i));
+      final nonce = base64.encode(List.generate(12, (i) => i));
+      Map<String, Object?> legacyWith(Object? iterations) => {
+        'scheme': 'no-shell-hosts',
+        'kdf': 'pbkdf2-hmac-sha256',
+        'iterations': iterations,
+        'cipher': 'aes-256-gcm',
+        'salt': salt,
+        'nonce': nonce,
+        'payload': base64.encode(List.filled(32, 0)),
+      };
+
+      expect(isHostsBackup(jsonEncode(legacyWith(50000000))), isFalse);
+      expect(isHostsBackup(jsonEncode(legacyWith(1))), isFalse);
+      expect(isHostsBackup(jsonEncode(legacyWith('50000'))), isFalse);
+      expect(isHostsBackup(jsonEncode(legacyWith(null))), isFalse);
+    });
+
     test('空清单也能往返：解出来是空文本', () async {
-      final contents = encodeHostsBackup('', 'pw-123456');
-      expect(decodeHostsBackup(contents, 'pw-123456'), '');
+      final contents = await _encode('', 'pw-123456');
+      expect(await decodeHostsBackup(contents, 'pw-123456'), '');
     });
   });
 
@@ -325,7 +390,7 @@ void main() {
       expect(find.text('已导出 1 台主机'), findsOneWidget);
 
       // 用同一个口令解密后就是原本的清单。
-      final text = decodeHostsBackup(written, 'file-password');
+      final text = await decodeHostsBackup(written, 'file-password');
       final drafts = parseHostsText(text, defaultGroup: '默认');
       expect(drafts, hasLength(1));
       expect(drafts.single.host, '192.0.2.10');
@@ -402,7 +467,7 @@ void main() {
 
     testWidgets('导入：解密后写入主机与密码，重复条目跳过', (tester) async {
       await pump(tester);
-      final contents = encodeHostsBackup(hostsText, 'file-password');
+      final contents = await _encode(hostsText, 'file-password');
       gateway.uploads = [uploadOf(contents)];
 
       final importing = importHostsFlow(
@@ -444,7 +509,7 @@ void main() {
 
     testWidgets('导入：口令不对时提示且不改动列表', (tester) async {
       await pump(tester);
-      gateway.uploads = [uploadOf(encodeHostsBackup(hostsText, 'right-one'))];
+      gateway.uploads = [uploadOf(await _encode(hostsText, 'right-one'))];
 
       final importing = importHostsFlow(
         context,
@@ -598,3 +663,9 @@ void main() {
     });
   });
 }
+
+/// 测试用低参数信封：KDF 参数写在信封里、解密按文件里的值走，所以
+/// 解密侧走的仍是生产代码路径。生产参数一次派生约 0.35 秒、占 32 MiB，
+/// 几十个用例各派生一遍会明显拖慢套件。
+Future<String> _encode(String hostsText, String password) =>
+    encodeHostsBackupForTest(hostsText, password);

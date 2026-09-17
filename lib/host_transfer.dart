@@ -44,7 +44,7 @@ Future<void> importHostsFlow(
 
   final String text;
   try {
-    text = decodeHostsBackup(contents, password);
+    text = await decodeHostsBackup(contents, password);
   } on BackupFormatException catch (error) {
     if (!context.mounted) return;
     _showMessage(
@@ -85,7 +85,7 @@ Future<void> exportHostsFlow(
   final password = await _askBackupPassword(context, BackupPasswordMode.create);
   if (password == null || !context.mounted) return;
 
-  final contents = encodeHostsBackup(encodeHostsText(entries), password);
+  final contents = await encodeHostsBackup(encodeHostsText(entries), password);
   if (!context.mounted) return;
   await _writeExport(
     context,
