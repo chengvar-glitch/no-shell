@@ -111,22 +111,12 @@ Future<void> _upload(
   if (sources.isEmpty || !context.mounted) return;
   final conflicts = controller.conflictsWith(sources);
   if (conflicts.isNotEmpty) {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.sftpOverwriteTitle),
-        content: Text(l10n.sftpOverwriteBody(conflicts.length)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.sftpOverwrite),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.sftpOverwriteTitle,
+      body: l10n.sftpOverwriteBody(conflicts.length),
+      confirmLabel: l10n.sftpOverwrite,
+      destructive: false,
     );
     if (confirmed != true) return;
   }
@@ -203,29 +193,13 @@ Future<void> _delete(
   if (targets.isEmpty) return;
   final l10n = AppLocalizations.of(context);
   final hasFolder = targets.any((entry) => entry.isDirectory);
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text(
-        targets.length == 1
-            ? l10n.sftpDeleteTitle(targets.single.name)
-            : l10n.sftpDeleteMultiTitle(targets.length),
-      ),
-      content: Text(
-        hasFolder ? l10n.sftpDeleteFolderBody : l10n.sftpDeleteFileBody,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: Text(l10n.cancel),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppPalette.danger),
-          onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: Text(l10n.delete),
-        ),
-      ],
-    ),
+  final confirmed = await showConfirmDialog(
+    context,
+    title: targets.length == 1
+        ? l10n.sftpDeleteTitle(targets.single.name)
+        : l10n.sftpDeleteMultiTitle(targets.length),
+    body: hasFolder ? l10n.sftpDeleteFolderBody : l10n.sftpDeleteFileBody,
+    confirmLabel: l10n.delete,
   );
   if (confirmed != true) return;
   try {

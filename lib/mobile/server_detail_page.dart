@@ -11,6 +11,7 @@ import '../widgets/server_detail.dart' show OverviewTab, TerminalTab;
 import '../widgets/sftp_browser.dart' show SftpTab;
 import '../widgets/status_badges.dart';
 import 'server_edit_page.dart';
+import '../widgets/confirm_dialog.dart';
 
 /// 移动端主机详情页：概览 / 终端 / SFTP / 转发四个 Tab + 底部连接操作，
 /// 复用桌面端的概览、终端、SFTP 与转发视图。
@@ -41,30 +42,14 @@ class ServerDetailPage extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, SshServer server) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        final dialogL10n = AppLocalizations.of(dialogContext);
-        return AlertDialog(
-          title: Text(dialogL10n.deleteConfirmTitle(server.name)),
-          content: Text(dialogL10n.deleteConfirmBody),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(dialogL10n.cancel),
-            ),
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(dialogContext).colorScheme.error,
-              ),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(dialogL10n.delete),
-            ),
-          ],
-        );
-      },
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.deleteConfirmTitle(server.name),
+      body: l10n.deleteConfirmBody,
+      confirmLabel: l10n.delete,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     if (!context.mounted) return;
     // 先结束该主机的会话，避免悬挂连接；已存凭据一并清理。
     sessions.close(server.id);

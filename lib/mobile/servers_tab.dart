@@ -15,6 +15,7 @@ import '../widgets/group_controls.dart';
 import '../widgets/status_badges.dart';
 import 'server_detail_page.dart';
 import 'server_edit_page.dart';
+import '../widgets/confirm_dialog.dart';
 
 /// 主机页顶栏「导入 / 导出」菜单的两个动作。用枚举而不是字符串，
 /// 菜单项增删时 switch 会被分析器盯住。
@@ -154,30 +155,13 @@ class _ServersTabState extends State<ServersTab> {
 
   Future<void> _confirmDelete(SshServer server) async {
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        final dialogL10n = AppLocalizations.of(dialogContext);
-        return AlertDialog(
-          title: Text(dialogL10n.deleteConfirmTitle(server.name)),
-          content: Text(dialogL10n.deleteConfirmBody),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(dialogL10n.cancel),
-            ),
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(dialogContext).colorScheme.error,
-              ),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(dialogL10n.delete),
-            ),
-          ],
-        );
-      },
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.deleteConfirmTitle(server.name),
+      body: l10n.deleteConfirmBody,
+      confirmLabel: l10n.delete,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     if (!mounted) return;
     // 先结束该主机的会话，避免悬挂连接。
     widget.sessions.close(server.id);

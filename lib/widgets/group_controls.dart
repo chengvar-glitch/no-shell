@@ -9,6 +9,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
+import 'confirm_dialog.dart';
 
 /// 分组输入框：下拉能选已有分组，也能直接输入新名字。
 /// 旧版桌面端只有下拉，导致根本建不出第二个分组；这里两端共用同一个控件。
@@ -138,7 +139,7 @@ Future<void> deleteGroupFlow(
       ? l10n.defaultGroupName
       : (others.isEmpty ? group : others.first);
   if (count > 0 && moveTo == group) {
-    _toast(context, l10n.groupKeepOne);
+    showToast(context, l10n.groupKeepOne);
     return;
   }
   final confirmed = await confirmDeleteGroup(
@@ -156,35 +157,16 @@ Future<bool> confirmDeleteGroup(
   required String group,
   required int count,
   required String moveTo,
-}) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialogContext) {
-      final l10n = AppLocalizations.of(dialogContext);
-      return AlertDialog(
-        title: Text(l10n.groupDeleteConfirm(group)),
-        content: Text(
-          count == 0
-              ? l10n.groupDeleteEmptyBody
-              : l10n.groupDeleteBody(count, moveTo),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(dialogContext).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.delete),
-          ),
-        ],
-      );
-    },
+}) {
+  final l10n = AppLocalizations.of(context);
+  return showConfirmDialog(
+    context,
+    title: l10n.groupDeleteConfirm(group),
+    body: count == 0
+        ? l10n.groupDeleteEmptyBody
+        : l10n.groupDeleteBody(count, moveTo),
+    confirmLabel: l10n.delete,
   );
-  return confirmed ?? false;
 }
 
 /// 把主机移到另一个分组：选完直接落库；没有别的分组时提示先建一个。
@@ -199,7 +181,7 @@ Future<void> moveServerToGroupFlow(
       if (name != server.group) name,
   ];
   if (targets.isEmpty) {
-    _toast(context, l10n.groupCreateFirst);
+    showToast(context, l10n.groupCreateFirst);
     return;
   }
   final target = await showDialog<String>(
@@ -227,12 +209,6 @@ Future<void> moveServerToGroupFlow(
   );
   if (target == null || !context.mounted) return;
   store.upsert(server.copyWith(group: target));
-}
-
-void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
 }
 
 /// 分组名输入弹窗：空名或与其它分组重名时禁用「确定」并就地说明原因。

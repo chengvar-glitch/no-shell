@@ -21,6 +21,7 @@ import 'widgets/jump_host_field.dart';
 import 'widgets/server_detail.dart';
 import 'widgets/settings_dialog.dart';
 import 'widgets/sidebar.dart';
+import 'widgets/confirm_dialog.dart';
 
 /// 桌面端左右分栏骨架：左侧连接侧边栏（固定宽度，可整体收起），右侧详情面板。
 class HomePage extends StatefulWidget {
@@ -135,28 +136,14 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _deleteServer(SshServer server) async {
     // 删除不可恢复（撤销条只是兜底），桌面端与移动端一致先弹确认框。
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        final l10n = AppLocalizations.of(dialogContext);
-        return AlertDialog(
-          title: Text(l10n.deleteConfirmTitle(server.name)),
-          content: Text(l10n.deleteConfirmBody),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(l10n.cancel),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppPalette.danger),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(l10n.delete),
-            ),
-          ],
-        );
-      },
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.deleteConfirmTitle(server.name),
+      body: l10n.deleteConfirmBody,
+      confirmLabel: l10n.delete,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     // 先结束该主机的会话，避免悬挂连接。
     widget.sessions.close(server.id);
     // 凭据与指纹的清理不 await：钥匙串 / 存储层卡住时不能把删除本身
@@ -171,7 +158,6 @@ class _HomePageState extends State<HomePage> {
     final index = widget.store.remove(server.id);
     if (index == -1) return;
     if (_selectedId == server.id) setState(() => _selectedId = null);
-    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -404,11 +390,7 @@ class _ServerDialogState extends State<_ServerDialog> {
         SshCredentials(password: password),
       );
       if (!saved && mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(content: Text(l10n.credentialsSaveFailedMsg)),
-          );
+        showToast(context, l10n.credentialsSaveFailedMsg);
       }
     } else if (_auth != AuthMethod.password &&
         widget.initial?.authMethod == AuthMethod.password) {

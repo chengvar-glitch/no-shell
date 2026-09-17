@@ -15,6 +15,7 @@ import 'port_forward_panel.dart';
 import 'sftp_browser.dart';
 import 'status_badges.dart';
 import 'window_caption.dart';
+import 'confirm_dialog.dart';
 
 class ServerDetailPanel extends StatelessWidget {
   const ServerDetailPanel({
@@ -637,11 +638,7 @@ class OverviewTab extends StatelessWidget {
                   ),
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: server.host));
-                    ScaffoldMessenger.of(context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        SnackBar(content: Text(l10n.copied(server.host))),
-                      );
+                    showToast(context, l10n.copied(server.host));
                   },
                 ),
               ),

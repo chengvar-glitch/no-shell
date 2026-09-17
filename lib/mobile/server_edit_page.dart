@@ -11,6 +11,7 @@ import '../store.dart';
 import '../theme.dart';
 import '../widgets/group_controls.dart';
 import '../widgets/jump_host_field.dart';
+import '../widgets/confirm_dialog.dart';
 
 /// 移动端新建 / 编辑主机页（桌面端继续使用弹窗表单）。
 class ServerEditPage extends StatefulWidget {
@@ -120,11 +121,7 @@ class _ServerEditPageState extends State<ServerEditPage> {
         SshCredentials(password: password),
       );
       if (!saved && mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(content: Text(l10n.credentialsSaveFailedMsg)),
-          );
+        showToast(context, l10n.credentialsSaveFailedMsg);
       }
     } else if (_auth != AuthMethod.password &&
         widget.initial?.authMethod == AuthMethod.password) {

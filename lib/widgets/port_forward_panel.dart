@@ -9,6 +9,7 @@ import '../ssh/session_manager.dart';
 import '../ssh/ssh_transport.dart';
 import '../store.dart';
 import '../theme.dart';
+import 'confirm_dialog.dart';
 
 /// 转发类型的三字母标记（-L / -R / -D），列表里当图标用。
 String forwardModeBadge(PortForwardMode mode) => switch (mode) {
@@ -171,25 +172,13 @@ class PortForwardPanel extends StatelessWidget {
     PortForwardManager? manager,
   ) async {
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.portForwardDeleteTitle),
-        content: Text(l10n.portForwardDeleteBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppPalette.danger),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.delete),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.portForwardDeleteTitle,
+      body: l10n.portForwardDeleteBody,
+      confirmLabel: l10n.delete,
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
     // 先发停止、再删规则：留着一条没人再点得到的隧道比删掉更糟。
     // 不等它收尾——关监听要等套接字真的关完（异步），而规则本身应当
     // 立刻从列表里消失，没必要排在套接字后面。

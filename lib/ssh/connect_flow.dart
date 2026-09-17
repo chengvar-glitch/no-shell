@@ -12,6 +12,7 @@ import 'jump_host.dart';
 import 'session_manager.dart';
 import 'ssh_credentials.dart';
 import 'terminal_session.dart';
+import '../widgets/confirm_dialog.dart';
 
 /// 把「已存凭据」和「已记录的主机指纹」随主机一起清掉。
 ///
@@ -210,7 +211,7 @@ Future<SshCredentials?> _hopCredentials(
     if (submission.remember) {
       final saved = await credentials.write(server.id, submission.credentials);
       if (!saved && context.mounted) {
-        _showMessage(
+        showToast(
           context,
           AppLocalizations.of(context).credentialsSaveFailedMsg,
         );
@@ -289,7 +290,7 @@ Future<void> _promptAndConnect(
     if (submission.remember) {
       final saved = await credentials.write(server.id, submission.credentials);
       if (!saved && context.mounted) {
-        _showMessage(
+        showToast(
           context,
           AppLocalizations.of(context).credentialsSaveFailedMsg,
         );
@@ -303,12 +304,6 @@ Future<void> _promptAndConnect(
 }
 
 /// 跳板机链路不成立时的提示：指名道姓说清是哪台、哪一类问题。
-void _showMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
-}
-
 /// 跳板机链路不成立时的提示：指名道姓说清是哪台、哪一类问题。
 void _showJumpChainError(BuildContext context, JumpChainException error) {
   final l10n = AppLocalizations.of(context);
@@ -318,7 +313,7 @@ void _showJumpChainError(BuildContext context, JumpChainException error) {
     JumpChainErrorKind.cycle => l10n.jumpHostCycle(name ?? ''),
     JumpChainErrorKind.tooDeep => l10n.jumpHostTooDeep(kMaxJumpDepth),
   };
-  _showMessage(context, message);
+  showToast(context, message);
 }
 
 /// 等待会话进入首个终态，返回 (终态, 失败归类)。
