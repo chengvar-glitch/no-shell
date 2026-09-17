@@ -38,6 +38,10 @@ class GroupField extends StatelessWidget {
       label: Text(l10n.group),
       hintText: l10n.groupHint,
       textStyle: textStyle,
+      // DropdownMenu 默认用框架自带的描边白底，不回落到全局输入框主题；
+      // 显式传入全局主题，才能与跳板机（DropdownButtonFormField）等
+      // 表单字段同观感。样式唯一定义在 theme.dart。
+      inputDecorationTheme: Theme.of(context).inputDecorationTheme,
       dropdownMenuEntries: [
         for (final name in groups)
           DropdownMenuEntry<String>(value: name, label: name),
