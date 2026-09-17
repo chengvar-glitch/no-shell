@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../ssh/jump_host.dart';
+import '../theme.dart';
 
 /// 跳板机选择器：从已保存的主机里挑一台。桌面弹窗与移动端编辑页共用。
 ///
@@ -34,44 +35,59 @@ class JumpHostField extends StatelessWidget {
     // 下拉里并保持选中。直接退回「不使用」等于骗人——用户看到的是直连，
     // 存的却还是一台已失效的跳板机，下次连接报的错跟他眼前的界面完全对不上。
     final stale = value != null && !candidates.any((s) => s.id == value);
-    return DropdownButtonFormField<String?>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: l10n.jumpHost,
-        helperText: stale ? l10n.jumpHostUnavailable : l10n.jumpHostHint,
-        helperMaxLines: 2,
-      ),
-      items: [
-        DropdownMenuItem<String?>(
-          value: null,
+    final helper = stale ? l10n.jumpHostUnavailable : l10n.jumpHostHint;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<String?>(
+          initialValue: value,
+          isExpanded: true,
+          // helper 原挂在装饰里会把字段撑到 68：挪到字段下方独立小字，
+          // 字段本体与用户名 / 分组同高（48）。
+          decoration: InputDecoration(labelText: l10n.jumpHost),
+          items: [
+            DropdownMenuItem<String?>(
+              value: null,
+              child: Text(
+                l10n.jumpHostNone,
+                style: const TextStyle(fontSize: 13.5),
+              ),
+            ),
+            if (stale)
+              DropdownMenuItem<String?>(
+                value: value,
+                child: Text(
+                  l10n.jumpHostUnavailable,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5),
+                ),
+              ),
+            for (final server in candidates)
+              DropdownMenuItem<String?>(
+                value: server.id,
+                child: Text(
+                  '${server.name} · ${server.username}@${server.host}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5),
+                ),
+              ),
+          ],
+          onChanged: onChanged,
+        ),
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.only(left: 12),
           child: Text(
-            l10n.jumpHostNone,
-            style: const TextStyle(fontSize: 13.5),
+            helper,
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).secondaryText,
+            ),
           ),
         ),
-        if (stale)
-          DropdownMenuItem<String?>(
-            value: value,
-            child: Text(
-              l10n.jumpHostUnavailable,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13.5),
-            ),
-          ),
-        for (final server in candidates)
-          DropdownMenuItem<String?>(
-            value: server.id,
-            child: Text(
-              '${server.name} · ${server.username}@${server.host}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13.5),
-            ),
-          ),
       ],
-      onChanged: onChanged,
     );
   }
 }

@@ -42,7 +42,12 @@ class GroupField extends StatelessWidget {
       // DropdownMenu 默认用框架自带的描边白底，不回落到全局输入框主题；
       // 显式传入全局主题，才能与跳板机（DropdownButtonFormField）等
       // 表单字段同观感。样式唯一定义在 theme.dart。
-      inputDecorationTheme: Theme.of(context).inputDecorationTheme,
+      // 高度钳到 48：浮动标签 + 值两行内容在 dense 主题下正好占满，
+      // 与同列单行输入框（用户名等）同高，不再一高一低。
+      inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(
+        constraints: const BoxConstraints(minHeight: 48, maxHeight: 48),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
       dropdownMenuEntries: [
         for (final name in groups)
           DropdownMenuEntry<String>(value: name, label: name),
