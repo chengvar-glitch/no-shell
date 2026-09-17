@@ -7,7 +7,7 @@
 ///
 /// 信封本体是 UTF-8 的 JSON：
 /// ```json
-/// {"scheme":"no-shell-hosts","version":1,"kdf":"pbkdf2-hmac-sha256","iterations":50000,
+/// {"scheme":"no-shell-hosts","kdf":"pbkdf2-hmac-sha256","iterations":50000,
 ///  "cipher":"aes-256-gcm","salt":"<base64>","nonce":"<base64>","payload":"<base64>"}
 /// ```
 ///
@@ -33,11 +33,10 @@ import 'host_portable.dart';
 /// 备份文件后缀：导出时的默认文件名与导入侧的文件识别共用。
 const backupFileExtension = 'nsbak';
 
-/// 备份文本的第一行，用来在解密后确认拿到的确实是本应用的备份。
-const _formatMarker = 'no-shell-hosts: 1';
-
-/// 加密信封的版本；将来换算法时靠它区分。
-const _backupVersion = 1;
+/// 备份文本的第一行。它的用处不是标版本，而是「解出来的到底是不是备份」：
+/// 口令就算巧合地对上了认证标签，或者密文来自别的用途，少了这一行也认不出来，
+/// 而「一份没有主机的备份」解出来是空文本，两者必须能分开。
+const _formatMarker = 'no-shell-hosts';
 
 /// 派生密钥的迭代次数：一次导出只算一遍，取够抵御离线爆破的量级。
 const _keyIterations = 50000;
@@ -99,7 +98,6 @@ String _encode(String hostsText, String password) {
     final sealed = _seal(key, nonce, utf8.encode('$_formatMarker\n$hostsText'));
     return jsonEncode({
       'scheme': _scheme,
-      'version': _backupVersion,
       'kdf': _kdfName,
       'iterations': _keyIterations,
       'cipher': _cipherName,
@@ -164,12 +162,9 @@ _Envelope _readEnvelope(String contents) {
       decoded['cipher'] != _cipherName) {
     throw const BackupFormatException(BackupProblem.unreadable);
   }
-  if (decoded['version'] != _backupVersion) {
-    throw const BackupFormatException(BackupProblem.unreadable);
-  }
   final iterations = decoded['iterations'];
-  // 迭代次数写在文件里：将来调高默认值时旧文件照样能读，但离谱的取值
-  // 直接拒绝——否则一个改过的文件就能让解密空转很久。
+  // 迭代次数是解密必需的参数，所以写在文件里；离谱的取值直接拒绝，
+  // 否则一个改过的文件就能让解密空转很久。
   if (iterations is! int ||
       iterations < _minIterations ||
       iterations > _maxIterations) {

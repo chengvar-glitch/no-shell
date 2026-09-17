@@ -37,17 +37,29 @@ void main() {
       expect(decodeHostsBackup(contents, 'correct horse battery'), hostsText);
     });
 
-    test('信封只带密文，明文与口令都不出现在文件里', () async {
+    test('信封只带密文，明文与口令都不出现在文件里', () {
       final contents = encodeHostsBackup(hostsText, 'correct horse battery');
       final decoded = jsonDecode(contents) as Map<String, Object?>;
 
-      expect(decoded.keys, containsAll(['scheme', 'version', 'salt', 'nonce']));
+      // 信封里只有解密必需的参数，没有版本号之类的冗余字段。
+      expect(
+        decoded.keys,
+        unorderedEquals([
+          'scheme',
+          'kdf',
+          'iterations',
+          'cipher',
+          'salt',
+          'nonce',
+          'payload',
+        ]),
+      );
       expect(contents, isNot(contains('s3cret-pass')));
       expect(contents, isNot(contains('192.0.2.10')));
       expect(contents, isNot(contains('correct horse battery')));
     });
 
-    test('每次加密都用新的盐与随机数', () async {
+    test('每次加密都用新的盐与随机数', () {
       final first = jsonDecode(encodeHostsBackup(hostsText, 'pw-123456'));
       final second = jsonDecode(encodeHostsBackup(hostsText, 'pw-123456'));
 
@@ -96,26 +108,37 @@ void main() {
       expect(isHostsBackup(''), isFalse);
       expect(isHostsBackup('{}'), isFalse);
       expect(isHostsBackup('[1, 2, 3]'), isFalse);
+      // 少了 scheme / kdf / cipher 里任何一个都不算备份。
       expect(isHostsBackup('{"scheme":"no-shell-hosts"}'), isFalse);
+      expect(
+        isHostsBackup('{"scheme":"no-shell-hosts","kdf":"pbkdf2-hmac-sha256"}'),
+        isFalse,
+      );
     });
 
-    test('版本、迭代次数与字段长度不合规一律判为不可读', () async {
+    test('算法名、迭代次数与字段长度不合规一律判为不可读', () {
       final base = jsonDecode(
         encodeHostsBackup(hostsText, 'pw-123456'),
       ) as Map<String, Object?>;
       Map<String, Object?> clone() => Map<String, Object?>.of(base);
 
-      final oddVersion = clone()..['version'] = 99;
+      final otherScheme = clone()..['scheme'] = 'some-other-app';
+      final otherKdf = clone()..['kdf'] = 'scrypt';
+      final otherCipher = clone()..['cipher'] = 'aes-128-cbc';
       final hugeIterations = clone()..['iterations'] = 50000000;
       final tinyIterations = clone()..['iterations'] = 1;
       final shortSalt = clone()..['salt'] = base64.encode(const [1, 2, 3]);
+      final shortNonce = clone()..['nonce'] = base64.encode(const [1, 2, 3]);
       final emptyPayload = clone()..['payload'] = '';
 
       for (final broken in [
-        oddVersion,
+        otherScheme,
+        otherKdf,
+        otherCipher,
         hugeIterations,
         tinyIterations,
         shortSalt,
+        shortNonce,
         emptyPayload,
       ]) {
         expect(isHostsBackup(jsonEncode(broken)), isFalse);
