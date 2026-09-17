@@ -766,12 +766,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportFailed => 'Export failed. Please try again.';
 
   @override
-  String get importHostsBackup => 'Import encrypted backup';
-
-  @override
-  String get exportHostsBackup => 'Export encrypted backup';
-
-  @override
   String get backupCreateTitle => 'Set a backup password';
 
   @override
@@ -812,5 +806,5 @@ class AppLocalizationsEn extends AppLocalizations {
       'Wrong backup password, nothing was imported';
 
   @override
-  String get backupUnreadable => 'This file is not a readable NoShell backup';
+  String get backupUnreadable => 'This file cannot be read as a host backup';
 }

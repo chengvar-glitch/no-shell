@@ -307,8 +307,6 @@
   "exportDone": "{count, plural, other{已导出 {count} 台主机}}",
   "exportEmpty": "没有可导出的主机",
   "exportFailed": "导出失败，请重试",
-  "importHostsBackup": "导入加密备份",
-  "exportHostsBackup": "导出加密备份",
   "backupCreateTitle": "设置备份口令",
   "backupCreateHint": "整份清单都用这个口令加密，其中包含已记住的密码。恢复备份时需要输入该口令，且无法找回。",
   "backupOpenTitle": "输入备份口令",
@@ -321,5 +319,5 @@
   "backupCreateConfirm": "导出",
   "backupOpenConfirm": "导入",
   "backupWrongPassword": "备份口令不正确，未导入任何主机",
-  "backupUnreadable": "该文件不是可读取的 NoShell 备份"
+  "backupUnreadable": "无法读取该文件，请确认它是主机备份"
 }

@@ -13,6 +13,10 @@ import '../widgets/status_badges.dart';
 import 'server_detail_page.dart';
 import 'server_edit_page.dart';
 
+/// 主机页顶栏「导入 / 导出」菜单的两个动作。用枚举而不是字符串，
+/// 菜单项增删时 switch 会被分析器盯住。
+enum _TransferAction { import, export }
+
 /// 服务器 Tab：移动端主机列表，支持搜索、分组展示、长按操作与新建。
 class ServersTab extends StatefulWidget {
   const ServersTab({
@@ -198,29 +202,17 @@ class _ServersTabState extends State<ServersTab> {
                   _query.value = '';
                 }),
               ),
-              PopupMenuButton<String>(
+              PopupMenuButton<_TransferAction>(
                 onSelected: (action) {
                   switch (action) {
-                    case 'import':
+                    case _TransferAction.import:
                       importHostsFlow(
                         context,
                         store: widget.store,
                         credentials: widget.credentials,
                       );
-                    case 'export':
+                    case _TransferAction.export:
                       exportHostsFlow(
-                        context,
-                        store: widget.store,
-                        credentials: widget.credentials,
-                      );
-                    case 'import-backup':
-                      importHostsBackupFlow(
-                        context,
-                        store: widget.store,
-                        credentials: widget.credentials,
-                      );
-                    case 'export-backup':
-                      exportHostsBackupFlow(
                         context,
                         store: widget.store,
                         credentials: widget.credentials,
@@ -231,7 +223,7 @@ class _ServersTabState extends State<ServersTab> {
                   final menuL10n = AppLocalizations.of(menuContext);
                   return [
                     PopupMenuItem(
-                      value: 'import',
+                      value: _TransferAction.import,
                       child: Row(
                         children: [
                           const Icon(Icons.download_rounded, size: 20),
@@ -241,33 +233,12 @@ class _ServersTabState extends State<ServersTab> {
                       ),
                     ),
                     PopupMenuItem(
-                      value: 'export',
+                      value: _TransferAction.export,
                       child: Row(
                         children: [
                           const Icon(Icons.upload_outlined, size: 20),
                           const SizedBox(width: 12),
                           Text(menuL10n.exportHosts),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuDivider(),
-                    PopupMenuItem(
-                      value: 'import-backup',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.lock_open_rounded, size: 20),
-                          const SizedBox(width: 12),
-                          Text(menuL10n.importHostsBackup),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'export-backup',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.lock_outline_rounded, size: 20),
-                          const SizedBox(width: 12),
-                          Text(menuL10n.exportHostsBackup),
                         ],
                       ),
                     ),

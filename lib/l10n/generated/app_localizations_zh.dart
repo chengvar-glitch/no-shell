@@ -739,12 +739,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get exportFailed => '导出失败，请重试';
 
   @override
-  String get importHostsBackup => '导入加密备份';
-
-  @override
-  String get exportHostsBackup => '导出加密备份';
-
-  @override
   String get backupCreateTitle => '设置备份口令';
 
   @override
@@ -781,5 +775,5 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backupWrongPassword => '备份口令不正确，未导入任何主机';
 
   @override
-  String get backupUnreadable => '该文件不是可读取的 NoShell 备份';
+  String get backupUnreadable => '无法读取该文件，请确认它是主机备份';
 }

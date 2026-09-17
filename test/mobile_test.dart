@@ -277,4 +277,17 @@ void main() {
     expect(tester.getSize(button).width, greaterThanOrEqualTo(44));
     expect(tester.getSize(button).height, greaterThanOrEqualTo(44));
   });
+
+  testWidgets('主机页导入导出菜单只有两项，且不露出内部实现字样', (tester) async {
+    await pumpMobile(tester);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('导入主机'), findsOneWidget);
+    expect(find.text('导出主机'), findsOneWidget);
+    // 与桌面侧边栏同一条约定：不出现「备份 / 加密」，也不留第二套入口。
+    expect(find.textContaining('备份'), findsNothing);
+    expect(find.textContaining('加密'), findsNothing);
+  });
 }

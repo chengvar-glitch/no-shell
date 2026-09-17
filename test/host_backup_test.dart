@@ -128,7 +128,7 @@ void main() {
     });
   });
 
-  group('加密备份流程', () {
+  group('导入 / 导出流程', () {
     late ServerStore store;
     late FakeCredentialStore credentials;
     late FakeLocalFileGateway gateway;
@@ -210,7 +210,7 @@ void main() {
       await credentials.write(plain.id, const SshCredentials(password: 'pw'));
 
       await pump(tester);
-      final exporting = exportHostsBackupFlow(
+      final exporting = exportHostsFlow(
         context,
         store: store,
         credentials: credentials,
@@ -248,7 +248,7 @@ void main() {
       );
       await pump(tester);
 
-      final exporting = exportHostsBackupFlow(
+      final exporting = exportHostsFlow(
         context,
         store: store,
         credentials: credentials,
@@ -286,7 +286,7 @@ void main() {
       );
       await pump(tester);
 
-      final exporting = exportHostsBackupFlow(
+      final exporting = exportHostsFlow(
         context,
         store: store,
         credentials: credentials,
@@ -306,7 +306,7 @@ void main() {
       final contents = encodeHostsBackup(hostsText, 'file-password');
       gateway.uploads = [uploadOf(contents)];
 
-      final importing = importHostsBackupFlow(
+      final importing = importHostsFlow(
         context,
         store: store,
         credentials: credentials,
@@ -330,7 +330,7 @@ void main() {
 
       // 同一份备份再导一次：两台都是重复，列表不变。
       gateway.uploads = [uploadOf(contents)];
-      final second = importHostsBackupFlow(
+      final second = importHostsFlow(
         context,
         store: store,
         credentials: credentials,
@@ -347,7 +347,7 @@ void main() {
       await pump(tester);
       gateway.uploads = [uploadOf(encodeHostsBackup(hostsText, 'right-one'))];
 
-      final importing = importHostsBackupFlow(
+      final importing = importHostsFlow(
         context,
         store: store,
         credentials: credentials,
@@ -364,7 +364,7 @@ void main() {
       await pump(tester);
       gateway.uploads = [uploadOf('名称: prod\n地址: 192.0.2.10\n')];
 
-      await importHostsBackupFlow(
+      await importHostsFlow(
         context,
         store: store,
         credentials: credentials,
@@ -374,14 +374,14 @@ void main() {
 
       expect(store.serverCount, 0);
       expect(find.byType(TextFormField), findsNothing);
-      expect(find.text('该文件不是可读取的 NoShell 备份'), findsOneWidget);
+      expect(find.text('无法读取该文件，请确认它是主机备份'), findsOneWidget);
     });
 
     testWidgets('导入：取消选择文件则什么都不发生', (tester) async {
       await pump(tester);
       gateway.uploads = const [];
 
-      await importHostsBackupFlow(
+      await importHostsFlow(
         context,
         store: store,
         credentials: credentials,
@@ -396,7 +396,7 @@ void main() {
     testWidgets('导出：没有主机时提示且不弹口令框', (tester) async {
       await pump(tester);
 
-      await exportHostsBackupFlow(
+      await exportHostsFlow(
         context,
         store: store,
         credentials: credentials,
@@ -422,7 +422,7 @@ void main() {
       gateway.writeError = StateError('disk full');
       await pump(tester);
 
-      final exporting = exportHostsBackupFlow(
+      final exporting = exportHostsFlow(
         context,
         store: store,
         credentials: credentials,

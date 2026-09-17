@@ -415,8 +415,6 @@
   },
   "exportEmpty": "No hosts to export",
   "exportFailed": "Export failed. Please try again.",
-  "importHostsBackup": "Import encrypted backup",
-  "exportHostsBackup": "Export encrypted backup",
   "backupCreateTitle": "Set a backup password",
   "backupCreateHint": "The whole list is encrypted with this password, saved passwords included. You will need it to restore the backup, and it cannot be recovered.",
   "backupOpenTitle": "Enter the backup password",
@@ -429,5 +427,5 @@
   "backupCreateConfirm": "Export",
   "backupOpenConfirm": "Import",
   "backupWrongPassword": "Wrong backup password, nothing was imported",
-  "backupUnreadable": "This file is not a readable NoShell backup"
+  "backupUnreadable": "This file cannot be read as a host backup"
 }

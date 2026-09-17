@@ -1310,18 +1310,6 @@ abstract class AppLocalizations {
   /// **'Export failed. Please try again.'**
   String get exportFailed;
 
-  /// No description provided for @importHostsBackup.
-  ///
-  /// In en, this message translates to:
-  /// **'Import encrypted backup'**
-  String get importHostsBackup;
-
-  /// No description provided for @exportHostsBackup.
-  ///
-  /// In en, this message translates to:
-  /// **'Export encrypted backup'**
-  String get exportHostsBackup;
-
   /// No description provided for @backupCreateTitle.
   ///
   /// In en, this message translates to:
@@ -1397,7 +1385,7 @@ abstract class AppLocalizations {
   /// No description provided for @backupUnreadable.
   ///
   /// In en, this message translates to:
-  /// **'This file is not a readable NoShell backup'**
+  /// **'This file cannot be read as a host backup'**
   String get backupUnreadable;
 }
 

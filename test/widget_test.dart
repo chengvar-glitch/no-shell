@@ -290,4 +290,18 @@ void main() {
       Brightness.light,
     );
   });
+
+  testWidgets('侧边栏导入导出菜单只有两项，且不露出内部实现字样', (tester) async {
+    await pumpDesktop(tester);
+
+    await tester.tap(find.byIcon(Icons.import_export_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('导入主机'), findsOneWidget);
+    expect(find.text('导出主机'), findsOneWidget);
+    // 菜单是主机迁移的唯一入口：不该出现「备份 / 加密」这类内部实现字样，
+    // 也不该有第二个导入 / 导出入口。
+    expect(find.textContaining('备份'), findsNothing);
+    expect(find.textContaining('加密'), findsNothing);
+  });
 }

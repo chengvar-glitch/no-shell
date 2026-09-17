@@ -28,8 +28,6 @@ class Sidebar extends StatefulWidget {
     required this.onOpenSettings,
     required this.onImportHosts,
     required this.onExportHosts,
-    required this.onImportHostsBackup,
-    required this.onExportHostsBackup,
   });
 
   final ServerStore store;
@@ -44,12 +42,14 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onImportHosts;
   final VoidCallback onExportHosts;
-  final VoidCallback onImportHostsBackup;
-  final VoidCallback onExportHostsBackup;
 
   @override
   State<Sidebar> createState() => _SidebarState();
 }
+
+/// 头部「导入 / 导出」菜单的两个动作。用枚举而不是字符串，
+/// 菜单项增删时 switch 会被分析器盯住。
+enum _TransferAction { import, export }
 
 class _SidebarState extends State<Sidebar> {
   final _searchController = TextEditingController();
@@ -372,28 +372,24 @@ class _SidebarState extends State<Sidebar> {
     SizedBox(
       width: 34,
       height: 34,
-      child: PopupMenuButton<String>(
+      child: PopupMenuButton<_TransferAction>(
         tooltip: AppLocalizations.of(context).importExportHosts,
         icon: const Icon(Icons.import_export_rounded, size: 18),
         padding: EdgeInsets.zero,
         iconSize: 18,
         onSelected: (action) {
           switch (action) {
-            case 'import':
+            case _TransferAction.import:
               widget.onImportHosts();
-            case 'export':
+            case _TransferAction.export:
               widget.onExportHosts();
-            case 'import-backup':
-              widget.onImportHostsBackup();
-            case 'export-backup':
-              widget.onExportHostsBackup();
           }
         },
         itemBuilder: (menuContext) {
           final menuL10n = AppLocalizations.of(menuContext);
           return [
             PopupMenuItem(
-              value: 'import',
+              value: _TransferAction.import,
               height: 36,
               child: Row(
                 children: [
@@ -407,7 +403,7 @@ class _SidebarState extends State<Sidebar> {
               ),
             ),
             PopupMenuItem(
-              value: 'export',
+              value: _TransferAction.export,
               height: 36,
               child: Row(
                 children: [
@@ -415,35 +411,6 @@ class _SidebarState extends State<Sidebar> {
                   const SizedBox(width: 8),
                   Text(
                     menuL10n.exportHosts,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            const PopupMenuDivider(height: 8),
-            PopupMenuItem(
-              value: 'import-backup',
-              height: 36,
-              child: Row(
-                children: [
-                  const Icon(Icons.lock_open_rounded, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    menuL10n.importHostsBackup,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'export-backup',
-              height: 36,
-              child: Row(
-                children: [
-                  const Icon(Icons.lock_outline_rounded, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    menuL10n.exportHostsBackup,
                     style: const TextStyle(fontSize: 13),
                   ),
                 ],

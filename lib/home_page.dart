@@ -115,18 +115,6 @@ class _HomePageState extends State<HomePage> {
     credentials: widget.credentials,
   );
 
-  Future<void> _importHostsBackup() => importHostsBackupFlow(
-    context,
-    store: widget.store,
-    credentials: widget.credentials,
-  );
-
-  Future<void> _exportHostsBackup() => exportHostsBackupFlow(
-    context,
-    store: widget.store,
-    credentials: widget.credentials,
-  );
-
   Future<void> _deleteServer(SshServer server) async {
     // 删除不可恢复（撤销条只是兜底），桌面端与移动端一致先弹确认框。
     final confirmed = await showDialog<bool>(
@@ -219,8 +207,6 @@ class _HomePageState extends State<HomePage> {
               onOpenSettings: _openSettings,
               onImportHosts: _importHosts,
               onExportHosts: _exportHosts,
-              onImportHostsBackup: _importHostsBackup,
-              onExportHostsBackup: _exportHostsBackup,
             ),
             // 详情面板自带窗口标题条（Windows/Linux 上是它里面的第一行，
             // 且服务器头部就排在这一行里），侧边栏因此可以整块顶到窗口最上沿。
