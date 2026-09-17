@@ -7,12 +7,10 @@ import 'settings.dart';
 abstract final class AppPalette {
   static const pageDark = Color(0xFF0F1114);
   static const panelDark = Color(0xFF171B21);
-  static const sidebarDark = Color(0xFF0C0E11);
   static const terminalDark = Color(0xFF0A0C0F);
 
   static const pageLight = Color(0xFFF6F7F9);
   static const panelLight = Color(0xFFFFFFFF);
-  static const sidebarLight = Color(0xFFECEEF2);
 
   static const success = Color(0xFF3FB950);
   static const warning = Color(0xFFD29922);
@@ -33,21 +31,18 @@ class AppColors extends ThemeExtension<AppColors> {
   const AppColors({
     required this.pageBackground,
     required this.panelBackground,
-    required this.sidebarBackground,
     required this.hairline,
     required this.hoverOverlay,
   });
 
   final Color pageBackground;
   final Color panelBackground;
-  final Color sidebarBackground;
   final Color hairline;
   final Color hoverOverlay;
 
   static const dark = AppColors(
     pageBackground: AppPalette.pageDark,
     panelBackground: AppPalette.panelDark,
-    sidebarBackground: AppPalette.sidebarDark,
     hairline: Color(0x14FFFFFF),
     hoverOverlay: Color(0x0DFFFFFF),
   );
@@ -55,7 +50,6 @@ class AppColors extends ThemeExtension<AppColors> {
   static const light = AppColors(
     pageBackground: AppPalette.pageLight,
     panelBackground: AppPalette.panelLight,
-    sidebarBackground: AppPalette.sidebarLight,
     hairline: Color(0x14000000),
     hoverOverlay: Color(0x07000000),
   );
@@ -67,14 +61,12 @@ class AppColors extends ThemeExtension<AppColors> {
   AppColors copyWith({
     Color? pageBackground,
     Color? panelBackground,
-    Color? sidebarBackground,
     Color? hairline,
     Color? hoverOverlay,
   }) {
     return AppColors(
       pageBackground: pageBackground ?? this.pageBackground,
       panelBackground: panelBackground ?? this.panelBackground,
-      sidebarBackground: sidebarBackground ?? this.sidebarBackground,
       hairline: hairline ?? this.hairline,
       hoverOverlay: hoverOverlay ?? this.hoverOverlay,
     );
@@ -86,11 +78,6 @@ class AppColors extends ThemeExtension<AppColors> {
     return AppColors(
       pageBackground: Color.lerp(pageBackground, other.pageBackground, t)!,
       panelBackground: Color.lerp(panelBackground, other.panelBackground, t)!,
-      sidebarBackground: Color.lerp(
-        sidebarBackground,
-        other.sidebarBackground,
-        t,
-      )!,
       hairline: Color.lerp(hairline, other.hairline, t)!,
       hoverOverlay: Color.lerp(hoverOverlay, other.hoverOverlay, t)!,
     );
@@ -105,8 +92,6 @@ extension AppThemeX on ThemeData {
   Color get pageBackground => appColors.pageBackground;
 
   Color get panelBackground => appColors.panelBackground;
-
-  Color get sidebarBackground => appColors.sidebarBackground;
 
   Color get hairline => appColors.hairline;
 
@@ -177,7 +162,9 @@ abstract final class AppTheme {
         unselectedLabelColor: scheme.onSurface.withValues(alpha: 0.55),
         indicatorColor: scheme.primary,
         indicatorSize: TabBarIndicatorSize.label,
-        dividerColor: hairline,
+        // 标签栏与内容之间不再画横线：选中态的指示条已经界定了标签栏范围，
+        // 多一根通栏 hairline 只会把内容区切成两块。
+        dividerHeight: 0,
         labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         // 选中 / 未选中的**字重必须一致**（只靠颜色 + 指示器区分选中态）：
         // 两者字重不同时 M3 的 TabBar 会用 AnimatedDefaultTextStyle 逐帧插值
@@ -228,19 +215,40 @@ abstract final class AppTheme {
         textStyle: const TextStyle(fontSize: 11.5, color: Color(0xFFE6EDF3)),
         waitDuration: const Duration(milliseconds: 450),
       ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          // 分段控件与设置行的标签同一套字号（默认 labelLarge 的 14 偏大）。
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+          ),
+          // 圆角与输入框 / 下拉统一为 10（M3 默认是球场形），
+          // 高度沿用默认的 40，正对齐同排的下拉框。
+          shape: const WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(10)),
+            ),
+          ),
+          // 纯文字分段的段内边距：语言那三段并排时，默认的 12/16 会把
+          // 「English」在窄屏上挤成两行。带图标的分段由框架自行计算内边距，
+          // 不受这里影响（见 SegmentedButton 对 icon 分支的处理）。
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 8),
+          ),
+        ),
+      ),
       inputDecorationTheme: InputDecorationThemeData(
         isDense: true,
         filled: true,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: hairline),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: hairline),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: scheme.primary, width: 1.2),
         ),
       ),

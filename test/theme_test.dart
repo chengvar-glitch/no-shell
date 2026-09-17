@@ -12,25 +12,23 @@ void main() {
   test('语义色随 ThemeData.lerp 逐帧插值，不再跟着 brightness 在中点硬切', () {
     final light = AppTheme.light();
     final dark = AppTheme.dark();
-    expect(light.sidebarBackground, AppPalette.sidebarLight);
-    expect(dark.sidebarBackground, AppPalette.sidebarDark);
+    // 侧边栏与内容区同色：界面里只剩「页面底色 / 面板底色」两级。
+    expect(light.pageBackground, AppPalette.pageLight);
+    expect(dark.pageBackground, AppPalette.pageDark);
 
     final quarter = ThemeData.lerp(light, dark, 0.25);
     // 亮度仍是浅色（brightness 走的是 t < 0.5 的硬切换），面板色却已经在路上：
     // 两者解耦，才不会出现「先不动、到中点整体跳一下」。
     expect(quarter.brightness, Brightness.light);
     expect(
-      quarter.sidebarBackground,
-      Color.lerp(AppPalette.sidebarLight, AppPalette.sidebarDark, 0.25),
+      quarter.pageBackground,
+      Color.lerp(AppPalette.pageLight, AppPalette.pageDark, 0.25),
     );
     expect(
       quarter.panelBackground,
       Color.lerp(AppPalette.panelLight, AppPalette.panelDark, 0.25),
     );
-    expect(
-      ThemeData.lerp(light, dark, 1).sidebarBackground,
-      AppPalette.sidebarDark,
-    );
+    expect(ThemeData.lerp(light, dark, 1).pageBackground, AppPalette.pageDark);
   });
 
   // 切 Tab 卡顿回归护栏：TabBar 选中 / 未选中的字重一旦不同，M3 会用
@@ -51,6 +49,14 @@ void main() {
     }
   });
 
+  // 标签栏与内容之间不再画通栏 hairline：选中态的指示条已经界定了标签栏
+  // 范围，多一根线只会把内容区切成两块。
+  test('TabBar 不画与内容之间的分割线', () {
+    for (final theme in [AppTheme.light(), AppTheme.dark()]) {
+      expect(theme.tabBarTheme.dividerHeight, 0);
+    }
+  });
+
   testWidgets('切换主题时面板色逐帧过渡，动画结束落到深色', (tester) async {
     tester.platformDispatcher.localesTestValue = const [Locale('zh')];
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
@@ -59,9 +65,9 @@ void main() {
     await tester.pumpWidget(NoShellApp(credentials: FakeCredentialStore()));
     await tester.pump();
 
-    Color sidebarColor() =>
-        Theme.of(tester.element(find.text('NoShell'))).sidebarBackground;
-    expect(sidebarColor(), AppPalette.sidebarLight);
+    Color pageColor() =>
+        Theme.of(tester.element(find.text('NoShell'))).pageBackground;
+    expect(pageColor(), AppPalette.pageLight);
 
     // 主题切换收进了设置弹窗：打开它，点「深色」分段。
     await tester.tap(find.byIcon(Icons.settings_outlined));
@@ -70,11 +76,11 @@ void main() {
     await tester.pump(); // 动画第 0 帧
     await tester.pump(const Duration(milliseconds: 60)); // 240ms 的 1/4
 
-    final mid = sidebarColor();
-    expect(mid, isNot(AppPalette.sidebarLight), reason: '刚切换就该开始过渡');
-    expect(mid, isNot(AppPalette.sidebarDark), reason: '不该一步到位');
+    final mid = pageColor();
+    expect(mid, isNot(AppPalette.pageLight), reason: '刚切换就该开始过渡');
+    expect(mid, isNot(AppPalette.pageDark), reason: '不该一步到位');
 
     await tester.pumpAndSettle();
-    expect(sidebarColor(), AppPalette.sidebarDark);
+    expect(pageColor(), AppPalette.pageDark);
   });
 }

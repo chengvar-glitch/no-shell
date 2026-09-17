@@ -19,7 +19,7 @@ import 'widgets/server_detail.dart';
 import 'widgets/settings_dialog.dart';
 import 'widgets/sidebar.dart';
 
-/// 桌面端左右分栏骨架：左侧连接侧边栏（可拖拽调宽），右侧详情面板。
+/// 桌面端左右分栏骨架：左侧连接侧边栏（固定宽度，可整体收起），右侧详情面板。
 class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
@@ -200,8 +200,6 @@ class _HomePageState extends State<HomePage> {
       child: Focus(
         autofocus: true,
         child: Scaffold(
-          // 拖拽调宽等高频交互只在 _SplitPane 内部 setState；
-          // sidebar / detail 子组件实例不变时，Flutter 会跳过其整棵子树重建。
           body: _SplitPane(
             collapsed: collapsed,
             sidebar: Sidebar(
@@ -235,124 +233,43 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-/// 左右分栏骨架：侧边栏宽度 / 拖拽状态收敛在此，避免拖拽时重建整页。
-class _SplitPane extends StatefulWidget {
+/// 左右分栏骨架：侧边栏固定宽度，只保留整块收起 / 展开（访达那种不可拖拽的侧栏）。
+/// 两栏同色（都是页面底色），分界只靠留白与卡片底色，不再有分隔线或拖拽条。
+class _SplitPane extends StatelessWidget {
   const _SplitPane({
     required this.sidebar,
     required this.detail,
     required this.collapsed,
   });
 
+  /// 侧边栏宽度：容得下「主机名 + 账号@地址」两行，再宽也只是空白。
+  static const sidebarWidth = 264.0;
+
   final Widget sidebar;
   final Widget detail;
   final bool collapsed;
 
   @override
-  State<_SplitPane> createState() => _SplitPaneState();
-}
-
-class _SplitPaneState extends State<_SplitPane> {
-  static const _defaultSidebarWidth = 264.0;
-  static const _minSidebarWidth = 220.0;
-  static const _maxSidebarWidth = 400.0;
-
-  double _sidebarWidth = _defaultSidebarWidth;
-  bool _dragging = false;
-
-  @override
   Widget build(BuildContext context) {
-    final collapsed = widget.collapsed;
     return Row(
       children: [
         // 收起时宽度动画到 0，内部保持固定宽度向左滑出并被裁剪。
         ClipRect(
           child: AnimatedContainer(
             key: const ValueKey('sidebar-slot'),
-            // 拖拽时去掉动画时长，让宽度 1:1 跟手；松手后的收起/展开保留缓动。
-            duration: _dragging
-                ? Duration.zero
-                : const Duration(milliseconds: 220),
+            duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
-            width: collapsed ? 0 : _sidebarWidth,
+            width: collapsed ? 0 : sidebarWidth,
             child: OverflowBox(
               alignment: Alignment.centerLeft,
               minWidth: 0,
-              maxWidth: _sidebarWidth,
-              child: SizedBox(width: _sidebarWidth, child: widget.sidebar),
+              maxWidth: sidebarWidth,
+              child: SizedBox(width: sidebarWidth, child: sidebar),
             ),
           ),
         ),
-        if (!collapsed)
-          _ResizeHandle(
-            onDragStart: () => setState(() => _dragging = true),
-            onDragUpdate: (dx) => setState(() {
-              _sidebarWidth = (_sidebarWidth - dx).clamp(
-                _minSidebarWidth,
-                _maxSidebarWidth,
-              );
-            }),
-            onDragEnd: () => setState(() => _dragging = false),
-            onDoubleTap: () =>
-                setState(() => _sidebarWidth = _defaultSidebarWidth),
-          ),
-        Expanded(child: widget.detail),
+        Expanded(child: detail),
       ],
-    );
-  }
-}
-
-/// 分隔拖拽条：平时是一根 hairline，悬停时高亮；双击恢复默认宽度。
-class _ResizeHandle extends StatefulWidget {
-  const _ResizeHandle({
-    required this.onDragStart,
-    required this.onDragUpdate,
-    required this.onDragEnd,
-    required this.onDoubleTap,
-  });
-
-  final VoidCallback onDragStart;
-  final ValueChanged<double> onDragUpdate;
-  final VoidCallback onDragEnd;
-  final VoidCallback onDoubleTap;
-
-  @override
-  State<_ResizeHandle> createState() => _ResizeHandleState();
-}
-
-class _ResizeHandleState extends State<_ResizeHandle> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.resizeLeftRight,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragStart: (_) => widget.onDragStart(),
-        onHorizontalDragUpdate: (details) =>
-            widget.onDragUpdate(details.delta.dx),
-        onHorizontalDragEnd: (_) => widget.onDragEnd(),
-        onDoubleTap: widget.onDoubleTap,
-        child: SizedBox(
-          width: 9,
-          child: Center(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: _hovered ? 3 : 1,
-              height: double.infinity,
-              decoration: BoxDecoration(
-                color: _hovered
-                    ? theme.colorScheme.primary.withValues(alpha: 0.7)
-                    : theme.hairline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -563,11 +480,6 @@ class _ServerDialogState extends State<_ServerDialog> {
                   ],
                   selected: {_auth},
                   showSelectedIcon: false,
-                  style: const ButtonStyle(
-                    textStyle: WidgetStatePropertyAll(
-                      TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
-                    ),
-                  ),
                   onSelectionChanged: (selection) =>
                       setState(() => _auth = selection.first),
                 ),

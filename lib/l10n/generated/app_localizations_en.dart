@@ -387,22 +387,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSubtitle => 'Theme, terminal and language';
 
   @override
-  String get appearanceHint => 'Theme and font for the app UI';
-
-  @override
-  String get terminalSectionHint => 'Colors, font and size used by terminals';
-
-  @override
-  String get languageHint => 'UI language; Automatic follows the system';
-
-  @override
   String get terminalPreview => 'Preview';
 
   @override
   String get terminalPreviewCommand => 'ssh deploy@10.0.0.1';
-
-  @override
-  String get settingsApplyHint => 'Changes apply immediately';
 
   @override
   String get done => 'Done';

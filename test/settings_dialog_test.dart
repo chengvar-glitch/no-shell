@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:no_shell/app_version.dart';
 import 'package:no_shell/main.dart';
 import 'package:no_shell/settings.dart';
+import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/settings_controls.dart';
 import 'package:no_shell/widgets/sidebar.dart';
 
@@ -58,12 +58,10 @@ void main() {
     await pumpDesktop(tester);
     await openSettings(tester);
 
-    // 头部带版本号，三段分区说明齐全。
-    expect(find.textContaining('v$appVersion'), findsOneWidget);
+    // 头部只剩一行标题（版本号收进「关于」），三段分区齐全、没有说明小字。
     expect(find.text('外观'), findsOneWidget);
     expect(find.text('终端'), findsOneWidget);
     expect(find.text('语言'), findsOneWidget);
-    expect(find.text('更改即时生效'), findsOneWidget);
     expect(find.text('预览'), findsOneWidget);
 
     // 终端配色：九套预设平铺成色卡，点选即时写入全局作用域。
@@ -102,7 +100,7 @@ void main() {
 
     await tester.tap(find.text('完成'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('v0.4.4'), findsNothing, reason: '弹窗应已关闭');
+    expect(find.byType(Dialog), findsNothing, reason: '弹窗应已关闭');
   });
 
   test('终端样式偏好：默认字号比旧版大两号，越界夹住，自定义字体名可解析', () {
@@ -202,6 +200,56 @@ void main() {
       find.textContaining('ssh deploy@10.0.0.1'),
     );
     expect((preview.textSpan! as TextSpan).style!.fontFamily, 'Fira Code');
+  });
+
+  testWidgets('设置弹窗：卡片不描边、不画分隔线，标签与分区标题同一列', (tester) async {
+    await pumpDesktop(tester);
+    await openSettings(tester);
+
+    // 弹窗里一根分隔线都没有：头部 / 底部 / 卡片内全靠间距与底色分层。
+    expect(
+      find.descendant(of: find.byType(Dialog), matching: find.byType(Divider)),
+      findsNothing,
+    );
+
+    // 分组卡片是面板底色的实心块（比页面底色亮一档），没有边框。
+    final section = find.byType(SettingsSection).first;
+    final card = tester.widget<Container>(
+      find.descendant(of: section, matching: find.byType(Container)).first,
+    );
+    final decoration = card.decoration! as BoxDecoration;
+    expect(decoration.border, isNull);
+    expect(
+      decoration.color,
+      Theme.of(tester.element(section)).panelBackground,
+      reason: '卡片靠底色（比页面亮一档）分层，不靠描边',
+    );
+
+    // 行标签与分区标题文字落在同一条竖线上（图标宽 14 + 间距 7）。
+    expect(
+      tester.getTopLeft(find.text('主题')).dx,
+      tester.getTopLeft(find.text('外观')).dx,
+    );
+  });
+
+  testWidgets('下拉按钮与菜单项的文字颜色必须显式给出', (tester) async {
+    // 回归：DropdownButton 内部用 DefaultTextStyle(style: 传入的 style) **替换**
+    // 环境样式（不是 merge），样式里漏掉 color 就等于把文字颜色一起丢了，
+    // 按钮和整个菜单会一起变成近白色（浅色主题下就是「泛白」）。
+    await pumpDesktop(tester);
+    await openSettings(tester);
+
+    await tester.tap(find.byType(DropdownButtonFormField<UiFont>));
+    await tester.pumpAndSettle();
+
+    final itemContext = tester.element(find.text('PingFang 苹方').last);
+    final color = DefaultTextStyle.of(itemContext).style.color;
+    expect(color, isNotNull);
+    expect(
+      color,
+      Theme.of(itemContext).colorScheme.onSurface,
+      reason: '菜单项文字用主题前景色，才与菜单底色分得开',
+    );
   });
 
   testWidgets('设置弹窗在最小窗口下不溢出，内容可滚动到语言分区', (tester) async {

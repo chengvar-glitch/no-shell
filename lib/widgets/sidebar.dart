@@ -137,18 +137,18 @@ class _SidebarState extends State<Sidebar> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      color: theme.sidebarBackground,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildHeader(theme),
-          _buildSearchField(theme),
-          const SizedBox(height: 6),
-          Expanded(child: _buildList()),
-          _buildFooter(theme),
-        ],
-      ),
+    // 不铺自己的底色：侧边栏与内容区同色（页面底色），分界靠留白与行悬停底色，
+    // 与访达的侧栏一样没有分隔线。整块透明还有个好处：InkWell 的水波直接画在
+    // Scaffold 的 Material 上，悬停反馈天然可见，不必再补一层透明 Material。
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildHeader(theme),
+        _buildSearchField(theme),
+        const SizedBox(height: 6),
+        Expanded(child: _buildList()),
+        _buildFooter(theme),
+      ],
     );
   }
 
@@ -425,45 +425,38 @@ class _SidebarState extends State<Sidebar> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(height: 1, color: theme.hairline),
+        // 不再画横线：列表底部留白 + 这一行的悬停底色已经把它和主机列表分开。
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-          // 侧边栏底色是自绘的不透明 Container，InkWell 的水波默认画在它下面
-          // （Scaffold 的 Material 上），悬停因此完全看不见、像一行说明文字。
-          // 这里补一层透明 Material 把 ink 抬到侧边栏底色之上，悬停底色与
-          // 手型光标才真的出现。
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              onTap: widget.onOpenSettings,
-              borderRadius: BorderRadius.circular(8),
-              hoverColor: theme.rowHover,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.settings_outlined,
-                      size: 18,
-                      color: theme.secondaryText,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        l10n.navSettings,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.88,
-                          ),
+          child: InkWell(
+            onTap: widget.onOpenSettings,
+            borderRadius: BorderRadius.circular(8),
+            hoverColor: theme.rowHover,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.settings_outlined,
+                    size: 18,
+                    color: theme.secondaryText,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      l10n.navSettings,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.88,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),

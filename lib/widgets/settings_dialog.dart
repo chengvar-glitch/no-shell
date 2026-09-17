@@ -69,35 +69,33 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
         .clamp(320.0, 760.0)
         .toDouble();
     return Dialog(
-      backgroundColor: theme.panelBackground,
+      // 弹窗自己就是一块画布（页面底色），分组卡片才是亮一档的面板底色——
+      // 与主界面同一套层级；不描边，靠遮罩把弹窗从底下的界面里分出来。
+      backgroundColor: theme.pageBackground,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       insetPadding: const EdgeInsets.all(32),
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.hairline),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 620, maxHeight: maxHeight),
+        constraints: BoxConstraints(maxWidth: 680, maxHeight: maxHeight),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // 头部 / 内容 / 底部之间不画分隔线：间距与分组卡片的底色已经分好层。
             _buildHeader(context, theme, l10n),
-            Container(height: 1, color: theme.hairline),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 2),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _Section(
+                    SettingsSection(
                       icon: Icons.palette_outlined,
                       title: l10n.appearance,
-                      hint: l10n.appearanceHint,
                       children: [
-                        _SettingBlock(
+                        SettingsRow(
                           label: l10n.theme,
                           // 分段控件给松约束 + 左对齐：保持自身尺寸，
                           // 也不会因为父级紧约束把三段挤出卡片。
@@ -132,7 +130,6 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                               ],
                               selected: {_themeMode},
                               showSelectedIcon: false,
-                              style: _segmentedStyle,
                               onSelectionChanged: (selection) {
                                 setState(() => _themeMode = selection.first);
                                 widget.onThemeModeChanged(selection.first);
@@ -140,10 +137,9 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                             ),
                           ),
                         ),
-                        _SettingBlock(
+                        SettingsRow(
                           label: l10n.appFont,
                           child: UiFontDropdown(
-                            showLabel: false,
                             value: _uiFont,
                             onChanged: (font) {
                               setState(() => _uiFont = font);
@@ -153,37 +149,33 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                         ),
                       ],
                     ),
-                    _Section(
+                    SettingsSection(
                       icon: Icons.terminal_rounded,
                       title: l10n.terminal,
-                      hint: l10n.terminalSectionHint,
                       children: [
-                        _SettingBlock(
+                        SettingsRow(
                           label: l10n.terminalPreset,
                           child: const _PresetPicker(),
                         ),
-                        _SettingBlock(
+                        SettingsRow(
                           label: l10n.terminalFont,
-                          child: const TerminalFontDropdown(showLabel: false),
+                          child: const TerminalFontDropdown(),
                         ),
-                        _SettingBlock(
+                        SettingsRow(
                           label: l10n.terminalFontSize,
-                          child: const TerminalFontSizeControl(
-                            showLabel: false,
-                          ),
+                          child: const TerminalFontSizeControl(),
                         ),
-                        _SettingBlock(
+                        SettingsRow(
                           label: l10n.terminalPreview,
-                          child: const _TerminalPreview(),
+                          child: const TerminalPreview(),
                         ),
                       ],
                     ),
-                    _Section(
+                    SettingsSection(
                       icon: Icons.translate_rounded,
                       title: l10n.language,
-                      hint: l10n.languageHint,
                       children: [
-                        _SettingBlock(
+                        SettingsRow(
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: SegmentedButton<AppLanguage>(
@@ -196,7 +188,6 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                               ],
                               selected: {_language},
                               showSelectedIcon: false,
-                              style: _segmentedStyle,
                               onSelectionChanged: (selection) {
                                 setState(() => _language = selection.first);
                                 widget.onLanguageChanged(selection.first);
@@ -210,7 +201,6 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                 ),
               ),
             ),
-            Container(height: 1, color: theme.hairline),
             _buildFooter(context, theme, l10n),
           ],
         ),
@@ -218,50 +208,27 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
     );
   }
 
-  /// 分段控件统一小一号字号，和 12.5~13 的设置行同一套节奏。
-  static const _segmentedStyle = ButtonStyle(
-    textStyle: WidgetStatePropertyAll(
-      TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
-    ),
-    visualDensity: VisualDensity.compact,
-  );
-
   Widget _buildHeader(
     BuildContext context,
     ThemeData theme,
     AppLocalizations l10n,
   ) {
+    // 减重成一行标题：应用身份在侧边栏品牌区已经有了，版本号收进「关于」。
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
       child: Row(
         children: [
-          const AppIconMark(size: 36),
-          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  l10n.navSettings,
-                  style: TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${l10n.appName} · v$appVersion',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11.5, color: theme.secondaryText),
-                ),
-              ],
+            child: Text(
+              l10n.navSettings,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          _HoverIconButton(
+          SettingsIconButton(
             icon: Icons.close_rounded,
             iconSize: 15,
             tooltip: l10n.done,
@@ -278,23 +245,10 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
     AppLocalizations l10n,
   ) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(20, 8, 14, 12),
       child: Row(
         children: [
-          Icon(
-            Icons.bolt_rounded,
-            size: 14,
-            color: theme.secondaryText.withValues(alpha: 0.8),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              l10n.settingsApplyHint,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11.5, color: theme.secondaryText),
-            ),
-          ),
+          const Spacer(),
           TextButton(
             onPressed: () => _showAbout(context),
             style: TextButton.styleFrom(
@@ -332,119 +286,8 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
   }
 }
 
-/// 设置分区：图标 + 标题 + 一句说明 + 一张成组的卡片。
-class _Section extends StatelessWidget {
-  const _Section({
-    required this.icon,
-    required this.title,
-    required this.hint,
-    required this.children,
-  });
-
-  final IconData icon;
-  final String title;
-  final String hint;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: theme.secondaryText),
-              const SizedBox(width: 7),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.4,
-                  color: theme.secondaryText,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            // 说明与标题文字左对齐（让过图标宽度），读起来是一条注释。
-            padding: const EdgeInsets.only(left: 21),
-            child: Text(
-              hint,
-              style: TextStyle(
-                fontSize: 11.5,
-                height: 1.3,
-                color: theme.secondaryText.withValues(alpha: 0.75),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: theme.hoverOverlay,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: theme.hairline),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < children.length; i++) ...[
-                  if (i > 0)
-                    Divider(height: 1, thickness: 1, color: theme.hairline),
-                  children[i],
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 一块设置：名称一行、控件一行。
-/// 控件拿到的是整行宽度，配色选择器 / 预览这类宽控件才排得开。
-class _SettingBlock extends StatelessWidget {
-  const _SettingBlock({this.label, required this.child});
-
-  /// 分区标题已经说明是什么时（如语言）可以省掉这一行。
-  final String? label;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final label = this.label;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (label != null) ...[
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.92),
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-/// 终端配色选择器：每块用它自己的配色绘制（背景 + 前景 + 强调色），
-/// 选中的一块描边高亮并打勾；比下拉列表更容易一眼比出深浅与色相。
+/// 终端配色选择器：每块用它自己的配色绘制背景与文字，选中的一块描边高亮并打勾；
+/// 比下拉列表更容易一眼比出深浅与色相，又不至于在卡片里堆一堆装饰。
 class _PresetPicker extends StatelessWidget {
   const _PresetPicker();
 
@@ -513,6 +356,8 @@ class _PresetTileState extends State<_PresetTile> {
     final highlight = theme.colorScheme.primary;
     final hovered = _hovered;
     final selected = widget.selected;
+    // 一块 tile 只画两样东西：这套配色的背景 + 名字。五枚色点曾是「配色名片」，
+    // 但在简约留白的界面里它是最花的一处，选中态用描边与勾已经说得够清楚。
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
@@ -522,7 +367,7 @@ class _PresetTileState extends State<_PresetTile> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 130),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+          padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
           decoration: BoxDecoration(
             color: colors.background,
             borderRadius: BorderRadius.circular(10),
@@ -538,43 +383,15 @@ class _PresetTileState extends State<_PresetTile> {
           child: Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      widget.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: colors.foreground,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    // 五枚色点就是这套配色的名片：红 / 绿 / 黄 / 蓝 / 品红。
-                    Row(
-                      children: [
-                        for (final color in [
-                          colors.red,
-                          colors.green,
-                          colors.yellow,
-                          colors.blue,
-                          colors.magenta,
-                        ])
-                          Container(
-                            width: 5,
-                            height: 5,
-                            margin: const EdgeInsets.only(right: 3),
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: colors.foreground,
+                  ),
                 ),
               ),
               const SizedBox(width: 6),
@@ -593,128 +410,6 @@ class _PresetTileState extends State<_PresetTile> {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 终端实时预览：用当前配色与终端字体画一行提示符 + 光标块，
-/// 换配色 / 字体时立刻能看到实际效果。
-class _TerminalPreview extends StatelessWidget {
-  const _TerminalPreview();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final scope = TerminalStyleScope.of(context);
-    return ValueListenableBuilder<TerminalStylePrefs>(
-      valueListenable: scope.notifier,
-      builder: (context, prefs, _) {
-        final colors = prefs.theme;
-        final size = prefs.fontSize.toDouble();
-        final mono = TextStyle(
-          fontSize: size,
-          height: 1.4,
-          fontFamily: prefs.resolvedFontFamily,
-          fontFamilyFallback: prefs.fontFallback,
-        );
-        return Container(
-          height: 50,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: colors.background,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: theme.hairline),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    style: mono,
-                    children: [
-                      TextSpan(
-                        text: r'$ ',
-                        style: TextStyle(color: colors.green),
-                      ),
-                      TextSpan(
-                        text: l10n.terminalPreviewCommand,
-                        style: TextStyle(color: colors.foreground),
-                      ),
-                    ],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                width: size * 0.5,
-                height: size * 1.15,
-                color: colors.cursor,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// 与自绘标题条同款的小图标按钮：悬停铺一层浅色浮层。
-class _HoverIconButton extends StatefulWidget {
-  const _HoverIconButton({
-    required this.icon,
-    required this.iconSize,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final double iconSize;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  @override
-  State<_HoverIconButton> createState() => _HoverIconButtonState();
-}
-
-class _HoverIconButtonState extends State<_HoverIconButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: Tooltip(
-        message: widget.tooltip,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onPressed,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            width: 30,
-            height: 30,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _hovered
-                  ? theme.colorScheme.onSurface.withValues(alpha: 0.08)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Icon(
-              widget.icon,
-              size: widget.iconSize,
-              color: _hovered
-                  ? theme.colorScheme.onSurface
-                  : theme.secondaryText,
-            ),
           ),
         ),
       ),

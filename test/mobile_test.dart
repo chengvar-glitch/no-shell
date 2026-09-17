@@ -5,6 +5,7 @@ import 'package:no_shell/main.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/settings.dart';
 import 'package:no_shell/store.dart';
+import 'package:no_shell/widgets/settings_controls.dart';
 
 import 'support/credential_store_fake.dart';
 import 'support/demo_servers.dart';
@@ -149,6 +150,10 @@ void main() {
     expect(find.text('界面字体'), findsOneWidget);
     expect(find.text('终端主题'), findsOneWidget);
     expect(find.text('终端字体'), findsOneWidget);
+    // 与桌面设置弹窗共用同一套分组卡片：没有分隔线，靠底色与间距分层。
+    // （ListView 只挂载可见子树，分区数量断言留给桌面弹窗那份用例。）
+    expect(find.byType(Divider), findsNothing);
+    expect(find.byType(SettingsSection), findsWidgets);
 
     // 界面字体：选择 PingFang 后，ThemeData 文本主题的字体随之生效。
     await tester.tap(find.byType(DropdownButtonFormField<UiFont>));
@@ -175,5 +180,12 @@ void main() {
           .preset,
       TerminalPreset.dracula,
     );
+
+    // 底部信息行在折叠区外，滚到底才参与布局：这里顺带守住不溢出。
+    await tester.scrollUntilVisible(find.text('关于'), 200);
+    expect(find.text('即将推出'), findsOneWidget);
+
+    // 窄屏下分段标签必须单行：段内边距收窄一档就是为了这个（见 AppTheme）。
+    expect(tester.getSize(find.text('English')).height, lessThan(20));
   });
 }

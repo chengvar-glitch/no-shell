@@ -782,24 +782,6 @@ abstract class AppLocalizations {
   /// **'Theme, terminal and language'**
   String get settingsSubtitle;
 
-  /// No description provided for @appearanceHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Theme and font for the app UI'**
-  String get appearanceHint;
-
-  /// No description provided for @terminalSectionHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Colors, font and size used by terminals'**
-  String get terminalSectionHint;
-
-  /// No description provided for @languageHint.
-  ///
-  /// In en, this message translates to:
-  /// **'UI language; Automatic follows the system'**
-  String get languageHint;
-
   /// No description provided for @terminalPreview.
   ///
   /// In en, this message translates to:
@@ -811,12 +793,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'ssh deploy@10.0.0.1'**
   String get terminalPreviewCommand;
-
-  /// No description provided for @settingsApplyHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Changes apply immediately'**
-  String get settingsApplyHint;
 
   /// No description provided for @done.
   ///

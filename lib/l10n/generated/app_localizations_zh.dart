@@ -375,22 +375,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsSubtitle => '主题、终端与语言';
 
   @override
-  String get appearanceHint => '界面主题与字体';
-
-  @override
-  String get terminalSectionHint => '终端使用的配色、字体与字号';
-
-  @override
-  String get languageHint => '界面语言；跟随系统时按系统语言匹配';
-
-  @override
   String get terminalPreview => '预览';
 
   @override
   String get terminalPreviewCommand => 'ssh deploy@10.0.0.1';
-
-  @override
-  String get settingsApplyHint => '更改即时生效';
 
   @override
   String get done => '完成';

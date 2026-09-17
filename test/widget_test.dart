@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/main.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/store.dart';
+import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/window_caption.dart';
 
 import 'support/credential_store_fake.dart';
@@ -133,6 +134,25 @@ void main() {
     expect(find.byIcon(Icons.view_sidebar), findsNothing);
   });
 
+  testWidgets('侧边栏固定宽度且与内容区同色，界面上没有拖拽条', (tester) async {
+    await pumpDesktop(tester);
+
+    // 访达式侧栏：宽度固定，不提供拖拽调宽（也没有那条拖拽命中区）。
+    expect(sidebarSlot(tester).size.width, 264);
+    expect(find.byKey(const ValueKey('sidebar-resize-handle')), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is MouseRegion && w.cursor == SystemMouseCursors.resizeLeftRight,
+      ),
+      findsNothing,
+    );
+
+    // 两栏同一个底色：分界只靠留白与卡片底色，没有第二级底色可用。
+    final theme = Theme.of(tester.element(find.text('NoShell')));
+    expect(theme.pageBackground, AppPalette.pageLight);
+  });
+
   testWidgets('macOS 收起侧边栏：标签行跟随头部缩进，行内按钮可展开', (tester) async {
     // 回归：收起侧边栏后头部平移到红绿灯右侧（96），标签行却留在面板
     // 常规内边距 16，孤零零挂在红绿灯那一列；且收起态没有行内展开按钮，
@@ -158,8 +178,8 @@ void main() {
       await tester.tap(find.byIcon(Icons.view_sidebar));
       await tester.pumpAndSettle();
       expect(sidebarSlot(tester).size.width, 264);
-      // 详情面板起点 = 侧边栏 264 + 拖拽条 9，标签回到面板常规内边距 16。
-      expect(tester.getRect(tagsRow).left, 264 + 9 + 16);
+      // 详情面板起点 = 侧边栏 264（两栏之间不再有拖拽条），标签回到常规内边距 16。
+      expect(tester.getRect(tagsRow).left, 264 + 16);
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }

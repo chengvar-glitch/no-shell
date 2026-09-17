@@ -31,8 +31,8 @@
 - `lib/settings_persistence.dart` — 偏好落盘通道（`AppSettings` 快照：主题 / 语言 / 界面字体 / 终端配色·字体·字号；`SettingsPersistence` 抽象 + shared_preferences 实现，枚举按名字存取，脏字段只退回该字段默认值）
 - `lib/store.dart` — `ServerStore`（主机列表状态，ChangeNotifier，可选持久化）
 - `lib/theme.dart` — `AppPalette` 色板、`AppTheme` 主题构建、`AppThemeX` 语义色扩展
-- `lib/home_page.dart` — 桌面端左右分栏骨架（含侧边栏调宽）
-- `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）；`sftp_browser.dart` 为库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`
+- `lib/home_page.dart` — 桌面端左右分栏骨架（侧边栏固定宽度、可整体收起，不提供拖拽调宽）
+- `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）；`sftp_browser.dart` 为库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`；`settings_controls.dart` 为设置面板共用件（分组卡片 `SettingsSection` / `SettingsCard` / 设置行 `SettingsRow` / `SettingsIconButton` 与各设置控件），桌面设置弹窗与移动端设置 Tab 共用同一套，两端观感必须一致
 - `lib/ssh/` — 会话层（`SessionManager`、`TerminalSession`、传输层、终端视图、凭据弹窗、连接入口）
   - `credential_store.dart` — 凭据安全存储抽象；`credential_store_io.dart` / `credential_store_stub.dart` 为条件导出的原生实现与 web 桩（同 local_write 模式）
   - `host_key_store.dart` — 主机公钥指纹存储与 TOFU 校验决策（首连记录、变更拒绝）；`HostKeyChangedException` 由会话归类为 `TerminalErrorKind.hostKey`，界面提供「清除记录的指纹并重连」
@@ -60,7 +60,7 @@
   - 传输进度只通知 `SftpTransfer` 自身，面板按行订阅；队列结构变化才通知整块面板
 - 状态与重建：
   - `ServerStore` / `SessionManager` 是唯一状态源，UI 通过 `ListenableBuilder` 订阅；通知前必须做无变化守卫，避免下游整页重建
-  - 高频交互（搜索输入、拖拽调宽等）的 `setState` 必须限定在最小子树内，禁止上抛到整页级 State
+  - 高频交互（搜索输入等）的 `setState` 必须限定在最小子树内，禁止上抛到整页级 State
   - 长列表一律用 `ListView.builder`，行序列先扁平化一次再按下标直取
   - 终端等高频重绘区域必须用 `RepaintBoundary` 隔离
   - `ThemeData` 只在 `AppTheme` 中构建并缓存，禁止在 `build` 方法中新建
