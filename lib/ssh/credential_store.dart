@@ -16,7 +16,9 @@ abstract interface class CredentialStore {
   /// 读取某主机已保存的凭据；无存档或存档损坏返回 null。
   Future<SshCredentials?> read(String serverId);
 
-  Future<void> write(String serverId, SshCredentials credentials);
+  /// 写入凭据；返回是否真的落盘成功。底层（钥匙串等）故障不该打断
+  /// 连接流程，但必须把「没存上」如实报告给调用方，由界面提示用户。
+  Future<bool> write(String serverId, SshCredentials credentials);
 
   Future<void> delete(String serverId);
 }

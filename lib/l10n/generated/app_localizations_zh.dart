@@ -240,6 +240,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authFailedMsg => '认证失败，请检查密码或密钥';
 
   @override
+  String get credentialsSaveFailedMsg =>
+      '凭据保存失败：本次连接不受影响，但下次连接需要重新输入。请检查系统钥匙串权限。';
+
+  @override
   String get agentErrorMsg =>
       '无法使用本机 SSH agent：请确认 agent 正在运行且已装入密钥（ssh-add），必要时重新加载后重试。';
 

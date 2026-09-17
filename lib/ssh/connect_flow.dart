@@ -208,7 +208,13 @@ Future<SshCredentials?> _hopCredentials(
   if (submission == null || !context.mounted) return null;
   if (credentials.supported) {
     if (submission.remember) {
-      await credentials.write(server.id, submission.credentials);
+      final saved = await credentials.write(server.id, submission.credentials);
+      if (!saved && context.mounted) {
+        _showMessage(
+          context,
+          AppLocalizations.of(context).credentialsSaveFailedMsg,
+        );
+      }
     } else {
       await credentials.delete(server.id);
     }
@@ -281,13 +287,26 @@ Future<void> _promptAndConnect(
   if (submission == null || !context.mounted) return;
   if (credentials.supported) {
     if (submission.remember) {
-      await credentials.write(server.id, submission.credentials);
+      final saved = await credentials.write(server.id, submission.credentials);
+      if (!saved && context.mounted) {
+        _showMessage(
+          context,
+          AppLocalizations.of(context).credentialsSaveFailedMsg,
+        );
+      }
     } else {
       await credentials.delete(server.id);
     }
   }
   if (!context.mounted) return;
   sessions.open(server, submission.credentials, jumps: jumps);
+}
+
+/// 跳板机链路不成立时的提示：指名道姓说清是哪台、哪一类问题。
+void _showMessage(BuildContext context, String message) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
 }
 
 /// 跳板机链路不成立时的提示：指名道姓说清是哪台、哪一类问题。
@@ -299,9 +318,7 @@ void _showJumpChainError(BuildContext context, JumpChainException error) {
     JumpChainErrorKind.cycle => l10n.jumpHostCycle(name ?? ''),
     JumpChainErrorKind.tooDeep => l10n.jumpHostTooDeep(kMaxJumpDepth),
   };
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+  _showMessage(context, message);
 }
 
 /// 等待会话进入首个终态，返回 (终态, 失败归类)。

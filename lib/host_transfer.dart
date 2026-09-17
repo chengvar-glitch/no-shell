@@ -172,15 +172,17 @@ Future<void> _mergeDrafts(
       _serverOf(drafts[i], id: 'srv-$stamp-$i'),
   ];
   final added = store.importServers(candidates);
+  var saveFailed = false;
   if (credentials.supported) {
     final addedSet = Set<SshServer>.of(added);
     for (var i = 0; i < drafts.length; i++) {
       final password = drafts[i].password;
       if (password == null || !addedSet.contains(candidates[i])) continue;
-      await credentials.write(
+      final saved = await credentials.write(
         candidates[i].id,
         SshCredentials(password: password),
       );
+      if (!saved) saveFailed = true;
     }
   }
   if (!context.mounted) return;
@@ -191,6 +193,7 @@ Future<void> _mergeDrafts(
     [
       if (added.isNotEmpty) l10n.importDone(added.length),
       if (skipped > 0) l10n.importSkipped(skipped),
+      if (saveFailed) l10n.credentialsSaveFailedMsg,
     ].join(' '),
   );
 }

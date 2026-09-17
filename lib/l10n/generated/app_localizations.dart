@@ -512,6 +512,12 @@ abstract class AppLocalizations {
   /// **'Authentication failed — check your password or key'**
   String get authFailedMsg;
 
+  /// No description provided for @credentialsSaveFailedMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save credentials — this connection is unaffected, but you\'ll need to enter them again next time. Check the system keychain settings.'**
+  String get credentialsSaveFailedMsg;
+
   /// No description provided for @agentErrorMsg.
   ///
   /// In en, this message translates to:

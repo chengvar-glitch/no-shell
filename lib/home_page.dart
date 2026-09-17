@@ -385,7 +385,17 @@ class _ServerDialogState extends State<_ServerDialog> {
     if (password != null &&
         _auth == AuthMethod.password &&
         widget.credentials.supported) {
-      await widget.credentials.write(id, SshCredentials(password: password));
+      final saved = await widget.credentials.write(
+        id,
+        SshCredentials(password: password),
+      );
+      if (!saved && mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text(l10n.credentialsSaveFailedMsg)),
+          );
+      }
     } else if (_auth != AuthMethod.password &&
         widget.initial?.authMethod == AuthMethod.password) {
       // 从密码认证改成密钥认证：旧密码留在钥匙串里没人再用，但每次导出

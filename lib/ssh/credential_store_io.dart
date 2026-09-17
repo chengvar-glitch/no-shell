@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'credential_store.dart';
@@ -26,8 +27,13 @@ final class SecureCredentialStore implements CredentialStore {
   static const _iosOptions = IOSOptions(
     accessibility: KeychainAccessibility.unlocked_this_device,
   );
+
+  /// macOS 必须走经典登录钥匙串：插件的「数据保护钥匙串」（iOS 式）要求
+  /// application-identifier（团队签名）才能访问，ad-hoc 本地签名下写入
+  /// 一律报 -34018——凭据会静默存不进去。
   static const _macosOptions = MacOsOptions(
     accessibility: KeychainAccessibility.unlocked_this_device,
+    usesDataProtectionKeychain: false,
   );
 
   @override
@@ -43,13 +49,16 @@ final class SecureCredentialStore implements CredentialStore {
           mOptions: _macosOptions,
         ),
       );
-    } catch (_) {
+    } catch (error) {
+      // 读不到按「无凭据」降级为弹窗输入；错误打到控制台供诊断，
+      // 不然用户会以为存档还在。
+      debugPrint('CredentialStore.read($serverId) failed: $error');
       return null;
     }
   }
 
   @override
-  Future<void> write(String serverId, SshCredentials credentials) async {
+  Future<bool> write(String serverId, SshCredentials credentials) async {
     try {
       await _storage.write(
         key: _key(serverId),
@@ -57,8 +66,12 @@ final class SecureCredentialStore implements CredentialStore {
         iOptions: _iosOptions,
         mOptions: _macosOptions,
       );
-    } catch (_) {
-      // 保存失败时静默降级：本次会话仍可正常使用内存凭据。
+      return true;
+    } catch (error) {
+      // 写失败不打断连接（本次会话仍可用内存凭据），但必须如实回报
+      // 「没存上」，由界面提示用户——静默失败曾让「记住凭据」形同虚设。
+      debugPrint('CredentialStore.write($serverId) failed: $error');
+      return false;
     }
   }
 

@@ -13,7 +13,8 @@ final class UnsupportedCredentialStore implements CredentialStore {
   Future<SshCredentials?> read(String serverId) async => null;
 
   @override
-  Future<void> write(String serverId, SshCredentials credentials) async {}
+  Future<bool> write(String serverId, SshCredentials credentials) async =>
+      false;
 
   @override
   Future<void> delete(String serverId) async {}
