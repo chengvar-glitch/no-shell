@@ -19,6 +19,8 @@ NoShell — a cross-platform SSH connection manager with terminal, SFTP file bro
 
 - **SSH terminal** — a fully interactive terminal built on dartssh2 + xterm: xterm-256color, adaptive resize, password / keyboard-interactive / private-key authentication
 - **SFTP file browser** — directory navigation, upload / download with progress and cancel, rename, delete, create folder; reuses the authenticated SSH connection instead of opening a new one
+- **Port forwarding** — per-host local (-L), remote (-R) and dynamic SOCKS5 (-D) rules, started or stopped from the host's Forwarding tab and optionally auto-started on connect; every tunnel reuses the host's authenticated SSH connection and dies with it
+- **Jump hosts (ProxyJump)** — pick any saved host as a jump host, chain several, and the jump host is authenticated and host-key verified on its own; the terminal, SFTP and port forwards all ride the same chain
 - **Host key verification (TOFU)** — records the server public-key fingerprint on first connect; refuses to connect when it changes and offers an explicit clear-and-reconnect action, protecting against man-in-the-middle attacks
 - **Secure credential storage** — with "remember credentials" checked, secrets are encrypted at rest via the system keystore (macOS Keychain / Windows Credential Manager / Linux libsecret); unchecked, they never leave memory
 - **Host management** — groups, tags, notes and last-connected time; export the host list as a text backup and import with automatic Chinese/English key recognition, deduplicated by host + port + user; the new/edit connection form also accepts that same text pasted as metadata to prefill its fields, which stay editable by hand
