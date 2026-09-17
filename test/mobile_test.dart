@@ -38,6 +38,8 @@ void main() {
         // 未显式传 store 时注入示例数据，非空列表语义由测试自持。
         store: store ?? ServerStore(seed: demoServers),
         credentials: credentials ?? FakeCredentialStore(),
+        // 测试机可能真挂着 agent，注入「没有」保持确定性。
+        agentKeysProbe: () async => false,
       ),
     );
     await tester.pump();

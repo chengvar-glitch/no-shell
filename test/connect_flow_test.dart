@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,12 +65,16 @@ Future<_Harness> _pump(
   WidgetTester tester, {
   required List<_FakeTransport> transports,
   FakeCredentialStore? credentials,
+  AgentKeysProbe? agentKeys,
 }) async {
   final harness = _Harness()
     ..transports = transports
     ..credentials = credentials ?? FakeCredentialStore();
   final sessions = SessionManager(
     store: ServerStore(),
+    // 探针默认「本机没有 agent」：测试机可能真挂着 agent，不注入就会
+    // 走到真实 SSH_AUTH_SOCK 上，结果随开发机环境漂移。
+    agentKeysProbe: agentKeys ?? () async => false,
     sessionFactory: (server, creds, _) => TerminalSession(
       server: server,
       credentials: creds,
@@ -237,5 +243,69 @@ void main() {
     await tester.tap(find.text('go'));
     await tester.pumpAndSettle();
     expect(harness.sessions.byServerId('srv-1'), isNull);
+  });
+
+  testWidgets('无存档凭据时静默试 agent，成功则免弹窗直连', (tester) async {
+    final harness = await _pump(
+      tester,
+      transports: [_FakeTransport()],
+      agentKeys: () async => true,
+    );
+
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+
+    // 会话用 agent 凭据直连上了，凭据框全程没出现。
+    final session = harness.sessions.byServerId('srv-1');
+    expect(session?.phase, TerminalPhase.connected);
+    expect(session?.credentials.useAgent, isTrue);
+    expect(_dialogTitle, findsNothing);
+    expect(harness.transports, isEmpty);
+  });
+
+  testWidgets('agent 钥匙被拒后悄悄收场，回退常规凭据框', (tester) async {
+    final harness = await _pump(
+      tester,
+      transports: [
+        // 第 1 个：agent 探测，认证被拒。
+        _FakeTransport(error: SSHAuthFailError('Permission denied')),
+        // 第 2 个：弹窗提交后的正式连接。
+        _FakeTransport(),
+      ],
+      agentKeys: () async => true,
+    );
+
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+
+    // 探测会话已收掉，不留失败现场；弹窗照常出现。
+    expect(harness.sessions.byServerId('srv-1'), isNull);
+    expect(_dialogTitle, findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField).first, 'pw');
+    await tester.tap(find.text('连接'));
+    await tester.pumpAndSettle();
+
+    expect(
+      harness.sessions.byServerId('srv-1')?.phase,
+      TerminalPhase.connected,
+    );
+    expect(harness.transports, isEmpty);
+  });
+
+  testWidgets('agent 探测遇到网络类失败时保留错误现场，不弹框掩盖', (tester) async {
+    final harness = await _pump(
+      tester,
+      transports: [_FakeTransport(error: TimeoutException('network'))],
+      agentKeys: () async => true,
+    );
+
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+
+    expect(_dialogTitle, findsNothing);
+    final session = harness.sessions.byServerId('srv-1');
+    expect(session?.phase, TerminalPhase.failed);
+    expect(session?.errorKind, TerminalErrorKind.network);
   });
 }

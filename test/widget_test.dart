@@ -22,6 +22,8 @@ void main() {
       NoShellApp(
         store: ServerStore(seed: demoServers),
         credentials: FakeCredentialStore(),
+        // 测试机可能真挂着 agent，注入「没有」保持确定性。
+        agentKeysProbe: () async => false,
       ),
     );
     await tester.pump();
@@ -96,7 +98,13 @@ void main() {
     final credentials = FakeCredentialStore();
     tester.platformDispatcher.localesTestValue = const [Locale('zh')];
     addTearDown(tester.platformDispatcher.clearAllTestValues);
-    await tester.pumpWidget(NoShellApp(store: store, credentials: credentials));
+    await tester.pumpWidget(
+      NoShellApp(
+        store: store,
+        credentials: credentials,
+        agentKeysProbe: () async => false,
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byTooltip('新建连接'));

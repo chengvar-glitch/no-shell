@@ -44,6 +44,7 @@
   - `port_forward_runtime.dart` — `PortForwardManager`：把规则绑到某条会话的连接上，负责启停、状态与失败归类；生命周期与会话同生共死
   - `jump_host.dart` — 跳板链路：`resolveJumpChain`（由外到内、环 / 缺主机 / 层数上限）、`connectionChain`、表单候选过滤 `jumpHostCandidates`、按跳包装错误的 `SshHopException` 与 `unwrapHopError`
   - `ssh_agent.dart` — 本机 SSH agent 客户端：协议编解码（列密钥 / 签名，含 RSA 自动换 `rsa-sha2-256`）、一问一答的请求配对与 dartssh2 身份映射（`shouldProbe` 先探后签）；条件导出 `ssh_agent_io.dart`（macOS / Linux 走 `SSH_AUTH_SOCK`）与 `ssh_agent_stub.dart`（web）。Windows 的命名管道 agent 第一版不做（dart:io 连不上），`sshAgentSupported` 对其返回 false，UI 不给入口
+  - `connect_flow.dart` 的**无感 agent**：没有存档凭据时连接入口先问 `SessionManager.agentKeysProbe`（纯本地检查），本机 agent 有钥匙就经 `tryAgentConnect` 静默连一次——服务器认就免弹窗直连（会话照常留在管理器里）；钥匙被拒 / 连接中断才收掉探测会话、回常规凭据框，网络 / 主机密钥类失败保留错误现场不弹框。跳板链路同理：`SessionManager.hopAgentProbe` 逐跳静默试 agent（裸传输，不建会话）。两个探针都可注入，widget 测试必须注入假探针——默认实现会碰开发机真实的 `SSH_AUTH_SOCK`，结果随环境漂移
   - `sftp.dart` / `dartssh2_sftp.dart` — SFTP 领域模型、抽象接口与 dartssh2 适配器
   - `sftp_browser.dart` / `sftp_transfer.dart` — SFTP 面板状态：目录浏览与串行传输队列
   - `local_files.dart` — 本地文件网关（选文件 / 落盘 / 导出落点）；`local_write*.dart` 为按平台条件导出的落盘实现（含 `promote` 改名与 `ownerOnly` 权限收紧），`local_chmod.dart` 是只为 0600 存在的最小 FFI 绑定，`local_share*.dart` 为按平台条件导出的分享面板实现
