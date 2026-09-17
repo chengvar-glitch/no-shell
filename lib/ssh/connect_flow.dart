@@ -5,9 +5,47 @@ import 'package:flutter/material.dart';
 import '../models.dart';
 import 'credential_store.dart';
 import 'credentials_dialog.dart';
+import 'host_key_store.dart';
 import 'session_manager.dart';
 import 'ssh_credentials.dart';
 import 'terminal_session.dart';
+
+/// 把「已存凭据」和「已记录的主机指纹」随主机一起清掉。
+///
+/// 删除主机时两者都该走：留着的凭据会在下次导出备份时被打包带走，
+/// 留着的指纹则会让同地址的新机器被判成「密钥变了」。
+///
+/// 全程吞异常且**不做超时以外的等待**：底层存储（钥匙串 / shared_preferences）
+/// 不可用时不能把删除流程一起拖住，用户的删除动作本身必须完成。
+/// 撤销删除（restore）不会把它们找回来——这是刻意的，宁可重连一次
+/// 重新记录，也不留一份没人再看的旧凭据。
+Future<void> dropHostSecrets({
+  required CredentialStore credentials,
+  required HostKeyStore? hostKeys,
+  required SshServer server,
+}) async {
+  await dropStoredCredential(credentials, server.id);
+  final store = hostKeys;
+  if (store == null) return;
+  try {
+    await store.delete(server.host, server.port);
+  } catch (_) {
+    // 指纹没清掉只影响下次连接的判定，不该让删除失败。
+  }
+}
+
+/// 清除某台主机已存的凭据（主机被删、或认证方式改成了不用密码）。
+Future<void> dropStoredCredential(
+  CredentialStore credentials,
+  String serverId,
+) async {
+  if (!credentials.supported) return;
+  try {
+    await credentials.delete(serverId);
+  } catch (_) {
+    // 同上：清不掉凭据不是删除失败的理由。
+  }
+}
 
 /// 统一的连接 / 断开入口，桌面端与移动端共用：
 /// 已有活跃会话 → 直接断开；

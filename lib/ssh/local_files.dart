@@ -83,7 +83,9 @@ abstract interface class LocalFileGateway {
   });
 
   /// 打开本地写入流，同名文件覆盖。
-  LocalWriteHandle openWrite(String path);
+  /// [ownerOnly] 为 true 时把权限收到仅当前用户可读写（导出含密码的
+  /// 备份文件时必须开启）。
+  LocalWriteHandle openWrite(String path, {bool ownerOnly = false});
 
   /// 写入中的临时路径。下载先写这里，成功后再 [promote] 到目标，
   /// 免得下到一半失败把用户原有的同名文件毁掉。
@@ -212,7 +214,8 @@ final class NativeLocalFileGateway implements LocalFileGateway {
   }
 
   @override
-  LocalWriteHandle openWrite(String path) => openLocalWrite(path);
+  LocalWriteHandle openWrite(String path, {bool ownerOnly = false}) =>
+      openLocalWrite(path, ownerOnly: ownerOnly);
 
   @override
   String temporaryPath(String path) => localTemporaryPath(path);

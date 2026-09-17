@@ -28,6 +28,7 @@ final class DartSsh2Transport implements SshTransport {
   /// [_verifyHostKey] 无法向 dartssh2 抛自定义异常（回调错误会在传输层
   /// 内部消化），改为记下详情，attach 里再换成更明确的错误抛出。
   HostKeyChangedException? _hostKeyMismatch;
+  HostKeyUnavailableException? _hostKeyUnavailable;
 
   SSHClient? _client;
   SSHSession? _session;
@@ -94,7 +95,10 @@ final class DartSsh2Transport implements SshTransport {
       );
     } on SSHHostkeyError {
       _closeQuietly();
-      throw _hostKeyMismatch ?? SSHHostkeyError('Hostkey verification failed');
+      // 指纹读不出来时不能给「清除指纹」这条路：那会真的丢掉可信记录。
+      throw _hostKeyUnavailable ??
+          _hostKeyMismatch ??
+          SSHHostkeyError('Hostkey verification failed');
     } on Object {
       _closeQuietly();
       rethrow;
@@ -149,22 +153,38 @@ final class DartSsh2Transport implements SshTransport {
       keyType: keyType,
       fingerprint: fingerprint,
     );
-    if (decision == HostKeyDecision.mismatch) {
-      _hostKeyMismatch = HostKeyChangedException(
-        host: _server.host,
-        port: _server.port,
-        keyType: keyType,
-        fingerprint: fingerprint,
-      );
-      return false;
+    switch (decision) {
+      case HostKeyDecision.trusted:
+      case HostKeyDecision.firstUse:
+        return true;
+      case HostKeyDecision.mismatch:
+        _hostKeyMismatch = HostKeyChangedException(
+          host: _server.host,
+          port: _server.port,
+          keyType: keyType,
+          fingerprint: fingerprint,
+        );
+        return false;
+      case HostKeyDecision.unavailable:
+        _hostKeyUnavailable = HostKeyUnavailableException(
+          host: _server.host,
+          port: _server.port,
+        );
+        return false;
     }
-    return true;
   }
 
   List<SSHIdentity> get _identities {
     final pem = _credentials.privateKey;
     if (pem == null || pem.isEmpty) return const [];
-    return SSHKeyPair.fromPem(pem, _credentials.passphrase);
+    try {
+      return SSHKeyPair.fromPem(pem, _credentials.passphrase);
+    } on Object catch (error) {
+      // dartssh2 对不认识的 PEM 头（典型的 PKCS#8 `BEGIN PRIVATE KEY`）
+      // 抛 UnsupportedError，那会被上层当成「平台不支持 SSH」——报错完全
+      // 指错方向。这里换成专用类型，界面才能给出「换个密钥格式」的提示。
+      throw PrivateKeyUnsupportedException(error.toString());
+    }
   }
 
   @override

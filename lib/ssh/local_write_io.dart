@@ -2,11 +2,19 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import 'local_chmod.dart';
 import 'local_write_sink.dart';
 
 /// 打开本地文件写入流；同名文件会被覆盖。
-LocalWriteHandle openLocalWrite(String path) =>
-    _IoWriteHandle(File(path).openWrite());
+///
+/// [ownerOnly] 为 true 时把新建文件的权限收到 0600（仅当前用户可读写）。
+/// 导出主机备份时必开：备份的明文里带着密码，按 umask 默认落成 0644
+/// 就等于同机器上任何本地账号都能读到。
+LocalWriteHandle openLocalWrite(String path, {bool ownerOnly = false}) {
+  final file = File(path);
+  if (ownerOnly) restrictFileToOwner(file);
+  return _IoWriteHandle(file.openWrite());
+}
 
 /// 删除本地文件；不存在时静默返回，用于清理取消 / 失败留下的半成品。
 Future<void> deleteLocalFile(String path) async {

@@ -296,9 +296,17 @@ final class FakeLocalFileGateway implements LocalFileGateway {
     String? confirmLabel,
   }) async => downloadDirectory;
 
+  /// 收到过 ownerOnly 请求的路径（导出备份必须走这条）。
+  final List<String> ownerOnlyWrites = [];
+
   @override
-  LocalWriteHandle openWrite(String path) =>
-      _MemoryWriteHandle((bytes) => written[path] = bytes, error: writeError);
+  LocalWriteHandle openWrite(String path, {bool ownerOnly = false}) {
+    if (ownerOnly) ownerOnlyWrites.add(path);
+    return _MemoryWriteHandle(
+      (bytes) => written[path] = bytes,
+      error: writeError,
+    );
+  }
 
   @override
   String temporaryPath(String path) => '$path.part';

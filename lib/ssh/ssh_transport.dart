@@ -31,3 +31,18 @@ SshTransport createSshTransport(
   SshCredentials credentials,
   HostKeyStore? hostKeys,
 ) => DartSsh2Transport(server, credentials, hostKeys);
+
+/// 私钥解不出来：PEM 格式不受支持（典型是 PKCS#8 的 `BEGIN PRIVATE KEY`）
+/// 或口令不对。
+///
+/// 必须与 [UnsupportedError] 严格区分：后者在 web 上表示「浏览器没有原始
+/// TCP」，而前者换一份密钥就能解决。混在一起会把 macOS 上的密钥格式问题
+/// 报成「本平台不支持 SSH」。
+final class PrivateKeyUnsupportedException implements Exception {
+  const PrivateKeyUnsupportedException(this.detail);
+
+  final String detail;
+
+  @override
+  String toString() => 'PrivateKeyUnsupportedException($detail)';
+}

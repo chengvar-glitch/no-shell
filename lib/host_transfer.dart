@@ -130,7 +130,9 @@ Future<void> _writeExport(
   required String failed,
 }) async {
   try {
-    final handle = localFiles.openWrite(destination.path);
+    // ownerOnly：导出的明文里带着主机密码，落成 0644 等于同机器上
+    // 任何本地账号都能读。
+    final handle = localFiles.openWrite(destination.path, ownerOnly: true);
     handle.add(utf8.encode(text));
     await handle.close();
   } on Object {

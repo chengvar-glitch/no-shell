@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../l10n/generated/app_localizations.dart';
@@ -5,6 +7,7 @@ import '../host_transfer.dart';
 import '../models.dart';
 import '../ssh/connect_flow.dart';
 import '../ssh/credential_store.dart';
+import '../ssh/host_key_store.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -24,11 +27,15 @@ class ServersTab extends StatefulWidget {
     required this.store,
     required this.sessions,
     required this.credentials,
+    this.hostKeys,
   });
 
   final ServerStore store;
   final SessionManager sessions;
   final CredentialStore credentials;
+
+  /// 已记录的主机指纹；删除主机时一并清理，可选。
+  final HostKeyStore? hostKeys;
 
   @override
   State<ServersTab> createState() => _ServersTabState();
@@ -170,10 +177,16 @@ class _ServersTabState extends State<ServersTab> {
     );
     if (confirmed != true) return;
     if (!mounted) return;
-    // 先结束该主机的会话，避免悬挂连接；已存凭据一并清理。
+    // 先结束该主机的会话，避免悬挂连接。
     widget.sessions.close(server.id);
-    await widget.credentials.delete(server.id);
-    if (!mounted) return;
+    // 清理不 await：存储层卡住不能拖住删除本身（见 dropHostSecrets）。
+    unawaited(
+      dropHostSecrets(
+        credentials: widget.credentials,
+        hostKeys: widget.hostKeys,
+        server: server,
+      ),
+    );
     widget.store.remove(server.id);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_locale.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../ssh/credential_store.dart';
+import '../ssh/host_key_store.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
 import 'keys_tab.dart';
@@ -17,6 +18,7 @@ class MobileShell extends StatefulWidget {
     required this.store,
     required this.sessions,
     required this.credentials,
+    this.hostKeys,
     required this.themeMode,
     required this.onThemeModeChanged,
     required this.language,
@@ -26,6 +28,9 @@ class MobileShell extends StatefulWidget {
   final ServerStore store;
   final SessionManager sessions;
   final CredentialStore credentials;
+
+  /// 已记录的主机指纹；删除主机时一并清理，可选（测试可省）。
+  final HostKeyStore? hostKeys;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage language;
@@ -49,6 +54,7 @@ class _MobileShellState extends State<MobileShell> {
             store: widget.store,
             sessions: widget.sessions,
             credentials: widget.credentials,
+            hostKeys: widget.hostKeys,
           ),
           TerminalTab(sessions: widget.sessions),
           const KeysTab(),

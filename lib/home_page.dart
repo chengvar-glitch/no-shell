@@ -10,6 +10,7 @@ import 'l10n/generated/app_localizations.dart';
 import 'models.dart';
 import 'ssh/connect_flow.dart';
 import 'ssh/credential_store.dart';
+import 'ssh/host_key_store.dart';
 import 'ssh/session_manager.dart';
 import 'ssh/ssh_credentials.dart';
 import 'store.dart';
@@ -26,6 +27,7 @@ class HomePage extends StatefulWidget {
     required this.store,
     required this.sessions,
     required this.credentials,
+    this.hostKeys,
     required this.themeMode,
     required this.onThemeModeChanged,
     required this.language,
@@ -36,6 +38,9 @@ class HomePage extends StatefulWidget {
   final ServerStore store;
   final SessionManager sessions;
   final CredentialStore credentials;
+
+  /// 已记录的主机指纹；删除主机时一并清理，可选（测试可省）。
+  final HostKeyStore? hostKeys;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final AppLanguage language;
@@ -140,10 +145,17 @@ class _HomePageState extends State<HomePage> {
       },
     );
     if (confirmed != true || !mounted) return;
-    // 先结束该主机的会话，避免悬挂连接；已存凭据一并清理。
+    // 先结束该主机的会话，避免悬挂连接。
     widget.sessions.close(server.id);
-    await widget.credentials.delete(server.id);
-    if (!mounted) return;
+    // 凭据与指纹的清理不 await：钥匙串 / 存储层卡住时不能把删除本身
+    // 拖住（用户点了删除就必须删掉）。它只影响下次连接的判定。
+    unawaited(
+      dropHostSecrets(
+        credentials: widget.credentials,
+        hostKeys: widget.hostKeys,
+        server: server,
+      ),
+    );
     final index = widget.store.remove(server.id);
     if (index == -1) return;
     if (_selectedId == server.id) setState(() => _selectedId = null);
@@ -350,6 +362,11 @@ class _ServerDialogState extends State<_ServerDialog> {
         _auth == AuthMethod.password &&
         widget.credentials.supported) {
       await widget.credentials.write(id, SshCredentials(password: password));
+    } else if (_auth != AuthMethod.password &&
+        widget.initial?.authMethod == AuthMethod.password) {
+      // 从密码认证改成密钥认证：旧密码留在钥匙串里没人再用，但每次导出
+      // 都会被打包进备份。改方式就把它清掉。
+      await dropStoredCredential(widget.credentials, id);
     }
     if (!mounted) return;
     // 分组留空即落到默认分组；填了新名字就当场建一个（GroupField 支持直接输入）。

@@ -1399,6 +1399,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The saved data is unreadable, so it has been left untouched and changes in this session are not being saved. Re-import a .nsbak backup to get your hosts back.'**
   String get archiveUnreadableHint;
+
+  /// No description provided for @hostKeyChangedMsgWithFingerprint.
+  ///
+  /// In en, this message translates to:
+  /// **'Host key verification failed — the server presented {keyType} {fingerprint}, which does not match what was recorded at first connection. If the server was rebuilt on purpose, forget the recorded fingerprint and reconnect; otherwise beware of a man-in-the-middle attack.'**
+  String hostKeyChangedMsgWithFingerprint(String keyType, String fingerprint);
+
+  /// No description provided for @hostKeyUnavailableMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the recorded host key fingerprint, so the connection was refused. This is a local storage problem, not a key change — your recorded fingerprint has been left untouched.'**
+  String get hostKeyUnavailableMsg;
+
+  /// No description provided for @privateKeyUnsupportedMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'This private key format is not supported. Paste a key in OpenSSH or PEM (RSA/EC) format — a PKCS#8 key starting with \"BEGIN PRIVATE KEY\" must be converted first.'**
+  String get privateKeyUnsupportedMsg;
 }
 
 class _AppLocalizationsDelegate
