@@ -76,20 +76,20 @@ Future<void> exportHostsFlow(
   final entries = await _exportEntries(context, store, credentials);
   if (entries == null || !context.mounted) return;
 
-  final target = await localFiles.pickDownloadTarget(
+  final destination = await localFiles.pickExportDestination(
     'no-shell-hosts.$backupFileExtension',
     confirmLabel: l10n.exportHosts,
   );
-  if (target == null || !context.mounted) return;
+  if (destination == null || !context.mounted) return;
 
   final password = await _askBackupPassword(context, BackupPasswordMode.create);
   if (password == null || !context.mounted) return;
 
   final contents = encodeHostsBackup(encodeHostsText(entries), password);
   if (!context.mounted) return;
-  await _writeTextFile(
+  await _writeExport(
     context,
-    target: target,
+    destination: destination,
     text: contents,
     localFiles: localFiles,
     done: l10n.exportDone(entries.length),
@@ -119,24 +119,28 @@ Future<List<HostExportEntry>?> _exportEntries(
   return context.mounted ? entries : null;
 }
 
-/// 落盘并汇报：失败时清掉半成品文件，不留一个读不出内容的残档。
-Future<void> _writeTextFile(
+/// 落盘并汇报：失败时清掉半成品文件，不留一个读不出内容的残档；
+/// 落点是「写完要分享」的那种（移动端）时，交给系统分享面板收尾。
+Future<void> _writeExport(
   BuildContext context, {
-  required LocalTarget target,
+  required LocalDestination destination,
   required String text,
   required LocalFileGateway localFiles,
   required String done,
   required String failed,
 }) async {
   try {
-    final handle = localFiles.openWrite(target.path);
+    final handle = localFiles.openWrite(destination.path);
     handle.add(utf8.encode(text));
     await handle.close();
   } on Object {
-    await localFiles.discard(target.path);
+    await localFiles.discard(destination.path);
     if (!context.mounted) return;
     _showMessage(context, failed);
     return;
+  }
+  if (destination.share) {
+    await localFiles.shareLocalFile(destination.path, title: destination.name);
   }
   if (!context.mounted) return;
   _showMessage(context, done);

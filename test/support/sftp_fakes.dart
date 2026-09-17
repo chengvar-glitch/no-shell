@@ -238,6 +238,13 @@ final class FakeLocalFileGateway implements LocalFileGateway {
   /// 下一次 [pickUploads] 返回的内容。
   List<LocalUpload> uploads = const [];
 
+  /// 导出落点；为 null 表示用户取消。`share` 为 true 时模拟移动端
+  /// 「写完要交给分享面板」那条分支。
+  LocalDestination? exportDestination;
+
+  /// 被交给分享面板的路径（按调用顺序）。
+  final List<String> shared = [];
+
   /// 单文件下载的落点；为 null 表示用户取消。
   LocalTarget? downloadTarget;
 
@@ -261,6 +268,17 @@ final class FakeLocalFileGateway implements LocalFileGateway {
     final error = pickError;
     if (error != null) throw error;
     return uploads;
+  }
+
+  @override
+  Future<LocalDestination?> pickExportDestination(
+    String suggestedName, {
+    String? confirmLabel,
+  }) async => exportDestination;
+
+  @override
+  Future<void> shareLocalFile(String path, {String? title}) async {
+    shared.add(path);
   }
 
   @override

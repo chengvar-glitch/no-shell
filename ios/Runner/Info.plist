@@ -10,6 +10,21 @@
 	<string>NoShell</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>NoShell Host Backup</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.noshell.hosts-backup</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -26,6 +41,37 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- 导出 / 下载的落点。没有这两个键，文件确实写进了应用自己的 Documents
+	     目录，但用户在「文件」App 里看不到，等于导出了也拿不到。
+	     UIFileSharingEnabled 让该目录对用户可见，LSSupportsOpeningDocumentsInPlace
+	     让用户就地打开 / 移走文件而不是被迫复制一份。 -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<!-- 自定义的备份后缀：声明之后它在「文件」里有正经名字与图标，
+	     而不是一个问号文件；UTTypeConformsTo 用 public.json，
+	     系统据此知道内容是可读文本，可以预览。 -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.noshell.hosts-backup</string>
+			<key>UTTypeDescription</key>
+			<string>NoShell Host Backup</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>nsbak</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

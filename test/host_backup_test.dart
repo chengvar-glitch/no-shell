@@ -289,7 +289,7 @@ void main() {
       store = ServerStore(seed: const []);
       credentials = FakeCredentialStore();
       gateway = FakeLocalFileGateway();
-      gateway.downloadTarget = const LocalTarget(
+      gateway.exportDestination = const LocalDestination(
         path: '/tmp/backup.nsbak',
         name: 'backup.nsbak',
       );
@@ -506,6 +506,68 @@ void main() {
       expect(find.byType(TextFormField), findsNothing);
       expect(gateway.written, isEmpty);
       expect(find.text('没有可导出的主机'), findsOneWidget);
+    });
+
+    testWidgets('导出：取消落点选择不弹口令框，也不写文件', (tester) async {
+      store.upsert(
+        const SshServer(
+          id: 'srv-1',
+          group: 'g',
+          name: 'prod',
+          host: '192.0.2.10',
+          username: 'deploy',
+        ),
+      );
+      gateway.exportDestination = null;
+      await pump(tester);
+
+      await exportHostsFlow(
+        context,
+        store: store,
+        credentials: credentials,
+        localFiles: gateway,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextFormField), findsNothing);
+      expect(gateway.written, isEmpty);
+    });
+
+    testWidgets('导出：移动端落点写完交给分享面板，再汇报成功', (tester) async {
+      store.upsert(
+        const SshServer(
+          id: 'srv-1',
+          group: 'g',
+          name: 'prod',
+          host: '192.0.2.10',
+          username: 'deploy',
+        ),
+      );
+      // 移动端没有「另存为」对话框：写进临时目录后必须过一道分享面板。
+      gateway.exportDestination = const LocalDestination(
+        path: '/tmp/no-shell-hosts.nsbak',
+        name: 'no-shell-hosts.nsbak',
+        share: true,
+      );
+      await pump(tester);
+
+      final exporting = exportHostsFlow(
+        context,
+        store: store,
+        credentials: credentials,
+        localFiles: gateway,
+      );
+      await confirmExportDialog(tester, 'file-password');
+      await exporting;
+
+      expect(
+        isHostsBackup(
+          utf8.decode(gateway.bytesOf('/tmp/no-shell-hosts.nsbak')),
+        ),
+        isTrue,
+      );
+      expect(gateway.shared, ['/tmp/no-shell-hosts.nsbak']);
+      expect(find.text('已导出 1 台主机'), findsOneWidget);
     });
 
     testWidgets('导出：落盘失败时清掉半成品文件', (tester) async {

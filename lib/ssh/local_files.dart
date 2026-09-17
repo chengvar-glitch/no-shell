@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
 
+import 'local_share.dart';
 import 'local_write.dart';
 
 /// 本地落盘能力随网关一起对外暴露，调用方只需这一个 import。
@@ -32,11 +33,40 @@ final class LocalTarget {
   final String name;
 }
 
+/// 导出落点：写到哪、写完要不要再交给系统分享面板。
+///
+/// 桌面端是「另存为」选中的路径，写完就完事；移动端写进应用自己的目录后
+/// 必须过一道分享面板，由用户决定存到「文件」、发给别人还是存 iCloud——
+/// 移动端没有「另存为」对话框（选择器返回的是 SAF / 沙盒 URL，`dart:io`
+/// 写不进去），不分享的话文件就永远躺在用户找不到的地方。
+final class LocalDestination {
+  const LocalDestination({
+    required this.path,
+    required this.name,
+    this.share = false,
+  });
+
+  final String path;
+  final String name;
+  final bool share;
+}
+
 /// 本地文件交互（选择 / 落盘）。桌面与移动端行为差异较大，
 /// 且在测试中无法真的弹系统对话框，因此抽象成接口以便替换。
 abstract interface class LocalFileGateway {
   /// 选择要上传的本地文件（可多选）；用户取消时返回空列表。
   Future<List<LocalUpload>> pickUploads({String? confirmLabel});
+
+  /// 导出文件的落点。桌面端弹「另存为」（取消返回 null），
+  /// 移动端给应用目录下的路径并要求写完分享。
+  Future<LocalDestination?> pickExportDestination(
+    String suggestedName, {
+    String? confirmLabel,
+  });
+
+  /// 把刚写好的文件交给系统分享面板（移动端导出用）；
+  /// 无论用户是否真的分享出去，文件都由实现方负责收拾干净。
+  Future<void> shareLocalFile(String path, {String? title});
 
   /// 单个文件的下载落点：桌面弹「另存为」，移动端落到应用文档目录；
   /// 返回 null 表示用户取消。
@@ -78,6 +108,44 @@ final class NativeLocalFileGateway implements LocalFileGateway {
     }
     return uploads;
   }
+
+  @override
+  Future<LocalDestination?> pickExportDestination(
+    String suggestedName, {
+    String? confirmLabel,
+  }) async {
+    if (supportsLocalFileDialogs) {
+      try {
+        final location = await getSaveLocation(
+          suggestedName: suggestedName,
+          initialDirectory: await defaultLocalDirectory(),
+          confirmButtonText: confirmLabel,
+        );
+        // 用户取消时不再退化为默认目录：导出是一次明确动作，
+        // 取消就该什么都不发生。
+        if (location == null) return null;
+        return LocalDestination(
+          path: location.path,
+          name: localBaseName(location.path),
+        );
+      } on Object {
+        // 对话框不可用（如平台未实现）时退化为默认目录。
+      }
+    }
+    // 移动端：写进临时目录，写完交给分享面板。用临时目录而不是文档目录，
+    // 是为了不留下一堆用户看不见也删不掉的旧导出。
+    final directory = await defaultShareDirectory();
+    if (directory == null) return null;
+    return LocalDestination(
+      path: joinLocalPath(directory, suggestedName),
+      name: suggestedName,
+      share: true,
+    );
+  }
+
+  @override
+  Future<void> shareLocalFile(String path, {String? title}) =>
+      shareLocalFileOnDevice(path, title: title);
 
   @override
   Future<LocalTarget?> pickDownloadTarget(

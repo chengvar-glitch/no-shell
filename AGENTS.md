@@ -19,7 +19,7 @@
 
 - Dart SDK：`^3.13.3`（见 `pubspec.yaml`）
 - Lint 规则：`flutter_lints ^6.0.0`，通过 `analysis_options.yaml` 引入 `package:flutter_lints/flutter.yaml`
-- 运行时依赖：`dartssh2 ^4.1.0`（SSH 传输 / SFTP）、`xterm ^4.0.0`（终端渲染）、`file_selector ^1.1.0`（上传选文件、下载另存为）、`path_provider ^2.1.6`（下载默认目录）、`pointycastle ^4.0.0`（加密备份的 PBKDF2 + AES-256-GCM，纯 Dart、六端通用）、`flutter_secure_storage`（凭据安全存储，macOS 需钥匙串 entitlement，已在 entitlements 中配置）、`shared_preferences`（主机列表持久化）、`flutter_localizations` + `intl`（国际化）
+- 运行时依赖：`dartssh2 ^4.1.0`（SSH 传输 / SFTP）、`xterm ^4.0.0`（终端渲染）、`file_selector ^1.1.0`（上传选文件、下载另存为）、`share_plus ^13.3.0`（移动端导出的系统分享面板）、`path_provider ^2.1.6`（下载默认目录 / 导出临时目录）、`pointycastle ^4.0.0`（加密备份的 PBKDF2 + AES-256-GCM，纯 Dart、六端通用）、`flutter_secure_storage`（凭据安全存储，macOS 需钥匙串 entitlement，已在 entitlements 中配置）、`shared_preferences`（主机列表持久化）、`flutter_localizations` + `intl`（国际化）
 - 添加新依赖必须同步更新 `pubspec.yaml` 并重新执行 `flutter pub get`
 
 ## 目录结构
@@ -39,7 +39,7 @@
   - `host_key_store.dart` — 主机公钥指纹存储与 TOFU 校验决策（首连记录、变更拒绝）；`HostKeyChangedException` 由会话归类为 `TerminalErrorKind.hostKey`，界面提供「清除记录的指纹并重连」
   - `sftp.dart` / `dartssh2_sftp.dart` — SFTP 领域模型、抽象接口与 dartssh2 适配器
   - `sftp_browser.dart` / `sftp_transfer.dart` — SFTP 面板状态：目录浏览与串行传输队列
-  - `local_files.dart` — 本地文件网关（选文件 / 落盘）；`local_write*.dart` 为按平台条件导出的落盘实现
+  - `local_files.dart` — 本地文件网关（选文件 / 落盘 / 导出落点）；`local_write*.dart` 为按平台条件导出的落盘实现，`local_share*.dart` 为按平台条件导出的分享面板实现
 - `lib/mobile/` — 移动端四个 Tab 及详情/编辑页
 - `lib/l10n/` — arb 源文件（`app_en.arb` / `app_zh.arb`）；`lib/l10n/generated/` 为生成代码
 - `assets/fonts/` — 随包内置的终端字体（`jetbrains_mono/`、`fira_code/` 各含 Regular + Bold 与 `OFL.txt`，合计约 1.2 MB），由 `pubspec.yaml` 的 `fonts:` 声明、`assets:` 声明许可文本。族名一律带 `NoShell ` 前缀（如 `NoShell JetBrains Mono`）：与系统字体彻底解耦，引擎必定命中随包文件
@@ -79,6 +79,9 @@
   - 明文的载体是 `encodeHostsText` 的输出，所以新增主机字段只需改文本格式一处，导入导出同时受益
   - 信封里只放解密必需的参数（`kdf` / `iterations` / `cipher` / `salt` / `nonce`），不写版本号：本格式没有历史包袱，不需要为「旧备份」留回退分支
   - `iterations` 上下限是防呆而非兼容：改过的文件不该让解密空转很久
+  - 导出落点分两条：桌面端走「另存为」对话框（`LocalDestination.share` 为 false）；移动端没有「另存为」（选择器返回 SAF / 沙盒 URL，`dart:io` 写不进去），写进临时目录后**必须**过 `share_plus` 的分享面板，由用户决定存到「文件」还是发给别人，实现方负责删掉临时文件。不加这道分享，文件就躺在用户找不到的地方
+  - SFTP 下载仍走 `pickDownloadTarget`，移动端落到应用文档目录——这条靠 iOS 的 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace` 才对用户可见，改动 `ios/Runner/Info.plist` 时不要删掉
+  - `.nsbak` 的 UTI 是 `com.noshell.hosts-backup`（conforms to `public.json`），在 Info.plist 的 `UTExportedTypeDeclarations` 与 `CFBundleDocumentTypes` 里各声明一次；后缀名改了就三处一起改（`backupFileExtension`、UTI 的 tag、Info.plist）
 - 颜色一律经 `theme.dart` 的语义色（`AppThemeX` 扩展 / `AppPalette`）获取，不得在组件里散落硬编码颜色
 - 任何真实主机凭据、私钥、口令不得写入代码、测试或仓库；冒烟脚本凭据只经命令行传入
 - 遵循 `flutter_lints` 规则，新文件需符合官方 Dart 风格；提交前 `flutter analyze` 必须无告警且 `flutter test` 全部通过
