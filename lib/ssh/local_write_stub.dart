@@ -7,6 +7,11 @@ LocalWriteHandle openLocalWrite(String path) =>
 
 Future<void> deleteLocalFile(String path) async {}
 
+/// web 桩实现：浏览器没有本地文件系统，SFTP 在 web 端本身也不可用。
+String localTemporaryPath(String path) => path;
+
+Future<void> promoteLocalFile(String temporaryPath, String targetPath) async {}
+
 Future<String?> defaultLocalDirectory() async => null;
 
 bool get supportsLocalFileDialogs => false;

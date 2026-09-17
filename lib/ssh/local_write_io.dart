@@ -14,6 +14,25 @@ Future<void> deleteLocalFile(String path) async {
   if (await file.exists()) await file.delete();
 }
 
+/// 写入中的临时路径：新建文件都先落在这里，成功后再改名到目标。
+/// 与目标同目录，改名才是同卷操作（跨卷 rename 会失败）。
+String localTemporaryPath(String path) => '$path.part';
+
+/// 把写完的临时文件改名到目标路径，实现「要么是旧文件、要么是新文件」。
+///
+/// 覆盖写入如果直接落在目标上，写一半失败就把用户原有的文件毁了；
+/// 先写 `.part` 再改名则失败时目标原封不动。POSIX 下改名能覆盖已存在的
+/// 目标；Windows 不允许，先删一次再试。
+Future<void> promoteLocalFile(String temporaryPath, String targetPath) async {
+  final temporary = File(temporaryPath);
+  try {
+    await temporary.rename(targetPath);
+  } on FileSystemException {
+    await deleteLocalFile(targetPath);
+    await temporary.rename(targetPath);
+  }
+}
+
 /// 默认下载目录：桌面取系统下载目录，移动端取应用文档目录。
 /// 取不到时返回 null，由调用方退化为「不指定初始目录」。
 Future<String?> defaultLocalDirectory() async {

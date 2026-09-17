@@ -85,6 +85,13 @@ abstract interface class LocalFileGateway {
   /// 打开本地写入流，同名文件覆盖。
   LocalWriteHandle openWrite(String path);
 
+  /// 写入中的临时路径。下载先写这里，成功后再 [promote] 到目标，
+  /// 免得下到一半失败把用户原有的同名文件毁掉。
+  String temporaryPath(String path);
+
+  /// 把写完的临时文件改名到目标路径（覆盖语义）。
+  Future<void> promote(String temporaryPath, String targetPath);
+
   /// 清理取消 / 失败留下的半成品文件。
   Future<void> discard(String path);
 }
@@ -206,6 +213,13 @@ final class NativeLocalFileGateway implements LocalFileGateway {
 
   @override
   LocalWriteHandle openWrite(String path) => openLocalWrite(path);
+
+  @override
+  String temporaryPath(String path) => localTemporaryPath(path);
+
+  @override
+  Future<void> promote(String temporaryPath, String targetPath) =>
+      promoteLocalFile(temporaryPath, targetPath);
 
   @override
   Future<void> discard(String path) => deleteLocalFile(path);

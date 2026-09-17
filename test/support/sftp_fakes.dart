@@ -263,6 +263,9 @@ final class FakeLocalFileGateway implements LocalFileGateway {
   /// 被丢弃的半成品路径。
   final List<String> discarded = [];
 
+  /// 临时文件被改名到目标 (from → to) 的记录。
+  final List<({String from, String to})> promoted = [];
+
   @override
   Future<List<LocalUpload>> pickUploads({String? confirmLabel}) async {
     final error = pickError;
@@ -298,6 +301,16 @@ final class FakeLocalFileGateway implements LocalFileGateway {
       _MemoryWriteHandle((bytes) => written[path] = bytes, error: writeError);
 
   @override
+  String temporaryPath(String path) => '$path.part';
+
+  @override
+  Future<void> promote(String temporaryPath, String targetPath) async {
+    promoted.add((from: temporaryPath, to: targetPath));
+    final bytes = written.remove(temporaryPath);
+    if (bytes != null) written[targetPath] = bytes;
+  }
+
+  @override
   Future<void> discard(String path) async {
     discarded.add(path);
     written.remove(path);
@@ -305,6 +318,73 @@ final class FakeLocalFileGateway implements LocalFileGateway {
 
   /// 用内存句柄写出的字节（close 之后可读）。
   List<int> bytesOf(String path) => written[path] ?? const [];
+}
+
+/// 读取可手动放行的文件系统：把下载钉在「读到一半」那一帧上，
+/// 好在传输中途取消 / 销毁队列。其余行为全部委托给 [FakeSftpFileSystem]。
+final class GatedReadFileSystem implements SftpFileSystem {
+  GatedReadFileSystem() : _inner = FakeSftpFileSystem();
+
+  final FakeSftpFileSystem _inner;
+
+  /// 首次拿到数据块时完成。
+  final readStarted = Completer<void>();
+
+  final _gate = Completer<void>();
+
+  /// 放行被挂住的读取。
+  void releaseRead() {
+    if (!_gate.isCompleted) _gate.complete();
+  }
+
+  /// 通道是否已被关闭。
+  bool get disposed => _inner.disposed;
+
+  /// 委托给内部假文件系统：内容与目录都由它维护。
+  SftpEntry addFile(String dir, String name, {List<int>? content}) =>
+      _inner.addFile(dir, name, content: content);
+
+  /// 按名字取一个已登记的文件条目。
+  SftpEntry entryNamed(String name) => _inner.listings.values
+      .expand((entries) => entries)
+      .firstWhere((entry) => entry.name == name);
+
+  @override
+  Future<String> homeDirectory() => _inner.homeDirectory();
+
+  @override
+  Future<List<SftpEntry>> list(String path) => _inner.list(path);
+
+  @override
+  Stream<List<int>> read(String path) async* {
+    await for (final chunk in _inner.read(path)) {
+      if (!readStarted.isCompleted) readStarted.complete();
+      await _gate.future;
+      yield chunk;
+    }
+  }
+
+  @override
+  Future<void> write(
+    String path,
+    Stream<List<int>> data, {
+    void Function(int bytes)? onProgress,
+  }) => _inner.write(path, data, onProgress: onProgress);
+
+  @override
+  Future<void> createDirectory(String path) => _inner.createDirectory(path);
+
+  @override
+  Future<void> rename(String from, String to) => _inner.rename(from, to);
+
+  @override
+  Future<void> removeFile(String path) => _inner.removeFile(path);
+
+  @override
+  Future<void> removeDirectory(String path) => _inner.removeDirectory(path);
+
+  @override
+  void dispose() => _inner.dispose();
 }
 
 /// 收集写入字节、close 时回吐，模拟本地落盘。
