@@ -31,6 +31,10 @@ final class DartSsh2Transport implements SshTransport {
 
   SSHClient? _client;
   SSHSession? _session;
+
+  /// 已建立但还没交给 [_client] 的连接。用在握手完成到 client 建好之间的
+  /// 窗口期：这期间 dispose 只能关到这个 socket，否则它就漏了。
+  SSHSocket? _socket;
   final List<StreamSubscription<Object?>> _subscriptions = [];
   bool _disposed = false;
 
@@ -45,21 +49,38 @@ final class DartSsh2Transport implements SshTransport {
       _server.port,
       timeout: _connectTimeout,
     );
-    final client = _client = SSHClient(
-      socket,
-      username: _server.username,
-      identities: _identities,
-      // 密码认证；OpenSSH 默认开启的 keyboard-interactive 也映射到同一密码。
-      onPasswordRequest: () => _credentials.password,
-      onUserInfoRequest: (request) {
-        final password = _credentials.password;
-        if (password == null) return null;
-        return List.filled(request.prompts.length, password);
-      },
-      handshakeTimeout: _connectTimeout,
-      // known_hosts / TOFU 指纹校验：首次记录、变更拒绝（见 host_key_store.dart）。
-      onVerifyHostKey: _hostKeys == null ? null : _verifyHostKey,
-    );
+    // 连接是异步的：用户可能在这十几秒里已经断开了这个会话。
+    // 此处的 dispose 当时只看到 _client / _session 都还是 null，
+    // 什么也没关掉，所以必须在这里补一次检查——否则接下来会建成一个
+    // 完全认证过、却再也没人持有的 SSH 会话，一直挂到进程退出。
+    if (_disposed) {
+      await socket.close();
+      return;
+    }
+    _socket = socket;
+
+    final SSHClient client;
+    try {
+      client = _client = SSHClient(
+        socket,
+        username: _server.username,
+        identities: _identities,
+        // 密码认证；OpenSSH 默认开启的 keyboard-interactive 也映射到同一密码。
+        onPasswordRequest: () => _credentials.password,
+        onUserInfoRequest: (request) {
+          final password = _credentials.password;
+          if (password == null) return null;
+          return List.filled(request.prompts.length, password);
+        },
+        handshakeTimeout: _connectTimeout,
+        // known_hosts / TOFU 指纹校验：首次记录、变更拒绝（见 host_key_store.dart）。
+        onVerifyHostKey: _hostKeys == null ? null : _verifyHostKey,
+      );
+    } on Object {
+      // 私钥解析失败之类会在构造 client 时就抛，此时 socket 已经连上了。
+      _closeQuietly();
+      rethrow;
+    }
 
     final SSHSession session;
     try {
@@ -72,11 +93,17 @@ final class DartSsh2Transport implements SshTransport {
         ),
       );
     } on SSHHostkeyError {
-      _client?.close();
+      _closeQuietly();
       throw _hostKeyMismatch ?? SSHHostkeyError('Hostkey verification failed');
     } on Object {
-      _client?.close();
+      _closeQuietly();
       rethrow;
+    }
+
+    // 认证同样要花时间，窗口期内被断开的话到这里收手。
+    if (_disposed) {
+      _closeQuietly();
+      return;
     }
 
     void sendOutput(String data) => session.stdin.add(utf8.encode(data));
@@ -179,11 +206,23 @@ final class DartSsh2Transport implements SshTransport {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _closeQuietly();
+  }
+
+  /// 关掉当前持有的一切：已建好的 client，或只连上、还没交给 client 的 socket。
+  /// 三处清理路径（dispose 与两种失败）都走它，避免漏掉中间态的 socket。
+  void _closeQuietly() {
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }
     _subscriptions.clear();
     _session?.close();
-    _client?.close();
+    final client = _client;
+    if (client != null) {
+      client.close();
+      return;
+    }
+    // client 还没建起来时，socket 是唯一持有的资源。
+    unawaited(_socket?.close());
   }
 }
