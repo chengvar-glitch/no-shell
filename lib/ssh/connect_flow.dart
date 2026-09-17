@@ -137,6 +137,9 @@ Future<bool> _failsWithAuth(TerminalSession session) async {
   late final VoidCallback listener;
   listener = () {
     if (session.phase == TerminalPhase.connecting) return;
+    // 同一个微任务里连着两次通知（例如 failed 紧跟 closed）会重复完成，
+    // 那会抛 StateError。今天的状态机走不到，但这里不该靠运气。
+    if (completer.isCompleted) return;
     completer.complete(isAuthFailure());
   };
   session.addListener(listener);
