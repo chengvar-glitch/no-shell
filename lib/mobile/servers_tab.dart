@@ -75,62 +75,65 @@ class _ServersTabState extends State<ServersTab> {
     final errorColor = Theme.of(context).colorScheme.error;
     showModalBottomSheet<void>(
       context: context,
+      // 同分组操作表：弹层限高 9/16 屏高，矮屏 / 横屏靠滚动兜住。
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                server.status == ServerStatus.connected
-                    ? Icons.link_off_rounded
-                    : Icons.play_arrow_rounded,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  server.status == ServerStatus.connected
+                      ? Icons.link_off_rounded
+                      : Icons.play_arrow_rounded,
+                ),
+                title: Text(
+                  server.status == ServerStatus.connected
+                      ? l10n.disconnect
+                      : l10n.connect,
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  toggleSession(
+                    context,
+                    sessions: widget.sessions,
+                    server: server,
+                    credentials: widget.credentials,
+                  );
+                },
               ),
-              title: Text(
-                server.status == ServerStatus.connected
-                    ? l10n.disconnect
-                    : l10n.connect,
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: Text(l10n.edit),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openEditor(server);
+                },
               ),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                toggleSession(
-                  context,
-                  sessions: widget.sessions,
-                  server: server,
-                  credentials: widget.credentials,
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: Text(l10n.edit),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _openEditor(server);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.drive_file_move_outline),
-              title: Text(l10n.groupMoveTo),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                moveServerToGroupFlow(
-                  context,
-                  store: widget.store,
-                  server: server,
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline_rounded),
-              iconColor: errorColor,
-              textColor: errorColor,
-              title: Text(l10n.delete),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _confirmDelete(server);
-              },
-            ),
-          ],
+              ListTile(
+                leading: const Icon(Icons.drive_file_move_outline),
+                title: Text(l10n.groupMoveTo),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  moveServerToGroupFlow(
+                    context,
+                    store: widget.store,
+                    server: server,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded),
+                iconColor: errorColor,
+                textColor: errorColor,
+                title: Text(l10n.delete),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _confirmDelete(server);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -304,46 +307,50 @@ class _ServersTabState extends State<ServersTab> {
     final last = widget.store.groupNames.length - 1;
     final action = await showModalBottomSheet<GroupAction>(
       context: context,
+      // 弹层默认限高 9/16 屏高，矮屏 / 横屏装不下 6 项，交给滚动而不是溢出。
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.add_rounded),
-              title: Text(l10n.groupNewConnection),
-              onTap: () =>
-                  Navigator.pop(sheetContext, GroupAction.createConnection),
-            ),
-            ListTile(
-              leading: const Icon(Icons.create_new_folder_outlined),
-              title: Text(l10n.groupNew),
-              onTap: () => Navigator.pop(sheetContext, GroupAction.createGroup),
-            ),
-            ListTile(
-              leading: const Icon(Icons.drive_file_rename_outline),
-              title: Text(l10n.groupRename),
-              onTap: () => Navigator.pop(sheetContext, GroupAction.rename),
-            ),
-            ListTile(
-              leading: const Icon(Icons.arrow_upward_rounded),
-              title: Text(l10n.groupMoveUp),
-              enabled: index > 0,
-              onTap: () => Navigator.pop(sheetContext, GroupAction.moveUp),
-            ),
-            ListTile(
-              leading: const Icon(Icons.arrow_downward_rounded),
-              title: Text(l10n.groupMoveDown),
-              enabled: index >= 0 && index < last,
-              onTap: () => Navigator.pop(sheetContext, GroupAction.moveDown),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline_rounded),
-              iconColor: errorColor,
-              textColor: errorColor,
-              title: Text(l10n.groupDelete),
-              onTap: () => Navigator.pop(sheetContext, GroupAction.delete),
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.add_rounded),
+                title: Text(l10n.groupNewConnection),
+                onTap: () =>
+                    Navigator.pop(sheetContext, GroupAction.createConnection),
+              ),
+              ListTile(
+                leading: const Icon(Icons.create_new_folder_outlined),
+                title: Text(l10n.groupNew),
+                onTap: () =>
+                    Navigator.pop(sheetContext, GroupAction.createGroup),
+              ),
+              ListTile(
+                leading: const Icon(Icons.drive_file_rename_outline),
+                title: Text(l10n.groupRename),
+                onTap: () => Navigator.pop(sheetContext, GroupAction.rename),
+              ),
+              ListTile(
+                leading: const Icon(Icons.arrow_upward_rounded),
+                title: Text(l10n.groupMoveUp),
+                enabled: index > 0,
+                onTap: () => Navigator.pop(sheetContext, GroupAction.moveUp),
+              ),
+              ListTile(
+                leading: const Icon(Icons.arrow_downward_rounded),
+                title: Text(l10n.groupMoveDown),
+                enabled: index >= 0 && index < last,
+                onTap: () => Navigator.pop(sheetContext, GroupAction.moveDown),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded),
+                iconColor: errorColor,
+                textColor: errorColor,
+                title: Text(l10n.groupDelete),
+                onTap: () => Navigator.pop(sheetContext, GroupAction.delete),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -439,7 +446,11 @@ class _ServersTabState extends State<ServersTab> {
             ),
             IconButton(
               tooltip: l10n.moreActions,
-              visualDensity: VisualDensity.compact,
+              // 触屏上这是分组管理的唯一入口，命中区按 44 给足
+              // （compact 密度下默认只有 40）。
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+              iconSize: 18,
               icon: Icon(
                 Icons.more_horiz_rounded,
                 size: 18,

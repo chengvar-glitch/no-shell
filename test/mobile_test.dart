@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:no_shell/main.dart';
+import 'package:no_shell/mobile/servers_tab.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/settings.dart';
 import 'package:no_shell/store.dart';
@@ -21,8 +22,9 @@ void main() {
     WidgetTester tester, {
     ServerStore? store,
     FakeCredentialStore? credentials,
+    Size size = const Size(390, 844),
   }) async {
-    tester.view.physicalSize = const Size(390, 844);
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     tester.platformDispatcher.localesTestValue = const [Locale('zh')];
@@ -219,11 +221,49 @@ void main() {
 
     expect(find.text('web-prod-01'), findsNothing);
     expect(
-      store
-          .groups()
-          .firstWhere((group) => group.name == '生产环境')
-          .collapsed,
+      store.groups().firstWhere((group) => group.name == '生产环境').collapsed,
       isTrue,
     );
+  });
+
+  testWidgets('矮屏横屏下分组菜单与主机菜单靠滚动兜住，不溢出', (tester) async {
+    // 568x320：弹层默认限高 9/16 屏高（180），装不下 6 项分组菜单。
+    await pumpMobile(tester, size: const Size(568, 320));
+
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(ServersTab),
+            matching: find.byIcon(Icons.more_horiz_rounded),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    // 点遮罩收起，再看长按主机那一张（4 项）。
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('web-prod-01'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('分组头「⋯」是触屏上分组管理的唯一入口，命中区给足', (tester) async {
+    await pumpMobile(tester);
+
+    final button = find
+        .ancestor(
+          of: find
+              .descendant(
+                of: find.byType(ServersTab),
+                matching: find.byIcon(Icons.more_horiz_rounded),
+              )
+              .first,
+          matching: find.byType(IconButton),
+        )
+        .first;
+    expect(tester.getSize(button).width, greaterThanOrEqualTo(44));
+    expect(tester.getSize(button).height, greaterThanOrEqualTo(44));
   });
 }
