@@ -19,6 +19,8 @@
 
 - **SSH 终端** — 基于 dartssh2 + xterm 的完整交互终端：xterm-256color、自适应尺寸、密码 / keyboard-interactive / 私钥认证
 - **SFTP 文件管理** — 目录导航、上传 / 下载（带进度与取消）、重命名、删除、新建目录；复用已认证的 SSH 连接，不重复建连、不重复认证
+- **端口转发** — 每台主机可配本地（-L）/ 远程（-R）/ 动态 SOCKS5（-D）转发规则，在主机详情的「转发」页启停，也可在连接后自动启动；所有隧道复用该主机已认证的 SSH 连接，会话断开即随之失效
+- **跳板机（ProxyJump）** — 从已保存的主机里选跳板机，支持多级串联；每一跳各自认证、各自校验主机指纹，终端、SFTP 与端口转发都走同一条链路
 - **主机密钥校验（TOFU）** — 首次连接记录服务器公钥指纹，指纹变更时拒绝连接并提供显式清除重连入口，防中间人攻击
 - **凭据安全存储** — 勾选「记住凭据」后经系统安全存储加密落盘（macOS 钥匙串 / Windows 凭据管理器 / Linux libsecret），未记住的仅驻留内存
 - **主机管理** — 分组、标签、备注、最近连接时间；列表可导出为文本备份，导入时自动识别中英文 key，按「地址+端口+用户」去重合并；新建 / 编辑连接时可直接粘贴同一格式的元数据自动填表，字段仍可手动修改
@@ -95,6 +97,14 @@ dart run tool/smoke_ssh.dart <host> <port> <user> --password <密码> --sftp    
 dart run tool/smoke_ssh.dart <host> <port> <user> --password <密码> --shell    # PTY 链路
 ```
 
+端口转发 + 跳板机冒烟（走 App 自己的会话层连真实主机；没给环境变量时自动跳过，
+因此 `flutter test` 默认仍然是全绿）：
+
+```bash
+NOSHELL_SMOKE_HOST=<主机> NOSHELL_SMOKE_PASSWORD=<密码> \
+  flutter test test/forward_smoke_test.dart
+```
+
 ### 重新生成 README 截图
 
 ```bash
@@ -109,7 +119,7 @@ flutter test integration_test/screenshots_test.dart -d macos
 
 ## 架构速览
 
-- `lib/ssh/` — 会话层：传输抽象（`SshTransport`）与 dartssh2 适配、TOFU 指纹存储（`host_key_store.dart`）、SFTP 抽象与适配、凭据安全存储
+- `lib/ssh/` — 会话层：传输抽象（`SshTransport`）与 dartssh2 适配、TOFU 指纹存储（`host_key_store.dart`）、SFTP 抽象与适配、凭据安全存储、端口转发运行时（`port_forward_runtime.dart`）与跳板链路解析（`jump_host.dart`）
 - `lib/store.dart` + `lib/server_persistence.dart` — 主机列表状态与落盘
 - `lib/widgets/`、`lib/mobile/` — 桌面分栏骨架与移动端 Tab 骨架
 - `lib/l10n/` — arb 源文件（en / zh），生成代码在 `lib/l10n/generated/`

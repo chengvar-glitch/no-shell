@@ -339,5 +339,126 @@
     }
   },
   "hostKeyUnavailableMsg": "已记录的主机密钥指纹读不出来，连接被拒绝。这是本地存储故障、不是密钥变更，原有记录未被改动。",
-  "privateKeyUnsupportedMsg": "不支持这份私钥的格式。请粘贴 OpenSSH 或 PEM（RSA / EC）格式的私钥——以 \"BEGIN PRIVATE KEY\" 开头的 PKCS#8 密钥需要先转换。"
+  "privateKeyUnsupportedMsg": "不支持这份私钥的格式。请粘贴 OpenSSH 或 PEM（RSA / EC）格式的私钥——以 \"BEGIN PRIVATE KEY\" 开头的 PKCS#8 密钥需要先转换。",
+  "portForwarding": "端口转发",
+  "portForwardEmpty": "还没有转发规则",
+  "portForwardEmptyHint": "新建一条规则，连接主机后即可启停。",
+  "portForwardAdd": "新建转发",
+  "portForwardEdit": "编辑转发",
+  "portForwardDeleteTitle": "删除这条转发？",
+  "portForwardDeleteBody": "只删除这条规则，其它已经在跑的转发不受影响。",
+  "portForwardStart": "启动",
+  "portForwardStop": "停止",
+  "portForwardStatusStarting": "启动中",
+  "portForwardStatusRunning": "运行中",
+  "portForwardStatusStopped": "未启动",
+  "portForwardStatusFailed": "启动失败",
+  "portForwardSessionHint": "会话未建立 —— 先连接主机，才能启停端口转发。",
+  "portForwardAutoTag": "自动",
+  "portForwardSummaryLocal": "{listen} → {target}（经服务器）",
+  "@portForwardSummaryLocal": {
+    "placeholders": {
+      "listen": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardSummaryRemote": "服务器 {listen} → 本机 {target}",
+  "@portForwardSummaryRemote": {
+    "placeholders": {
+      "listen": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardSummaryDynamic": "SOCKS5 代理 {listen}",
+  "@portForwardSummaryDynamic": {
+    "placeholders": {
+      "listen": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardBoundPort": "实际端口 {port}",
+  "@portForwardBoundPort": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "portForwardErrorNotConnected": "会话未建立，转发没有启动",
+  "portForwardErrorUnsupported": "当前平台不支持端口转发（浏览器没有原生 TCP）",
+  "portForwardErrorRefused": "服务端拒绝了这条转发（端口被占用或不允许监听）",
+  "portForwardErrorNetwork": "网络中断，转发没有启动",
+  "portForwardErrorOther": "转发没有启动",
+  "portForwardRuleIncomplete": "规则没填完整：请补全地址与端口",
+  "portForwardMode": "转发类型",
+  "portForwardModeLocal": "本地转发 (-L)",
+  "portForwardModeRemote": "远程转发 (-R)",
+  "portForwardModeDynamic": "动态转发 (-D)",
+  "portForwardLocalDesc": "本机监听，连接经服务器转给目标地址",
+  "portForwardRemoteDesc": "让服务器监听，连接转回本机地址",
+  "portForwardDynamicDesc": "本机开一个 SOCKS5 代理，目标由客户端逐次指定",
+  "portForwardListenAddress": "监听地址",
+  "portForwardListenPort": "监听端口",
+  "portForwardTargetAddress": "目标地址",
+  "portForwardTargetPort": "目标端口",
+  "portForwardAutoStart": "连接后自动启动",
+  "portForwardAutoStartHint": "自动启动需要已记住凭据，否则连接时会先弹凭据框。",
+  "portForwardAddressRequired": "请填写地址",
+  "jumpHost": "跳板机",
+  "jumpHostNone": "不使用",
+  "jumpHostHint": "先登录它，再由它连到本机",
+  "jumpCredentialsHint": "这是跳板机「{name}」的凭据，用于先登录它。",
+  "@jumpCredentialsHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostMissing": "「{name}」的跳板机已被删除，请在主机设置里重新选择",
+  "@jumpHostMissing": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostCycle": "「{name}」的跳板机形成了环，请在主机设置里重新选择",
+  "@jumpHostCycle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostTooDeep": "跳板机层数超过上限（{count} 层）",
+  "@jumpHostTooDeep": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "jumpChainErrorMsg": "跳板机配置不成立，请在主机设置里检查",
+  "jumpHopFailure": "经跳板机「{hop}」时失败：{reason}",
+  "@jumpHopFailure": {
+    "placeholders": {
+      "hop": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostUnavailable": "已失效（跳板机被删除，或会形成环）"
 }

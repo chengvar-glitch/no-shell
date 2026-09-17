@@ -812,4 +812,169 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get privateKeyUnsupportedMsg =>
       '不支持这份私钥的格式。请粘贴 OpenSSH 或 PEM（RSA / EC）格式的私钥——以 \"BEGIN PRIVATE KEY\" 开头的 PKCS#8 密钥需要先转换。';
+
+  @override
+  String get portForwarding => '端口转发';
+
+  @override
+  String get portForwardEmpty => '还没有转发规则';
+
+  @override
+  String get portForwardEmptyHint => '新建一条规则，连接主机后即可启停。';
+
+  @override
+  String get portForwardAdd => '新建转发';
+
+  @override
+  String get portForwardEdit => '编辑转发';
+
+  @override
+  String get portForwardDeleteTitle => '删除这条转发？';
+
+  @override
+  String get portForwardDeleteBody => '只删除这条规则，其它已经在跑的转发不受影响。';
+
+  @override
+  String get portForwardStart => '启动';
+
+  @override
+  String get portForwardStop => '停止';
+
+  @override
+  String get portForwardStatusStarting => '启动中';
+
+  @override
+  String get portForwardStatusRunning => '运行中';
+
+  @override
+  String get portForwardStatusStopped => '未启动';
+
+  @override
+  String get portForwardStatusFailed => '启动失败';
+
+  @override
+  String get portForwardSessionHint => '会话未建立 —— 先连接主机，才能启停端口转发。';
+
+  @override
+  String get portForwardAutoTag => '自动';
+
+  @override
+  String portForwardSummaryLocal(String listen, String target) {
+    return '$listen → $target（经服务器）';
+  }
+
+  @override
+  String portForwardSummaryRemote(String listen, String target) {
+    return '服务器 $listen → 本机 $target';
+  }
+
+  @override
+  String portForwardSummaryDynamic(String listen) {
+    return 'SOCKS5 代理 $listen';
+  }
+
+  @override
+  String portForwardBoundPort(int port) {
+    return '实际端口 $port';
+  }
+
+  @override
+  String get portForwardErrorNotConnected => '会话未建立，转发没有启动';
+
+  @override
+  String get portForwardErrorUnsupported => '当前平台不支持端口转发（浏览器没有原生 TCP）';
+
+  @override
+  String get portForwardErrorRefused => '服务端拒绝了这条转发（端口被占用或不允许监听）';
+
+  @override
+  String get portForwardErrorNetwork => '网络中断，转发没有启动';
+
+  @override
+  String get portForwardErrorOther => '转发没有启动';
+
+  @override
+  String get portForwardRuleIncomplete => '规则没填完整：请补全地址与端口';
+
+  @override
+  String get portForwardMode => '转发类型';
+
+  @override
+  String get portForwardModeLocal => '本地转发 (-L)';
+
+  @override
+  String get portForwardModeRemote => '远程转发 (-R)';
+
+  @override
+  String get portForwardModeDynamic => '动态转发 (-D)';
+
+  @override
+  String get portForwardLocalDesc => '本机监听，连接经服务器转给目标地址';
+
+  @override
+  String get portForwardRemoteDesc => '让服务器监听，连接转回本机地址';
+
+  @override
+  String get portForwardDynamicDesc => '本机开一个 SOCKS5 代理，目标由客户端逐次指定';
+
+  @override
+  String get portForwardListenAddress => '监听地址';
+
+  @override
+  String get portForwardListenPort => '监听端口';
+
+  @override
+  String get portForwardTargetAddress => '目标地址';
+
+  @override
+  String get portForwardTargetPort => '目标端口';
+
+  @override
+  String get portForwardAutoStart => '连接后自动启动';
+
+  @override
+  String get portForwardAutoStartHint => '自动启动需要已记住凭据，否则连接时会先弹凭据框。';
+
+  @override
+  String get portForwardAddressRequired => '请填写地址';
+
+  @override
+  String get jumpHost => '跳板机';
+
+  @override
+  String get jumpHostNone => '不使用';
+
+  @override
+  String get jumpHostHint => '先登录它，再由它连到本机';
+
+  @override
+  String jumpCredentialsHint(String name) {
+    return '这是跳板机「$name」的凭据，用于先登录它。';
+  }
+
+  @override
+  String jumpHostMissing(String name) {
+    return '「$name」的跳板机已被删除，请在主机设置里重新选择';
+  }
+
+  @override
+  String jumpHostCycle(String name) {
+    return '「$name」的跳板机形成了环，请在主机设置里重新选择';
+  }
+
+  @override
+  String jumpHostTooDeep(int count) {
+    return '跳板机层数超过上限（$count 层）';
+  }
+
+  @override
+  String get jumpChainErrorMsg => '跳板机配置不成立，请在主机设置里检查';
+
+  @override
+  String jumpHopFailure(String hop, String reason) {
+    return '经跳板机「$hop」时失败：$reason';
+  }
+
+  @override
+  String get jumpHostUnavailable => '已失效（跳板机被删除，或会形成环）';
 }

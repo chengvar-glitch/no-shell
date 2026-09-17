@@ -19,12 +19,15 @@ final class CredentialsSubmission {
 /// 连接前的凭据输入弹窗：按主机预设的认证方式展示对应输入项。
 /// [initial] 用于预填（重试或已保存的凭据）；[allowRemember] 由当前平台的
 /// CredentialStore 决定是否展示「记住凭据」开关。
+/// [viaJumpHost] 为 true 时多给一行说明：这次输的是跳板机的凭据，
+/// 用户看到的标题仍是那台跳板机的名字，不至于以为输错了主机。
 Future<CredentialsSubmission?> showCredentialsDialog(
   BuildContext context,
   SshServer server, {
   SshCredentials? initial,
   bool allowRemember = false,
   bool rememberInitially = false,
+  bool viaJumpHost = false,
 }) {
   return showDialog<CredentialsSubmission>(
     context: context,
@@ -33,6 +36,7 @@ Future<CredentialsSubmission?> showCredentialsDialog(
       initial: initial,
       allowRemember: allowRemember,
       rememberInitially: rememberInitially,
+      viaJumpHost: viaJumpHost,
     ),
   );
 }
@@ -43,12 +47,14 @@ final class _CredentialsDialog extends StatefulWidget {
     this.initial,
     required this.allowRemember,
     required this.rememberInitially,
+    required this.viaJumpHost,
   });
 
   final SshServer server;
   final SshCredentials? initial;
   final bool allowRemember;
   final bool rememberInitially;
+  final bool viaJumpHost;
 
   @override
   State<_CredentialsDialog> createState() => _CredentialsDialogState();
@@ -119,6 +125,29 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
               l10n.authMemoryHint,
               style: TextStyle(fontSize: 12, color: theme.secondaryText),
             ),
+            if (widget.viaJumpHost) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.alt_route_rounded,
+                    size: 14,
+                    color: theme.secondaryText,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      l10n.jumpCredentialsHint(widget.server.name),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.secondaryText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             SegmentedButton<AuthMethod>(
               segments: [

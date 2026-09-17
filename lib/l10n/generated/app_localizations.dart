@@ -1447,6 +1447,300 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This private key format is not supported. Paste a key in OpenSSH or PEM (RSA/EC) format — a PKCS#8 key starting with \"BEGIN PRIVATE KEY\" must be converted first.'**
   String get privateKeyUnsupportedMsg;
+
+  /// No description provided for @portForwarding.
+  ///
+  /// In en, this message translates to:
+  /// **'Port forwarding'**
+  String get portForwarding;
+
+  /// No description provided for @portForwardEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No port forwards yet'**
+  String get portForwardEmpty;
+
+  /// No description provided for @portForwardEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a rule, then start it while the host is connected.'**
+  String get portForwardEmptyHint;
+
+  /// No description provided for @portForwardAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'New forward'**
+  String get portForwardAdd;
+
+  /// No description provided for @portForwardEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit forward'**
+  String get portForwardEdit;
+
+  /// No description provided for @portForwardDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this port forward?'**
+  String get portForwardDeleteTitle;
+
+  /// No description provided for @portForwardDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Only this rule is removed; other running forwards are untouched.'**
+  String get portForwardDeleteBody;
+
+  /// No description provided for @portForwardStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start'**
+  String get portForwardStart;
+
+  /// No description provided for @portForwardStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get portForwardStop;
+
+  /// No description provided for @portForwardStatusStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting'**
+  String get portForwardStatusStarting;
+
+  /// No description provided for @portForwardStatusRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get portForwardStatusRunning;
+
+  /// No description provided for @portForwardStatusStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped'**
+  String get portForwardStatusStopped;
+
+  /// No description provided for @portForwardStatusFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get portForwardStatusFailed;
+
+  /// No description provided for @portForwardSessionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'No session yet — connect to the host to start or stop port forwards.'**
+  String get portForwardSessionHint;
+
+  /// No description provided for @portForwardAutoTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto'**
+  String get portForwardAutoTag;
+
+  /// No description provided for @portForwardSummaryLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'{listen} → {target} (via server)'**
+  String portForwardSummaryLocal(String listen, String target);
+
+  /// No description provided for @portForwardSummaryRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Server {listen} → local {target}'**
+  String portForwardSummaryRemote(String listen, String target);
+
+  /// No description provided for @portForwardSummaryDynamic.
+  ///
+  /// In en, this message translates to:
+  /// **'SOCKS5 proxy {listen}'**
+  String portForwardSummaryDynamic(String listen);
+
+  /// No description provided for @portForwardBoundPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Bound to port {port}'**
+  String portForwardBoundPort(int port);
+
+  /// No description provided for @portForwardErrorNotConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'No session, so the forward was not started'**
+  String get portForwardErrorNotConnected;
+
+  /// No description provided for @portForwardErrorUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Port forwarding is not available on this platform (the browser has no raw TCP)'**
+  String get portForwardErrorUnsupported;
+
+  /// No description provided for @portForwardErrorRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'The server refused this forward (port in use, or listening is not permitted)'**
+  String get portForwardErrorRefused;
+
+  /// No description provided for @portForwardErrorNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'The network dropped, so the forward was not started'**
+  String get portForwardErrorNetwork;
+
+  /// No description provided for @portForwardErrorOther.
+  ///
+  /// In en, this message translates to:
+  /// **'The forward was not started'**
+  String get portForwardErrorOther;
+
+  /// No description provided for @portForwardRuleIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'This rule is incomplete — fill in the addresses and ports'**
+  String get portForwardRuleIncomplete;
+
+  /// No description provided for @portForwardMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Type'**
+  String get portForwardMode;
+
+  /// No description provided for @portForwardModeLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Local (-L)'**
+  String get portForwardModeLocal;
+
+  /// No description provided for @portForwardModeRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote (-R)'**
+  String get portForwardModeRemote;
+
+  /// No description provided for @portForwardModeDynamic.
+  ///
+  /// In en, this message translates to:
+  /// **'Dynamic (-D)'**
+  String get portForwardModeDynamic;
+
+  /// No description provided for @portForwardLocalDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen locally, reach the target through the server'**
+  String get portForwardLocalDesc;
+
+  /// No description provided for @portForwardRemoteDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Let the server listen, reach a local address'**
+  String get portForwardRemoteDesc;
+
+  /// No description provided for @portForwardDynamicDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Run a local SOCKS5 proxy; clients choose the target'**
+  String get portForwardDynamicDesc;
+
+  /// No description provided for @portForwardListenAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen address'**
+  String get portForwardListenAddress;
+
+  /// No description provided for @portForwardListenPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen port'**
+  String get portForwardListenPort;
+
+  /// No description provided for @portForwardTargetAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Target address'**
+  String get portForwardTargetAddress;
+
+  /// No description provided for @portForwardTargetPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Target port'**
+  String get portForwardTargetPort;
+
+  /// No description provided for @portForwardAutoStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start automatically on connect'**
+  String get portForwardAutoStart;
+
+  /// No description provided for @portForwardAutoStartHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto start needs saved credentials; otherwise you will be asked for them on connect.'**
+  String get portForwardAutoStartHint;
+
+  /// No description provided for @portForwardAddressRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter an address'**
+  String get portForwardAddressRequired;
+
+  /// No description provided for @jumpHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump host'**
+  String get jumpHost;
+
+  /// No description provided for @jumpHostNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get jumpHostNone;
+
+  /// No description provided for @jumpHostHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Log in to it first, then reach this host through it'**
+  String get jumpHostHint;
+
+  /// No description provided for @jumpCredentialsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These credentials are for the jump host “{name}”, used to log in to it first.'**
+  String jumpCredentialsHint(String name);
+
+  /// No description provided for @jumpHostMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The jump host of “{name}” no longer exists — pick another one in the host settings'**
+  String jumpHostMissing(String name);
+
+  /// No description provided for @jumpHostCycle.
+  ///
+  /// In en, this message translates to:
+  /// **'The jump host of “{name}” forms a loop — fix it in the host settings'**
+  String jumpHostCycle(String name);
+
+  /// No description provided for @jumpHostTooDeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many jump hosts in the chain (limit is {count})'**
+  String jumpHostTooDeep(int count);
+
+  /// No description provided for @jumpChainErrorMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'The jump host chain is not usable — check it in the host settings'**
+  String get jumpChainErrorMsg;
+
+  /// No description provided for @jumpHopFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed through jump host “{hop}”: {reason}'**
+  String jumpHopFailure(String hop, String reason);
+
+  /// No description provided for @jumpHostUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable (deleted, or would form a loop)'**
+  String get jumpHostUnavailable;
 }
 
 class _AppLocalizationsDelegate

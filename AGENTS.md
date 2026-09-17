@@ -14,6 +14,7 @@
 - 格式化：`dart format <文件>`（新改动的文件必须格式化）
 - 生成本地化代码：`flutter gen-l10n`（修改 arb 后执行）
 - SSH 链路冒烟：`dart run tool/smoke_ssh.dart <host> <port> <user> --password <密码>`（或 `--identity <PEM路径>`），追加 `--shell` 验证 PTY、`--sftp` 验证 SFTP 浏览与上传下载链路；凭据只经命令行传入
+- 转发 / 跳板机冒烟：`NOSHELL_SMOKE_HOST=<host> NOSHELL_SMOKE_PASSWORD=<密码> flutter test test/forward_smoke_test.dart`（可选 `NOSHELL_SMOKE_USER` / `NOSHELL_SMOKE_PORT`）。它必须跑 App 自己的会话层（models 依赖 Flutter），所以只能在测试 VM 里跑而不是 `dart run`；没给环境变量时整组自动跳过，`flutter test` 照常全绿
 
 ## 环境与依赖约束
 
@@ -33,17 +34,21 @@
 - `lib/theme.dart` — `AppPalette` 色板、`AppTheme` 主题构建（按亮度缓存；界面字体固定跟随系统，`ThemeData` 不再按字体分叉）、`AppThemeX` 语义色扩展
 - `lib/settings.dart` — 偏好模型：`TerminalFont`（终端字体目录：族名 / 缺字形回退链 / 名称）、`TerminalPreset`（配色）、`TerminalStylePrefs`（配色 + 字体 + 字号）与 `TerminalStyleScope`；`kBundledFontLicenses` 登记内置字体的 OFL 文本 asset
 - `lib/home_page.dart` — 桌面端左右分栏骨架（侧边栏固定宽度、可整体收起，不提供拖拽调宽）
-- `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）；`sftp_browser.dart` 为库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`；`settings_controls.dart` 为设置面板共用件（分组卡片 `SettingsSection` / `SettingsCard` / 设置行 `SettingsRow` / `SettingsIconButton` 与各设置控件），桌面设置弹窗与移动端设置 Tab 共用同一套，两端观感必须一致；`group_controls.dart` 为分组共用件（可输入新建的分组输入框 `GroupField`、重命名 / 删除 / 移动分组流程 `runGroupAction`），桌面侧边栏与移动端主机页共用，两端观感必须一致；`password_dialog.dart` 为备份口令弹窗（`BackupPasswordMode.create` 设口令并二次确认 / `.open` 输一次口令）
+- `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）；`port_forward_panel.dart` 为「转发」页（规则列表 + 新建 / 编辑弹窗），桌面与移动端共用；`jump_host_field.dart` 为跳板机下拉（桌面弹窗与移动端编辑页共用）；`sftp_browser.dart` 为库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`；`settings_controls.dart` 为设置面板共用件（分组卡片 `SettingsSection` / `SettingsCard` / 设置行 `SettingsRow` / `SettingsIconButton` 与各设置控件），桌面设置弹窗与移动端设置 Tab 共用同一套，两端观感必须一致；`group_controls.dart` 为分组共用件（可输入新建的分组输入框 `GroupField`、重命名 / 删除 / 移动分组流程 `runGroupAction`），桌面侧边栏与移动端主机页共用，两端观感必须一致；`password_dialog.dart` 为备份口令弹窗（`BackupPasswordMode.create` 设口令并二次确认 / `.open` 输一次口令）
 - `lib/ssh/` — 会话层（`SessionManager`、`TerminalSession`、传输层、终端视图、凭据弹窗、连接入口）
   - `credential_store.dart` — 凭据安全存储抽象；`credential_store_io.dart` / `credential_store_stub.dart` 为条件导出的原生实现与 web 桩（同 local_write 模式）
   - `host_key_store.dart` — 主机公钥指纹存储与 TOFU 校验决策。**一台主机存一组指纹**（`HostKeyRecord` 只含指纹），判据就是指纹本身：dartssh2 的指纹只哈希密钥体、不含算法名，所以同一把密钥换算法名指纹不变，按「算法名 + 指纹」比对会把良性协商变化误判成中间人。读取失败走 `HostKeysUnavailable` 并**拒绝连接**（fail closed，绝不按「从未记录」放行后覆盖可信记录）；`HostKeyChangedException` / `HostKeyUnavailableException` 分别归类为 `TerminalErrorKind.hostKey` / `.hostKeyStore`，前者才提供「清除记录的指纹并重连」，且文案必须带上指纹供用户与服务器核对
+  - `forward.dart` — 转发的公共类型：双向通道 `DuplexChannel`、服务端监听 `RemoteForwardListener`、本地 SOCKS5 代理 `DynamicForwardProxy`，以及失败归类 `ForwardErrorKind` / `ForwardException`（与平台无关，web 也要能编译）
+  - `tunnel_gateway.dart` — 转发本机一侧的网关（监听 / 拨号），条件导出 `tunnel_gateway_io.dart`（真套接字）与 `tunnel_gateway_stub.dart`（web 抛 `UnsupportedError`）
+  - `port_forward_runtime.dart` — `PortForwardManager`：把规则绑到某条会话的连接上，负责启停、状态与失败归类；生命周期与会话同生共死
+  - `jump_host.dart` — 跳板链路：`resolveJumpChain`（由外到内、环 / 缺主机 / 层数上限）、`connectionChain`、表单候选过滤 `jumpHostCandidates`、按跳包装错误的 `SshHopException` 与 `unwrapHopError`
   - `sftp.dart` / `dartssh2_sftp.dart` — SFTP 领域模型、抽象接口与 dartssh2 适配器
   - `sftp_browser.dart` / `sftp_transfer.dart` — SFTP 面板状态：目录浏览与串行传输队列
   - `local_files.dart` — 本地文件网关（选文件 / 落盘 / 导出落点）；`local_write*.dart` 为按平台条件导出的落盘实现（含 `promote` 改名与 `ownerOnly` 权限收紧），`local_chmod.dart` 是只为 0600 存在的最小 FFI 绑定，`local_share*.dart` 为按平台条件导出的分享面板实现
 - `lib/mobile/` — 移动端四个 Tab 及详情/编辑页
 - `lib/l10n/` — arb 源文件（`app_en.arb` / `app_zh.arb`）；`lib/l10n/generated/` 为生成代码
 - `assets/fonts/` — 随包内置的终端字体（`jetbrains_mono/`、`fira_code/` 各含 Regular + Bold 与 `OFL.txt`，合计约 1.2 MB），由 `pubspec.yaml` 的 `fonts:` 声明、`assets:` 声明许可文本。族名一律带 `NoShell ` 前缀（如 `NoShell JetBrains Mono`）：与系统字体彻底解耦，引擎必定命中随包文件
-- `test/` — widget、mobile、session_manager、localization、persistence（序列化与持久化）、groups（分组建模 / 排序 / 落盘迁移与两端交互）、credentials_dialog、connect_flow、host_key（TOFU 决策与处置入口）、host_transfer（主机文本格式解析）、host_backup（备份信封与导入 / 导出流程）、sftp（browser / adapter / tab 三组）、window_caption（自绘标题条）、font_assets（内置字体与 pubspec / 许可 / FontManifest 的接线校验）测试；`test/support/` 放共享假实现（含 `FakeCredentialStore`）
+- `test/` — widget、mobile、session_manager、localization、persistence（序列化与持久化）、groups（分组建模 / 排序 / 落盘迁移与两端交互）、credentials_dialog、connect_flow、host_key（TOFU 决策与处置入口）、host_transfer（主机文本格式解析）、host_backup（备份信封与导入 / 导出流程）、sftp（browser / adapter / tab 三组）、window_caption（自绘标题条）、font_assets（内置字体与 pubspec / 许可 / FontManifest 的接线校验）、port_forward（规则模型 + 三种模式的运行时）、port_forward_panel（转发页交互）、jump_host（链路解析 / 候选过滤 / 逐跳失败归类 / 连接流程弹窗）测试；`forward_smoke_test.dart` 是需要真实主机的冒烟（无环境变量时自动跳过）；`test/support/` 放共享假实现（含 `FakeCredentialStore`、`forward_fakes.dart` 里的假通道 / 假网关 / 假转发传输）
 - `integration_test/` — 驱动真实应用的集成测试（`screenshots_test.dart` 为 README 截图生成器，演示链路走本地一次性服务端，输出 `docs/screenshots/`）
 - `tool/` — 开发脚本（`smoke_ssh.dart` 冒烟脚本，`dev_sftp_server.py` 是配套的一次性本地 SFTP + 假 shell 服务端，只绑 127.0.0.1、账号 smoke/smoke，供 `--sftp` / `--shell` 冒烟与截图使用）
 - `docs/screenshots/` — README 截图，由 `integration_test/screenshots_test.dart` 生成，禁止放入真实主机信息
@@ -91,6 +96,16 @@
   - 导出落点分两条：桌面端走「另存为」对话框（`LocalDestination.share` 为 false）；移动端没有「另存为」（选择器返回 SAF / 沙盒 URL，`dart:io` 写不进去），写进临时目录后**必须**过 `share_plus` 的分享面板，由用户决定存到「文件」还是发给别人，实现方负责删掉临时文件。不加这道分享，文件就躺在用户找不到的地方
   - SFTP 下载仍走 `pickDownloadTarget`，移动端落到应用文档目录——这条靠 iOS 的 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace` 才对用户可见，改动 `ios/Runner/Info.plist` 时不要删掉
   - `.nsbak` 的 UTI 是 `com.noshell.hosts-backup`（conforms to `public.json`），在 Info.plist 的 `UTExportedTypeDeclarations` 与 `CFBundleDocumentTypes` 里各声明一次；后缀名改了就三处一起改（`backupFileExtension`、UTI 的 tag、Info.plist）
+- 端口转发：
+  - 规则是**静态配置**，存在 `SshServer.forwards` 里随主机一起落盘；启停状态属于运行时，挂在主机的活跃会话上（`TerminalSession.forwards`）。没有会话时列表照常展示，但开关禁用并提示先连接
+  - 通道复用会话已认证的连接（与 SFTP 同样的取舍）：不另建 TCP、不重复认证，会话断开即随之失效；三种模式的差异只在「哪一头监听」——`-L` 本机监听 + 每个连接开一条直连通道，`-R` 请服务端监听 + 每个入站连接拨到本机，`-D` 交给 dartssh2 的本地 SOCKS5（web 没有原始 TCP，整条路径在 `tunnel_gateway_stub` 处兜底为不支持）
+  - `PortForwardRule.isRunnable` 按模式分别判定：动态转发不看远端地址，远程转发的远端端口 0 是「让服务端分配」而不是没填
+  - 关掉监听时**不等** `subscription.cancel()` 完成：不再收新连接在调用返回时已生效，等它只会把「用户点了停止」拖在事件循环上
+  - 编辑主机时（桌面弹窗与移动端编辑页都是**从零构造** `SshServer`）必须显式带上 `forwards`，漏掉就是每编辑一次静默清空该主机的全部转发规则
+- 跳板机：
+  - 存的是**跳板机的 id**（`SshServer.jumpServerId`），不是地址副本：跳板机自己也有端口、用户名与凭据，复制一份必然走样；链路在连接时解析（`resolveJumpChain`），环 / 跳板机被删 / 层数超限都在这里挡下并给出可操作的提示
+  - 一跳一份凭据：连接流程逐跳取凭据（存过就用，没存过当场弹窗），任意一跳取消即整条连接取消；失败按跳包装成 `SshHopException`，归类与文案用 `unwrapHopError` 剥出真原因，界面必须指明是**哪一跳**出的问题
+  - 主机指纹校验逐跳进行：跳板机指纹不一致时，`hostKeyChanged` 带的是那一跳的地址，「清除指纹并重连」清的也必须是那一跳的记录
 - 颜色一律经 `theme.dart` 的语义色（`AppThemeX` 扩展 / `AppPalette`）获取，不得在组件里散落硬编码颜色
 - 任何真实主机凭据、私钥、口令不得写入代码、测试或仓库；冒烟脚本凭据只经命令行传入
 - 遵循 `flutter_lints` 规则，新文件需符合官方 Dart 风格；提交前 `flutter analyze` 必须无告警且 `flutter test` 全部通过

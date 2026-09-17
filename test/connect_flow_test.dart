@@ -7,15 +7,15 @@ import 'package:no_shell/ssh/connect_flow.dart';
 import 'package:no_shell/ssh/session_manager.dart';
 import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
-import 'package:no_shell/ssh/ssh_transport.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
 import 'package:no_shell/store.dart';
 import 'package:xterm/core.dart';
 
 import 'support/credential_store_fake.dart';
+import 'support/forward_fakes.dart';
 
 /// 可编程假传输：成功时向终端写入欢迎语，可配置抛错模拟认证失败。
-final class _FakeTransport implements SshTransport {
+final class _FakeTransport with NoForwardingTransport {
   _FakeTransport({this.error});
 
   final Object? error;
@@ -69,7 +69,7 @@ Future<_Harness> _pump(
     ..credentials = credentials ?? FakeCredentialStore();
   final sessions = SessionManager(
     store: ServerStore(),
-    sessionFactory: (server, creds) => TerminalSession(
+    sessionFactory: (server, creds, _) => TerminalSession(
       server: server,
       credentials: creds,
       transport: transports.removeAt(0),

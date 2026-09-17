@@ -843,4 +843,184 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get privateKeyUnsupportedMsg =>
       'This private key format is not supported. Paste a key in OpenSSH or PEM (RSA/EC) format — a PKCS#8 key starting with \"BEGIN PRIVATE KEY\" must be converted first.';
+
+  @override
+  String get portForwarding => 'Port forwarding';
+
+  @override
+  String get portForwardEmpty => 'No port forwards yet';
+
+  @override
+  String get portForwardEmptyHint =>
+      'Create a rule, then start it while the host is connected.';
+
+  @override
+  String get portForwardAdd => 'New forward';
+
+  @override
+  String get portForwardEdit => 'Edit forward';
+
+  @override
+  String get portForwardDeleteTitle => 'Delete this port forward?';
+
+  @override
+  String get portForwardDeleteBody =>
+      'Only this rule is removed; other running forwards are untouched.';
+
+  @override
+  String get portForwardStart => 'Start';
+
+  @override
+  String get portForwardStop => 'Stop';
+
+  @override
+  String get portForwardStatusStarting => 'Starting';
+
+  @override
+  String get portForwardStatusRunning => 'Running';
+
+  @override
+  String get portForwardStatusStopped => 'Stopped';
+
+  @override
+  String get portForwardStatusFailed => 'Failed';
+
+  @override
+  String get portForwardSessionHint =>
+      'No session yet — connect to the host to start or stop port forwards.';
+
+  @override
+  String get portForwardAutoTag => 'Auto';
+
+  @override
+  String portForwardSummaryLocal(String listen, String target) {
+    return '$listen → $target (via server)';
+  }
+
+  @override
+  String portForwardSummaryRemote(String listen, String target) {
+    return 'Server $listen → local $target';
+  }
+
+  @override
+  String portForwardSummaryDynamic(String listen) {
+    return 'SOCKS5 proxy $listen';
+  }
+
+  @override
+  String portForwardBoundPort(int port) {
+    return 'Bound to port $port';
+  }
+
+  @override
+  String get portForwardErrorNotConnected =>
+      'No session, so the forward was not started';
+
+  @override
+  String get portForwardErrorUnsupported =>
+      'Port forwarding is not available on this platform (the browser has no raw TCP)';
+
+  @override
+  String get portForwardErrorRefused =>
+      'The server refused this forward (port in use, or listening is not permitted)';
+
+  @override
+  String get portForwardErrorNetwork =>
+      'The network dropped, so the forward was not started';
+
+  @override
+  String get portForwardErrorOther => 'The forward was not started';
+
+  @override
+  String get portForwardRuleIncomplete =>
+      'This rule is incomplete — fill in the addresses and ports';
+
+  @override
+  String get portForwardMode => 'Type';
+
+  @override
+  String get portForwardModeLocal => 'Local (-L)';
+
+  @override
+  String get portForwardModeRemote => 'Remote (-R)';
+
+  @override
+  String get portForwardModeDynamic => 'Dynamic (-D)';
+
+  @override
+  String get portForwardLocalDesc =>
+      'Listen locally, reach the target through the server';
+
+  @override
+  String get portForwardRemoteDesc =>
+      'Let the server listen, reach a local address';
+
+  @override
+  String get portForwardDynamicDesc =>
+      'Run a local SOCKS5 proxy; clients choose the target';
+
+  @override
+  String get portForwardListenAddress => 'Listen address';
+
+  @override
+  String get portForwardListenPort => 'Listen port';
+
+  @override
+  String get portForwardTargetAddress => 'Target address';
+
+  @override
+  String get portForwardTargetPort => 'Target port';
+
+  @override
+  String get portForwardAutoStart => 'Start automatically on connect';
+
+  @override
+  String get portForwardAutoStartHint =>
+      'Auto start needs saved credentials; otherwise you will be asked for them on connect.';
+
+  @override
+  String get portForwardAddressRequired => 'Please enter an address';
+
+  @override
+  String get jumpHost => 'Jump host';
+
+  @override
+  String get jumpHostNone => 'None';
+
+  @override
+  String get jumpHostHint =>
+      'Log in to it first, then reach this host through it';
+
+  @override
+  String jumpCredentialsHint(String name) {
+    return 'These credentials are for the jump host “$name”, used to log in to it first.';
+  }
+
+  @override
+  String jumpHostMissing(String name) {
+    return 'The jump host of “$name” no longer exists — pick another one in the host settings';
+  }
+
+  @override
+  String jumpHostCycle(String name) {
+    return 'The jump host of “$name” forms a loop — fix it in the host settings';
+  }
+
+  @override
+  String jumpHostTooDeep(int count) {
+    return 'Too many jump hosts in the chain (limit is $count)';
+  }
+
+  @override
+  String get jumpChainErrorMsg =>
+      'The jump host chain is not usable — check it in the host settings';
+
+  @override
+  String jumpHopFailure(String hop, String reason) {
+    return 'Failed through jump host “$hop”: $reason';
+  }
+
+  @override
+  String get jumpHostUnavailable =>
+      'Unavailable (deleted, or would form a loop)';
 }

@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/ssh/local_files.dart';
 import 'package:no_shell/ssh/sftp.dart';
-import 'package:no_shell/ssh/ssh_transport.dart';
 import 'package:xterm/core.dart';
+
+import 'forward_fakes.dart';
 
 /// 内存版 SFTP 文件系统：覆盖浏览、上传 / 下载与增删改的编排逻辑，
 /// 不涉及真实网络。列表按目录存放，`rmdir` 与真实服务端一致地拒绝非空目录。
@@ -498,7 +499,7 @@ final class _MemoryWriteHandle implements LocalWriteHandle {
 }
 
 /// 假传输层：直接给出 [openSftp] 的结果，便于会话层与面板层测试。
-final class FakeSftpTransport implements SshTransport {
+final class FakeSftpTransport with NoForwardingTransport {
   FakeSftpTransport({this.fileSystem, this.sftpError});
 
   final SftpFileSystem? fileSystem;

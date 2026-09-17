@@ -6,13 +6,14 @@ import '../ssh/connect_flow.dart';
 import '../ssh/credential_store.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
+import '../widgets/port_forward_panel.dart' show PortForwardPanel;
 import '../widgets/server_detail.dart' show OverviewTab, TerminalTab;
 import '../widgets/sftp_browser.dart' show SftpTab;
 import '../widgets/status_badges.dart';
 import 'server_edit_page.dart';
 
-/// 移动端主机详情页：概览 / 终端 / SFTP 三个 Tab + 底部连接操作，
-/// 复用桌面端的概览、终端与 SFTP 视图。
+/// 移动端主机详情页：概览 / 终端 / SFTP / 转发四个 Tab + 底部连接操作，
+/// 复用桌面端的概览、终端、SFTP 与转发视图。
 class ServerDetailPage extends StatelessWidget {
   const ServerDetailPage({
     super.key,
@@ -77,7 +78,7 @@ class ServerDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     // 注意：这里的 store 订阅必须保留——名称 / 状态 / 会话都来自它。
-    // 三个 Tab 各自的保活子树已经尽力隔离（见下方 _KeepAlive），
+    // 四个 Tab 各自的保活子树已经尽力隔离（见下方 _KeepAlive），
     // 终端那边的重排版由 SshTerminalView 内部的 TerminalStyle 缓存兜住。
     return ListenableBuilder(
       listenable: store,
@@ -123,7 +124,7 @@ class ServerDetailPage extends StatelessWidget {
             ],
           ),
           body: DefaultTabController(
-            length: 3,
+            length: 4,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -132,14 +133,22 @@ class ServerDetailPage extends StatelessWidget {
                     Tab(text: l10n.overview),
                     Tab(text: l10n.terminal),
                     Tab(text: l10n.sftp),
+                    Tab(text: l10n.portForwarding),
                   ],
                   onTap: (_) => FocusScope.of(context).unfocus(),
                 ),
                 Expanded(
                   child: TabBarView(
-                    // 保活三个 Tab：切走不再 dispose，切回终端无需重建 xterm 视图。
+                    // 保活四个 Tab：切走不再 dispose，切回终端无需重建 xterm 视图。
                     children: [
-                      _KeepAlive(child: OverviewTab(server: server)),
+                      _KeepAlive(
+                        child: OverviewTab(
+                          server: server,
+                          // 跳板机存的是 id，概览要给人看的名字；那台主机已被删时
+                          // 名字为空，卡片退回显示 id，让用户看出引用已经失效。
+                          jumpHostName: store.byId(server.jumpServerId)?.name,
+                        ),
+                      ),
                       _KeepAlive(
                         child: TerminalTab(
                           server: server,
@@ -159,6 +168,13 @@ class ServerDetailPage extends StatelessWidget {
                               : () => sessions.retry(server.id),
                         ),
                       ),
+                      _KeepAlive(
+                        child: PortForwardPanel(
+                          server: server,
+                          store: store,
+                          sessions: sessions,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -173,6 +189,8 @@ class ServerDetailPage extends StatelessWidget {
                 sessions: sessions,
                 server: server,
                 credentials: credentials,
+                // 必须带上 store：跳板机链路是从它解析出来的。
+                store: store,
               ),
               icon: Icon(
                 hasActive ? Icons.link_off_rounded : Icons.bolt_rounded,

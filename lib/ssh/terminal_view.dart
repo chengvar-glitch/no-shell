@@ -141,7 +141,15 @@ final class SshTerminalView extends StatelessWidget {
     );
   }
 
-  String _failureText(AppLocalizations l10n) => switch (session.errorKind) {
+  String _failureText(AppLocalizations l10n) {
+    final reason = _reasonText(l10n);
+    // 跳板链路上出的错必须指出是哪一跳：三台机器排在一起时，
+    // 只说「认证失败」用户不知道该去改哪台的密码。
+    final hop = session.failedHop;
+    return hop == null ? reason : l10n.jumpHopFailure(hop, reason);
+  }
+
+  String _reasonText(AppLocalizations l10n) => switch (session.errorKind) {
     TerminalErrorKind.auth => l10n.authFailedMsg,
     TerminalErrorKind.network => l10n.networkErrorMsg,
     TerminalErrorKind.unsupported => l10n.webUnsupportedMsg,
@@ -156,11 +164,19 @@ final class SshTerminalView extends StatelessWidget {
             ),
     TerminalErrorKind.hostKeyStore => l10n.hostKeyUnavailableMsg,
     TerminalErrorKind.privateKey => l10n.privateKeyUnsupportedMsg,
+    TerminalErrorKind.jumpChain => l10n.jumpChainErrorMsg,
     TerminalErrorKind.other => session.error ?? l10n.networkErrorMsg,
   };
 
+  /// 清除指纹后重连。指纹对不上的是跳板机上那一跳时，清的必须是那一跳的
+  /// 记录（[HostKeyChangedException] 自带 host / port），否则记录原封不动、
+  /// 用户点几次都还是同一个错。
   Future<void> _forgetHostKeyAndRetry() async {
-    await session.hostKeys?.delete(session.server.host, session.server.port);
+    final changed = session.hostKeyChanged;
+    await session.hostKeys?.delete(
+      changed?.host ?? session.server.host,
+      changed?.port ?? session.server.port,
+    );
     onRetry?.call();
   }
 }

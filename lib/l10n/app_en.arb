@@ -447,5 +447,126 @@
     }
   },
   "hostKeyUnavailableMsg": "Could not read the recorded host key fingerprint, so the connection was refused. This is a local storage problem, not a key change — your recorded fingerprint has been left untouched.",
-  "privateKeyUnsupportedMsg": "This private key format is not supported. Paste a key in OpenSSH or PEM (RSA/EC) format — a PKCS#8 key starting with \"BEGIN PRIVATE KEY\" must be converted first."
+  "privateKeyUnsupportedMsg": "This private key format is not supported. Paste a key in OpenSSH or PEM (RSA/EC) format — a PKCS#8 key starting with \"BEGIN PRIVATE KEY\" must be converted first.",
+  "portForwarding": "Port forwarding",
+  "portForwardEmpty": "No port forwards yet",
+  "portForwardEmptyHint": "Create a rule, then start it while the host is connected.",
+  "portForwardAdd": "New forward",
+  "portForwardEdit": "Edit forward",
+  "portForwardDeleteTitle": "Delete this port forward?",
+  "portForwardDeleteBody": "Only this rule is removed; other running forwards are untouched.",
+  "portForwardStart": "Start",
+  "portForwardStop": "Stop",
+  "portForwardStatusStarting": "Starting",
+  "portForwardStatusRunning": "Running",
+  "portForwardStatusStopped": "Stopped",
+  "portForwardStatusFailed": "Failed",
+  "portForwardSessionHint": "No session yet — connect to the host to start or stop port forwards.",
+  "portForwardAutoTag": "Auto",
+  "portForwardSummaryLocal": "{listen} → {target} (via server)",
+  "@portForwardSummaryLocal": {
+    "placeholders": {
+      "listen": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardSummaryRemote": "Server {listen} → local {target}",
+  "@portForwardSummaryRemote": {
+    "placeholders": {
+      "listen": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardSummaryDynamic": "SOCKS5 proxy {listen}",
+  "@portForwardSummaryDynamic": {
+    "placeholders": {
+      "listen": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardBoundPort": "Bound to port {port}",
+  "@portForwardBoundPort": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "portForwardErrorNotConnected": "No session, so the forward was not started",
+  "portForwardErrorUnsupported": "Port forwarding is not available on this platform (the browser has no raw TCP)",
+  "portForwardErrorRefused": "The server refused this forward (port in use, or listening is not permitted)",
+  "portForwardErrorNetwork": "The network dropped, so the forward was not started",
+  "portForwardErrorOther": "The forward was not started",
+  "portForwardRuleIncomplete": "This rule is incomplete — fill in the addresses and ports",
+  "portForwardMode": "Type",
+  "portForwardModeLocal": "Local (-L)",
+  "portForwardModeRemote": "Remote (-R)",
+  "portForwardModeDynamic": "Dynamic (-D)",
+  "portForwardLocalDesc": "Listen locally, reach the target through the server",
+  "portForwardRemoteDesc": "Let the server listen, reach a local address",
+  "portForwardDynamicDesc": "Run a local SOCKS5 proxy; clients choose the target",
+  "portForwardListenAddress": "Listen address",
+  "portForwardListenPort": "Listen port",
+  "portForwardTargetAddress": "Target address",
+  "portForwardTargetPort": "Target port",
+  "portForwardAutoStart": "Start automatically on connect",
+  "portForwardAutoStartHint": "Auto start needs saved credentials; otherwise you will be asked for them on connect.",
+  "portForwardAddressRequired": "Please enter an address",
+  "jumpHost": "Jump host",
+  "jumpHostNone": "None",
+  "jumpHostHint": "Log in to it first, then reach this host through it",
+  "jumpCredentialsHint": "These credentials are for the jump host “{name}”, used to log in to it first.",
+  "@jumpCredentialsHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostMissing": "The jump host of “{name}” no longer exists — pick another one in the host settings",
+  "@jumpHostMissing": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostCycle": "The jump host of “{name}” forms a loop — fix it in the host settings",
+  "@jumpHostCycle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostTooDeep": "Too many jump hosts in the chain (limit is {count})",
+  "@jumpHostTooDeep": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "jumpChainErrorMsg": "The jump host chain is not usable — check it in the host settings",
+  "jumpHopFailure": "Failed through jump host “{hop}”: {reason}",
+  "@jumpHopFailure": {
+    "placeholders": {
+      "hop": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostUnavailable": "Unavailable (deleted, or would form a loop)"
 }
