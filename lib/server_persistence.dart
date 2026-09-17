@@ -41,17 +41,19 @@ final class ServerArchiveLoaded extends ServerArchiveLoad {
   final ServerArchive archive;
 }
 
-/// 存档存在但读不出来：要么解不开，要么两份记录只剩一份
-/// （主机在、分组没了，或反过来）——都是丢过数据的信号。
+/// 存档存在但读不出来：内容解不开，或存储层读操作本身失败。
 ///
-/// 调用方必须据此停写存档：手头这份内存列表并不完整，落盘就等于
-/// 拿残缺内容覆盖用户仅存的那份数据。
+/// 调用方必须据此停写存档：手头这份内存列表是空的（或残缺的），
+/// 落盘就等于拿它覆盖用户仅存的那份数据。
 final class ServerArchiveUnreadable extends ServerArchiveLoad {
   const ServerArchiveUnreadable();
 }
 
 /// 主机与分组布局的落盘通道；内存中的唯一状态源仍是 ServerStore。
 /// 测试可注入内存假实现。
+///
+/// 存档格式处于开发阶段，不背历史包袱：读不出当前格式即 [ServerArchiveUnreadable]，
+/// 没有旧格式迁移分支。
 abstract interface class ServerPersistence {
   /// 读取存档；三种结果见 [ServerArchiveLoad]。
   Future<ServerArchiveLoad> load();
@@ -62,10 +64,8 @@ abstract interface class ServerPersistence {
 /// 基于 shared_preferences 的 JSON 实现，六个平台均可用（web 为 localStorage）。
 /// 注意：只存主机元数据，凭据一律走 CredentialStore 的系统安全存储。
 final class SharedPreferencesServerPersistence implements ServerPersistence {
-  /// 主机条目沿用 v1 的纯数组格式：旧版本读得懂，降级不丢主机。
+  /// 主机条目是纯数组；分组顺序 / 折叠态另存一份。
   static const _serversKey = 'ssh_servers_v1';
-
-  /// 分组布局（顺序 / 折叠态）；缺失即按主机出现次序重建。
   static const _groupsKey = 'ssh_groups_v1';
 
   @override
@@ -81,11 +81,8 @@ final class SharedPreferencesServerPersistence implements ServerPersistence {
       // 否则一次瞬时故障就会把磁盘上的存档覆盖成空列表。
       return const ServerArchiveUnreadable();
     }
-    if (rawServers == null) {
-      // 分组布局还在、主机却没了，说明存档只丢了一半，不是首次运行。
-      if (rawGroups != null) return const ServerArchiveUnreadable();
-      return const ServerArchiveMissing();
-    }
+    // 主机记录不在就是没存过（分组布局是随主机一起写的，不单独存在）。
+    if (rawServers == null) return const ServerArchiveMissing();
     try {
       final decoded = jsonDecode(rawServers);
       if (decoded is! List) return const ServerArchiveUnreadable();

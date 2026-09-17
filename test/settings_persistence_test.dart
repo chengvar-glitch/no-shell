@@ -80,40 +80,14 @@ void main() {
     expect(AppSettings.fromJson(const {}), const AppSettings());
   });
 
-  test('老存档迁移：界面字体字段被忽略，终端字体的旧取值逐个映射', () {
-    // v1 存档里的 uiFont 已随「界面字体不提供自定义」一起删除，读时直接忽略；
-    // 终端字体的旧预设按语义迁移，不让用户停在旧状态上。
-    expect(
-      AppSettings.fromJson({'uiFont': 'pingFang', 'terminalFont': 'menlo'})
-          .terminalStyle
-          .font,
-      TerminalFont.systemMonospace,
-    );
-
-    for (final name in ['system', 'menlo', 'consolas']) {
-      expect(
-        AppSettings.fromJson({'terminalFont': name}).terminalStyle.font,
-        TerminalFont.systemMonospace,
-        reason: '$name 是「系统里的等宽」，迁移到同语义的系统等宽',
-      );
-    }
-
-    // 手填族名的入口已删除，且那种状态在 Linux 上可能已经被 fontconfig
-    // 顶替成比例字体：填过 Fira Code 的落到内置 Fira Code，其余落到内置默认。
-    expect(
-      AppSettings.fromJson({
-        'terminalFont': 'custom',
-        'terminalCustomFontName': 'Fira Code',
-      }).terminalStyle.font,
-      TerminalFont.firaCode,
-    );
-    expect(
-      AppSettings.fromJson({
-        'terminalFont': 'custom',
-        'terminalCustomFontName': 'Sarasa Mono SC',
-      }).terminalStyle.font,
-      TerminalFont.jetBrainsMono,
-    );
+  test('认不出的字体取值退回内置默认，不带走其余字段', () {
+    // 不认得的取值（脏档 / 旧档）一律退回默认；同一条 JSON 里的其他字段照常读回。
+    final restored = AppSettings.fromJson({
+      'themeMode': 'dark',
+      'terminalFont': 'menlo',
+    });
+    expect(restored.terminalStyle.font, TerminalFont.jetBrainsMono);
+    expect(restored.themeMode, ThemeMode.dark);
   });
 
   testWidgets('启动即应用落盘偏好，改动在防抖后写回', (tester) async {

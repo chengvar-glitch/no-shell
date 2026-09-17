@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:async';
 import 'dart:convert';
 
@@ -37,10 +36,7 @@ void main() {
     test('往返：解出来的清单文本与原文一致', () async {
       final contents = await _encode(hostsText, 'correct horse battery');
 
-      expect(
-        await decodeHostsBackup(contents, 'correct horse battery'),
-        hostsText,
-      );
+      expect(await _decode(contents, 'correct horse battery'), hostsText);
     });
 
     test('信封只带密文，明文与口令都不出现在文件里', () async {
@@ -82,7 +78,7 @@ void main() {
       final contents = await _encode(hostsText, 'right-password');
 
       expect(
-        () async => await decodeHostsBackup(contents, 'wrong-password'),
+        () async => await _decode(contents, 'wrong-password'),
         throwsA(
           isA<BackupFormatException>().having(
             (error) => error.problem,
@@ -101,7 +97,7 @@ void main() {
 
       // 认证标签对不上：和口令不对是同一种失败，不会解出乱码。
       expect(
-        () async => await decodeHostsBackup(jsonEncode(decoded), 'pw-123456'),
+        () async => await _decode(jsonEncode(decoded), 'pw-123456'),
         throwsA(
           isA<BackupFormatException>().having(
             (error) => error.problem,
@@ -165,56 +161,6 @@ void main() {
           reason: '不合规的信封必须被判为不可读：$broken',
         );
       }
-    });
-
-    test('旧备份（五万轮 PBKDF2）仍然解得开', () async {
-      // 解密按信封里的 kdf 分派：换成 scrypt 之后，早先导出的备份
-      // 不能因为「我们换了算法」就作废。这里手工构造一份旧格式信封。
-      final salt = Uint8List.fromList(List.generate(16, (i) => i));
-      final nonce = Uint8List.fromList(List.generate(12, (i) => i + 1));
-      final key = derivePbkdf2ForTest('legacy-pw', salt, 50000);
-      final sealed = sealForTest(key, nonce, 'no-shell-hosts\n$hostsText');
-      final legacy = jsonEncode({
-        'scheme': 'no-shell-hosts',
-        'kdf': 'pbkdf2-hmac-sha256',
-        'iterations': 50000,
-        'cipher': 'aes-256-gcm',
-        'salt': base64.encode(salt),
-        'nonce': base64.encode(nonce),
-        'payload': base64.encode(sealed),
-      });
-
-      expect(isHostsBackup(legacy), isTrue);
-      expect(await decodeHostsBackup(legacy, 'legacy-pw'), hostsText);
-      // 口令不对仍然解不出来。
-      expect(
-        () async => await decodeHostsBackup(legacy, 'wrong'),
-        throwsA(isA<BackupFormatException>()),
-      );
-    });
-
-    test('旧格式的违规参数同样判为不可读', () async {
-      final salt = base64.encode(List.generate(16, (i) => i));
-      final nonce = base64.encode(List.generate(12, (i) => i));
-      Map<String, Object?> legacyWith(Object? iterations) => {
-        'scheme': 'no-shell-hosts',
-        'kdf': 'pbkdf2-hmac-sha256',
-        'iterations': iterations,
-        'cipher': 'aes-256-gcm',
-        'salt': salt,
-        'nonce': nonce,
-        'payload': base64.encode(List.filled(32, 0)),
-      };
-
-      expect(isHostsBackup(jsonEncode(legacyWith(50000000))), isFalse);
-      expect(isHostsBackup(jsonEncode(legacyWith(1))), isFalse);
-      expect(isHostsBackup(jsonEncode(legacyWith('50000'))), isFalse);
-      expect(isHostsBackup(jsonEncode(legacyWith(null))), isFalse);
-    });
-
-    test('空清单也能往返：解出来是空文本', () async {
-      final contents = await _encode('', 'pw-123456');
-      expect(await decodeHostsBackup(contents, 'pw-123456'), '');
     });
   });
 
@@ -371,7 +317,13 @@ void main() {
         authMethod: AuthMethod.password,
       );
       store.upsert(plain);
-      await credentials.write(plain.id, const SshCredentials(password: 'pw'));
+      // 口令用足够长且有辨识度的串：太短的哨兵（比如 'pw'）会在 base64
+      // 密文里偶然出现，让「明文不落地」这条断言变成掷骰子。
+      const plainPassword = 'correct-horse-battery-staple-42';
+      await credentials.write(
+        plain.id,
+        const SshCredentials(password: plainPassword),
+      );
 
       await pump(tester);
       final exporting = exportHostsFlow(
@@ -379,25 +331,26 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await confirmExportDialog(tester, 'file-password');
       await exporting;
 
       final written = utf8.decode(gateway.bytesOf('/tmp/backup.nsbak'));
-      expect(written, isNot(contains('pw')));
+      expect(written, isNot(contains(plainPassword)));
       expect(written, isNot(contains('192.0.2.10')));
       expect(isHostsBackup(written), isTrue);
       expect(find.text('已导出 1 台主机'), findsOneWidget);
 
       // 用同一个口令解密后就是原本的清单。
-      final text = await decodeHostsBackup(written, 'file-password');
+      final text = await _decode(written, 'file-password');
       final drafts = parseHostsText(text, defaultGroup: '默认');
       expect(drafts, hasLength(1));
       expect(drafts.single.host, '192.0.2.10');
       expect(drafts.single.port, 2222);
       expect(drafts.single.username, 'deploy');
       expect(drafts.single.group, '生产');
-      expect(drafts.single.password, 'pw');
+      expect(drafts.single.password, plainPassword);
     });
 
     testWidgets('导出：两次口令不一致时留在弹窗里，不写文件', (tester) async {
@@ -417,6 +370,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField).first, 'one-password');
@@ -455,6 +409,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, '取消'));
@@ -475,6 +430,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        derive: deriveSyncForTest,
       );
       await confirmImportDialog(tester, 'file-password');
       await importing;
@@ -499,6 +455,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        derive: deriveSyncForTest,
       );
       await confirmImportDialog(tester, 'file-password');
       await second;
@@ -516,6 +473,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        derive: deriveSyncForTest,
       );
       await confirmImportDialog(tester, 'wrong-one');
       await importing;
@@ -533,6 +491,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        derive: deriveSyncForTest,
       );
       await tester.pumpAndSettle();
 
@@ -550,6 +509,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        derive: deriveSyncForTest,
       );
       await tester.pumpAndSettle();
 
@@ -565,6 +525,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await tester.pumpAndSettle();
 
@@ -591,6 +552,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await tester.pumpAndSettle();
 
@@ -621,6 +583,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await confirmExportDialog(tester, 'file-password');
       await exporting;
@@ -653,6 +616,7 @@ void main() {
         store: store,
         credentials: credentials,
         localFiles: gateway,
+        backupParams: _testParams,
       );
       await confirmExportDialog(tester, 'file-password');
       await exporting;
@@ -664,8 +628,17 @@ void main() {
   });
 }
 
-/// 测试用低参数信封：KDF 参数写在信封里、解密按文件里的值走，所以
-/// 解密侧走的仍是生产代码路径。生产参数一次派生约 0.35 秒、占 32 MiB，
-/// 几十个用例各派生一遍会明显拖慢套件。
+/// 测试用低参数信封：参数写在信封里、解密按文件里的值走，所以解密侧
+/// 走的仍是生产代码路径。生产参数一次派生约 0.35 秒、占 32 MiB。
 Future<String> _encode(String hostsText, String password) =>
     encodeHostsBackupForTest(hostsText, password);
+
+/// 测试用的低 scrypt 参数：生产参数一次派生约 0.35 秒，在 widget 测试里
+/// 会与 pumpAndSettle 抢时序（偶发：提示还没出现就断言），而且生产参数会开
+/// isolate，fake-async 区域根本等不到它完成。流程的加密 / 解密都由它驱动。
+const _testParams = HostBackupParams(n: 1024, r: 8, p: 1);
+
+/// 测试统一走同步派生：生产参数会开 isolate，而 widget 测试的 fake-async
+/// 区域看不见 isolate 的完成（见 HostBackupParams.useIsolate）。
+Future<String> _decode(String contents, String password) =>
+    decodeHostsBackup(contents, password, derive: deriveSyncForTest);

@@ -80,8 +80,8 @@ Widget host(Widget child) => MaterialApp(
   ),
 );
 
-HostKeyRecord _rec(String keyType, String fingerprint) =>
-    HostKeyRecord(keyType: keyType, fingerprint: fingerprint);
+HostKeyRecord _rec(String fingerprint) =>
+    HostKeyRecord(fingerprint: fingerprint);
 
 /// 取出该主机已记录的全部指纹。
 List<HostKeyRecord> _recordsOf(FakeHostKeyStore store, String host, int port) =>
@@ -99,12 +99,12 @@ void main() {
         fingerprint: 'SHA256:k1',
       );
       expect(decision, HostKeyDecision.firstUse);
-      expect(_recordsOf(store, 'h1', 22), [_rec('ssh-ed25519', 'SHA256:k1')]);
+      expect(_recordsOf(store, 'h1', 22), [_rec('SHA256:k1')]);
     });
 
     test('同指纹放行且不改写记录', () async {
       final store = FakeHostKeyStore();
-      await store.save('h1', 22, _rec('ssh-ed25519', 'SHA256:k1'));
+      await store.save('h1', 22, _rec('SHA256:k1'));
       final decision = await verifyHostKey(
         store,
         host: 'h1',
@@ -113,12 +113,12 @@ void main() {
         fingerprint: 'SHA256:k1',
       );
       expect(decision, HostKeyDecision.trusted);
-      expect(_recordsOf(store, 'h1', 22), [_rec('ssh-ed25519', 'SHA256:k1')]);
+      expect(_recordsOf(store, 'h1', 22), [_rec('SHA256:k1')]);
     });
 
     test('指纹不一致拒绝，且保留旧记录待用户显式清除', () async {
       final store = FakeHostKeyStore();
-      await store.save('h1', 22, _rec('ssh-ed25519', 'SHA256:k1'));
+      await store.save('h1', 22, _rec('SHA256:k1'));
       final decision = await verifyHostKey(
         store,
         host: 'h1',
@@ -127,15 +127,15 @@ void main() {
         fingerprint: 'SHA256:evil',
       );
       expect(decision, HostKeyDecision.mismatch);
-      expect(_recordsOf(store, 'h1', 22), [_rec('ssh-ed25519', 'SHA256:k1')]);
+      expect(_recordsOf(store, 'h1', 22), [_rec('SHA256:k1')]);
     });
 
-    test('同一把密钥换算法名仍放行，并补记新组合', () async {
+    test('同一把密钥换算法名仍放行（记录里不含算法名）', () async {
       // dartssh2 的指纹只哈希密钥体、不含算法名，所以同一把密钥以不同
       // 算法名出示时指纹相同。服务器同时提供 ed25519 与 rsa、或客户端
       // 升级后改变了算法偏好，都会走到这里——这不是中间人，不能误报。
       final store = FakeHostKeyStore();
-      await store.save('h1', 22, _rec('ssh-ed25519', 'SHA256:k1'));
+      await store.save('h1', 22, _rec('SHA256:k1'));
       final decision = await verifyHostKey(
         store,
         host: 'h1',
@@ -144,17 +144,15 @@ void main() {
         fingerprint: 'SHA256:k1',
       );
       expect(decision, HostKeyDecision.trusted);
-      expect(_recordsOf(store, 'h1', 22), [
-        _rec('ssh-ed25519', 'SHA256:k1'),
-        _rec('rsa-sha2-512', 'SHA256:k1'),
-      ]);
+      // 指纹没变就不必再记一条。
+      expect(_recordsOf(store, 'h1', 22), [_rec('SHA256:k1')]);
     });
 
     test('服务器换了一把新密钥仍然拒绝，且不改写记录', () async {
       // 新指纹必须先由用户显式确认（清除记录）才会被信任；
       // 多条记录不等于放宽判据。
       final store = FakeHostKeyStore();
-      await store.save('h1', 22, _rec('ssh-ed25519', 'SHA256:k1'));
+      await store.save('h1', 22, _rec('SHA256:k1'));
       final decision = await verifyHostKey(
         store,
         host: 'h1',
@@ -163,13 +161,13 @@ void main() {
         fingerprint: 'SHA256:brand-new-key',
       );
       expect(decision, HostKeyDecision.mismatch);
-      expect(_recordsOf(store, 'h1', 22), [_rec('ssh-ed25519', 'SHA256:k1')]);
+      expect(_recordsOf(store, 'h1', 22), [_rec('SHA256:k1')]);
     });
 
     test('已记多条时命中任意一条即放行', () async {
       final store = FakeHostKeyStore();
-      await store.save('h1', 22, _rec('ssh-ed25519', 'SHA256:k1'));
-      await store.save('h1', 22, _rec('rsa-sha2-512', 'SHA256:k2'));
+      await store.save('h1', 22, _rec('SHA256:k1'));
+      await store.save('h1', 22, _rec('SHA256:k2'));
       final decision = await verifyHostKey(
         store,
         host: 'h1',
@@ -210,7 +208,7 @@ void main() {
 
     test('同主机不同端口互不影响', () async {
       final store = FakeHostKeyStore();
-      await store.save('h1', 22, _rec('ssh-ed25519', 'SHA256:k1'));
+      await store.save('h1', 22, _rec('SHA256:k1'));
       final decision = await verifyHostKey(
         store,
         host: 'h1',
@@ -219,43 +217,44 @@ void main() {
         fingerprint: 'SHA256:k2',
       );
       expect(decision, HostKeyDecision.firstUse);
-      expect(_recordsOf(store, 'h1', 22), [_rec('ssh-ed25519', 'SHA256:k1')]);
-      expect(_recordsOf(store, 'h1', 2222), [_rec('ssh-ed25519', 'SHA256:k2')]);
+      expect(_recordsOf(store, 'h1', 22), [_rec('SHA256:k1')]);
+      expect(_recordsOf(store, 'h1', 2222), [_rec('SHA256:k2')]);
     });
   });
 
   group('SharedPreferencesHostKeyStore', () {
-    test('save / load / delete 往返，一台主机可存多条', () async {
+    test('save / load / delete 往返：一台主机可存多条，同指纹去重', () async {
       SharedPreferences.setMockInitialValues({});
       final store = SharedPreferencesHostKeyStore();
       expect(await store.load('h1', 22), isA<HostKeysNeverRecorded>());
-      await store.save('h1', 22, _rec('ssh-ed25519', 'SHA256:k1'));
-      await store.save('h1', 22, _rec('rsa-sha2-512', 'SHA256:k1'));
+
+      // 服务器有多把主机密钥时，协商到哪一把就记哪一把。
+      await store.save('h1', 22, _rec('SHA256:k1'));
+      await store.save('h1', 22, _rec('SHA256:k2'));
       // 重复写同一条不产生冗余。
-      await store.save('h1', 22, _rec('rsa-sha2-512', 'SHA256:k1'));
+      await store.save('h1', 22, _rec('SHA256:k1'));
+
       final loaded = await store.load('h1', 22);
       expect((loaded as HostKeysLoaded).records, [
-        _rec('ssh-ed25519', 'SHA256:k1'),
-        _rec('rsa-sha2-512', 'SHA256:k1'),
+        _rec('SHA256:k1'),
+        _rec('SHA256:k2'),
       ]);
+
       await store.delete('h1', 22);
       expect(await store.load('h1', 22), isA<HostKeysNeverRecorded>());
     });
 
-    test('读得回旧版的单条文本格式（升级不丢已有记录）', () async {
+    test('不是当前格式的内容一律判为读不出来（开发阶段不背旧格式）', () async {
       SharedPreferences.setMockInitialValues({
         'ssh_host_keys_v1/h1:22': 'ssh-ed25519:SHA256:k1',
       });
       final store = SharedPreferencesHostKeyStore();
-      final loaded = await store.load('h1', 22);
-      expect((loaded as HostKeysLoaded).records, [
-        _rec('ssh-ed25519', 'SHA256:k1'),
-      ]);
+      expect(await store.load('h1', 22), isA<HostKeysUnavailable>());
     });
 
     test('记录内容解不出来时报「读不出来」，不冒充从未记录', () async {
       SharedPreferences.setMockInitialValues({
-        'ssh_host_keys_v1/h1:22': '[{"type":"ssh-ed25519"}]',
+        'ssh_host_keys_v1/h1:22': '[{"nope":1}]',
       });
       final store = SharedPreferencesHostKeyStore();
       expect(await store.load('h1', 22), isA<HostKeysUnavailable>());
@@ -278,11 +277,7 @@ void main() {
 
     testWidgets('密钥变更失败时展示处置按钮，点击清除记录并触发重连', (tester) async {
       final store = FakeHostKeyStore();
-      await store.save(
-        _server.host,
-        _server.port,
-        _rec('ssh-ed25519', 'SHA256:old'),
-      );
+      await store.save(_server.host, _server.port, _rec('SHA256:old'));
       final session = TerminalSession(
         server: _server,
         credentials: const SshCredentials(password: 'pw'),

@@ -9,26 +9,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 一条记录」会在协商结果变化时（服务器换了密钥种类、或客户端升级后改变了
 /// 算法偏好）把同一台机器判成「密钥变了」，也就是把用户训练成见警告就点。
 /// 因此按主机存一组记录。
+///
+/// 只存指纹、不存算法名：dartssh2 的指纹是对密钥体做哈希、不含算法名，
+/// 所以同一把密钥换算法名之后指纹不变——这正是跨算法识别同一把密钥的依据，
+/// 而算法名在这里没有任何判据价值。
 final class HostKeyRecord {
-  const HostKeyRecord({required this.keyType, required this.fingerprint});
+  const HostKeyRecord({required this.fingerprint});
 
-  /// 算法名，如 `ssh-ed25519`、`rsa-sha2-512`。
-  final String keyType;
-
-  /// `SHA256:...` 形式的指纹。dartssh2 只对密钥体做哈希，不含算法名，
-  /// 因此同一把密钥换算法名之后指纹不变——这正是跨算法识别同一把密钥的依据。
+  /// `SHA256:...` 形式。
   final String fingerprint;
 
-  Map<String, Object?> toJson() => {'type': keyType, 'fp': fingerprint};
+  Map<String, Object?> toJson() => {'fp': fingerprint};
 
   @override
   bool operator ==(Object other) =>
-      other is HostKeyRecord &&
-      other.keyType == keyType &&
-      other.fingerprint == fingerprint;
+      other is HostKeyRecord && other.fingerprint == fingerprint;
 
   @override
-  int get hashCode => Object.hash(keyType, fingerprint);
+  int get hashCode => fingerprint.hashCode;
 }
 
 /// [HostKeyStore.load] 的结果。**读失败必须与「从未记录」分开**：
@@ -117,36 +115,24 @@ final class SharedPreferencesHostKeyStore implements HostKeyStore {
 
   /// 解析记录；内容不认识时返回 null，由调用方按「读不出来」处理。
   ///
-  /// 兼容早期的单条纯文本格式 `ssh-ed25519:SHA256:xxx`。
+  /// 只认当前格式（JSON 数组）。开发阶段不背旧格式：早期那份「单条
+  /// `type:fingerprint` 纯文本」不再读取，遇到即 fail closed。
   List<HostKeyRecord>? _decode(String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.startsWith('[')) {
-      final Object? decoded;
-      try {
-        decoded = jsonDecode(trimmed);
-      } on FormatException {
-        return null;
-      }
-      if (decoded is! List) return null;
-      final records = <HostKeyRecord>[];
-      for (final item in decoded) {
-        if (item is! Map) return null;
-        final type = item['type'];
-        final fp = item['fp'];
-        if (type is! String || fp is! String) return null;
-        records.add(HostKeyRecord(keyType: type, fingerprint: fp));
-      }
-      return records;
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(raw.trim());
+    } on FormatException {
+      return null;
     }
-    // 旧格式：`type:fingerprint`（指纹本身含冒号，所以按第一个冒号切）。
-    final at = trimmed.indexOf(':');
-    if (at <= 0 || at == trimmed.length - 1) return null;
-    return [
-      HostKeyRecord(
-        keyType: trimmed.substring(0, at),
-        fingerprint: trimmed.substring(at + 1),
-      ),
-    ];
+    if (decoded is! List) return null;
+    final records = <HostKeyRecord>[];
+    for (final item in decoded) {
+      if (item is! Map) return null;
+      final fp = item['fp'];
+      if (fp is! String) return null;
+      records.add(HostKeyRecord(fingerprint: fp));
+    }
+    return records;
   }
 }
 
@@ -173,9 +159,9 @@ enum HostKeyDecision {
 /// - 指纹命中已记录的任何一条 → 放行（trusted），若算法名是新的则补记一条；
 /// - 都不命中 → 拒绝（mismatch），不改写记录，必须由用户显式清除。
 ///
-/// 命中判据是**指纹**而非「算法名 + 指纹」：同一把密钥换算法名（服务器
-/// 同时提供 ed25519 与 rsa、或客户端升级后改变了算法偏好）指纹不变，
-/// 不该被误判成中间人。
+/// 命中判据是**指纹**：同一把密钥换算法名（服务器同时提供 ed25519 与 rsa、
+/// 或客户端升级后改变了算法偏好）指纹不变，不该被误判成中间人。
+/// [keyType] 只用于在错误里告诉用户是哪种密钥，不参与比对。
 Future<HostKeyDecision> verifyHostKey(
   HostKeyStore store, {
   required String host,
@@ -183,7 +169,7 @@ Future<HostKeyDecision> verifyHostKey(
   required String keyType,
   required String fingerprint,
 }) async {
-  final presented = HostKeyRecord(keyType: keyType, fingerprint: fingerprint);
+  final presented = HostKeyRecord(fingerprint: fingerprint);
   final HostKeyLoad loaded;
   try {
     loaded = await store.load(host, port);
@@ -197,14 +183,7 @@ Future<HostKeyDecision> verifyHostKey(
       await store.save(host, port, presented);
       return HostKeyDecision.firstUse;
     case HostKeysLoaded(:final records):
-      final known = records.any(
-        (record) => record.fingerprint == presented.fingerprint,
-      );
-      if (!known) return HostKeyDecision.mismatch;
-      // 同一把密钥换算法名：补记这一组合，下次协商到它不必再写。
-      if (!records.contains(presented)) {
-        await store.save(host, port, presented);
-      }
+      if (!records.contains(presented)) return HostKeyDecision.mismatch;
       return HostKeyDecision.trusted;
   }
 }

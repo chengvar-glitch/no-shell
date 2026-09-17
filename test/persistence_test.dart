@@ -165,14 +165,6 @@ void main() {
       expect(await persistence.load(), isA<ServerArchiveUnreadable>());
     });
 
-    test('主机记录在、分组记录没了，视为丢过数据', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{
-        'ssh_groups_v1': '{"order":["生产"],"collapsed":[]}',
-      });
-      final persistence = SharedPreferencesServerPersistence();
-      expect(await persistence.load(), isA<ServerArchiveUnreadable>());
-    });
-
     test('单条记录损坏只跳过该条，其余照常读回', () async {
       final good = _fullServer().toJson();
       SharedPreferences.setMockInitialValues(<String, Object>{

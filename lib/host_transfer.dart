@@ -21,11 +21,14 @@ import 'widgets/password_dialog.dart';
 
 /// 选择一个备份文件，解密后把其中的主机合并进列表。
 /// 口令不对或文件无法读取时提示后原样返回，不改动现有列表。
+///
+/// [derive] 只给测试注入同步派生用（见 [HostBackupParams.useIsolate]）。
 Future<void> importHostsFlow(
   BuildContext context, {
   required ServerStore store,
   required CredentialStore credentials,
   LocalFileGateway localFiles = const NativeLocalFileGateway(),
+  DeriveRunner? derive,
 }) async {
   final l10n = AppLocalizations.of(context);
   final uploads = await localFiles.pickUploads(confirmLabel: l10n.importHosts);
@@ -44,7 +47,7 @@ Future<void> importHostsFlow(
 
   final String text;
   try {
-    text = await decodeHostsBackup(contents, password);
+    text = await decodeHostsBackup(contents, password, derive: derive);
   } on BackupFormatException catch (error) {
     if (!context.mounted) return;
     _showMessage(
@@ -66,11 +69,14 @@ Future<void> importHostsFlow(
 }
 
 /// 把当前主机列表（含已记住的密码）导出为备份文件：先选落点，再设口令。
+///
+/// [backupParams] 只给测试注入低参数用，生产路径不传。
 Future<void> exportHostsFlow(
   BuildContext context, {
   required ServerStore store,
   required CredentialStore credentials,
   LocalFileGateway localFiles = const NativeLocalFileGateway(),
+  HostBackupParams backupParams = HostBackupParams.standard,
 }) async {
   final l10n = AppLocalizations.of(context);
   final entries = await _exportEntries(context, store, credentials);
@@ -85,7 +91,11 @@ Future<void> exportHostsFlow(
   final password = await _askBackupPassword(context, BackupPasswordMode.create);
   if (password == null || !context.mounted) return;
 
-  final contents = await encodeHostsBackup(encodeHostsText(entries), password);
+  final contents = await encodeHostsBackup(
+    encodeHostsText(entries),
+    password,
+    params: backupParams,
+  );
   if (!context.mounted) return;
   await _writeExport(
     context,
