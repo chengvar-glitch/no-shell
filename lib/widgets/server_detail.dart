@@ -9,7 +9,9 @@ import '../settings.dart';
 import '../ssh/session_manager.dart';
 import '../ssh/terminal_session.dart';
 import '../ssh/terminal_view.dart';
+import '../store.dart';
 import '../theme.dart';
+import 'port_forward_panel.dart';
 import 'sftp_browser.dart';
 import 'status_badges.dart';
 import 'window_caption.dart';
@@ -18,6 +20,7 @@ class ServerDetailPanel extends StatelessWidget {
   const ServerDetailPanel({
     super.key,
     required this.server,
+    required this.store,
     required this.sessions,
     required this.onConnect,
     required this.onCreate,
@@ -27,6 +30,7 @@ class ServerDetailPanel extends StatelessWidget {
   });
 
   final SshServer? server;
+  final ServerStore store;
   final SessionManager sessions;
   final ValueChanged<SshServer> onConnect;
   final VoidCallback onCreate;
@@ -46,6 +50,7 @@ class ServerDetailPanel extends StatelessWidget {
     }
     return _ServerDetail(
       server: selected,
+      store: store,
       sessions: sessions,
       onConnect: () => onConnect(selected),
       onDelete: () => onDelete(selected),
@@ -199,6 +204,7 @@ class _EmptyState extends StatelessWidget {
 class _ServerDetail extends StatefulWidget {
   const _ServerDetail({
     required this.server,
+    required this.store,
     required this.sessions,
     required this.onConnect,
     required this.onDelete,
@@ -207,6 +213,7 @@ class _ServerDetail extends StatefulWidget {
   });
 
   final SshServer server;
+  final ServerStore store;
   final SessionManager sessions;
   final VoidCallback onConnect;
   final VoidCallback onDelete;
@@ -232,9 +239,14 @@ class _ServerDetailState extends State<_ServerDetail> {
       onDelete: widget.onDelete,
     );
     final tabs = _DetailTabs(
-      labels: [l10n.overview, l10n.terminal, l10n.sftp],
+      labels: [l10n.overview, l10n.terminal, l10n.sftp, l10n.portForwarding],
       children: [
-        OverviewTab(server: server),
+        OverviewTab(
+          server: server,
+          // 跳板机存的是 id，概览要给人看的名字；那台主机已被删时名字为空，
+          // 卡片退回显示 id，让用户看得出这条配置指着的东西不在了。
+          jumpHostName: widget.store.byId(server.jumpServerId)?.name,
+        ),
         TerminalTab(
           server: server,
           session: session,
@@ -249,6 +261,11 @@ class _ServerDetailState extends State<_ServerDetail> {
           onRetry: session == null
               ? null
               : () => widget.sessions.retry(server.id),
+        ),
+        PortForwardPanel(
+          server: server,
+          store: widget.store,
+          sessions: widget.sessions,
         ),
       ],
     );
@@ -469,8 +486,8 @@ class _HeaderTags extends StatelessWidget {
   }
 }
 
-/// 三个 Tab 的标签栏与内容体：当前 Tab 索引收敛在这里，
-/// 切换时只重建标签栏与承载内容的 Stack，三个 Tab 子树实例保持不变。
+/// 四个 Tab 的标签栏与内容体：当前 Tab 索引收敛在这里，
+/// 切换时只重建标签栏与承载内容的 Stack，四个 Tab 子树实例保持不变。
 class _DetailTabs extends StatefulWidget {
   const _DetailTabs({required this.labels, required this.children});
 
@@ -521,7 +538,7 @@ class _DetailTabsState extends State<_DetailTabs>
   }
 }
 
-/// 常驻保活的 Tab 内容体：三个 Tab 始终参与布局（xterm 视图、SFTP 列表切走再
+/// 常驻保活的 Tab 内容体：四个 Tab 始终参与布局（xterm 视图、SFTP 列表切走再
 /// 切回不需要重建），但只画当前这一个。
 ///
 /// 这里不用 IndexedStack：它的 index 变化会 markNeedsLayout，整棵子树（终端
@@ -577,14 +594,20 @@ class _TagChip extends StatelessWidget {
 }
 
 class OverviewTab extends StatelessWidget {
-  const OverviewTab({super.key, required this.server});
+  const OverviewTab({super.key, required this.server, this.jumpHostName});
 
   final SshServer server;
+
+  /// 跳板机的主机名，由调用方从 store 查好传进来；为空时退回显示 id。
+  final String? jumpHostName;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    // 跳板机已被删除时名字查不到，卡片退回显示 id：让用户看得出这条配置
+    // 指着的东西不在了，而不是一片空白。
+    final jumpId = server.jumpServerId;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -643,6 +666,14 @@ class OverviewTab extends StatelessWidget {
                 value: formatRelativeTime(l10n, server.lastConnectedAt),
               ),
               _InfoCard(theme: theme, label: l10n.group, value: server.group),
+              // 直连的主机不摆一张写着「不使用」的卡片：那是噪音，
+              // 只有真配了跳板机时才多出这张。
+              if (jumpId != null)
+                _InfoCard(
+                  theme: theme,
+                  label: l10n.jumpHost,
+                  value: jumpHostName ?? jumpId,
+                ),
             ],
           ),
           if (server.notes != null) ...[

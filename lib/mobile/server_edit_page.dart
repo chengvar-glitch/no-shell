@@ -8,6 +8,7 @@ import '../ssh/credential_store.dart';
 import '../ssh/ssh_credentials.dart';
 import '../store.dart';
 import '../widgets/group_controls.dart';
+import '../widgets/jump_host_field.dart';
 
 /// 移动端新建 / 编辑主机页（桌面端继续使用弹窗表单）。
 class ServerEditPage extends StatefulWidget {
@@ -46,6 +47,9 @@ class _ServerEditPageState extends State<ServerEditPage> {
   );
   late final _notes = TextEditingController(text: widget.initial?.notes);
   late AuthMethod _auth = widget.initial?.authMethod ?? AuthMethod.privateKey;
+
+  /// 跳板机选择：null 表示直连（不使用）。新建时默认直连。
+  late String? _jumpServerId = widget.initial?.jumpServerId;
 
   /// 粘贴的元数据里带的密码，保存时写进安全存储。
   String? _password;
@@ -114,6 +118,11 @@ class _ServerEditPageState extends State<ServerEditPage> {
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
         tags: widget.initial?.tags ?? const [],
         lastConnectedAt: widget.initial?.lastConnectedAt,
+        // 这里是从零构造（不是 copyWith），jumpServerId 传 null 即等价于清除跳板机。
+        jumpServerId: _jumpServerId,
+        // 转发规则不归本表单管（在详情页的转发 Tab 里编辑），原样带走；
+        // 漏掉这一行等于每次保存都把该主机的规则清空。
+        forwards: widget.initial?.forwards ?? const [],
       ),
     );
     Navigator.of(context).pop();
@@ -203,7 +212,14 @@ class _ServerEditPageState extends State<ServerEditPage> {
             ),
             const SizedBox(height: 14),
             GroupField(controller: _group, groups: widget.store.groupNames),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+            JumpHostField(
+              servers: widget.store.servers,
+              self: widget.initial,
+              value: _jumpServerId,
+              onChanged: (value) => setState(() => _jumpServerId = value),
+            ),
+            const SizedBox(height: 14),
             SegmentedButton<AuthMethod>(
               segments: [
                 ButtonSegment(

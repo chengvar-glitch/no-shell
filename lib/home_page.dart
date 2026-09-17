@@ -16,6 +16,7 @@ import 'ssh/ssh_credentials.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'widgets/group_controls.dart';
+import 'widgets/jump_host_field.dart';
 import 'widgets/server_detail.dart';
 import 'widgets/settings_dialog.dart';
 import 'widgets/sidebar.dart';
@@ -115,6 +116,8 @@ class _HomePageState extends State<HomePage> {
     sessions: widget.sessions,
     server: server,
     credentials: widget.credentials,
+    // 必须带上 store：连接流程靠它解析跳板链路，漏传等于静默忽略跳板机。
+    store: widget.store,
   );
 
   Future<void> _importHosts() => importHostsFlow(
@@ -192,6 +195,9 @@ class _HomePageState extends State<HomePage> {
         initial: existing,
         initialGroup: group,
         groupNames: widget.store.groupNames,
+        // 跳板机下拉的候选就是已保存的主机；新建时这台主机还没进列表，
+        // 所以列表在弹窗打开时取一次即可（编辑期间列表不会变）。
+        servers: widget.store.servers,
         credentials: widget.credentials,
       ),
     );
@@ -233,6 +239,7 @@ class _HomePageState extends State<HomePage> {
             // 且服务器头部就排在这一行里），侧边栏因此可以整块顶到窗口最上沿。
             detail: ServerDetailPanel(
               server: _selected,
+              store: widget.store,
               sessions: widget.sessions,
               onConnect: _toggleConnect,
               onCreate: () => _editOrCreate(),
@@ -292,6 +299,7 @@ class _ServerDialog extends StatefulWidget {
   const _ServerDialog({
     required this.groupNames,
     required this.credentials,
+    required this.servers,
     this.initial,
     this.initialGroup,
   });
@@ -301,6 +309,10 @@ class _ServerDialog extends StatefulWidget {
   /// 新建时预填的分组（「在此分组新建连接」传进来）。
   final String? initialGroup;
   final List<String> groupNames;
+
+  /// 全部已保存的主机，供跳板机下拉选；正在编辑的那台 [initial] 也在其中，
+  /// 「不能选自己」由 [JumpHostField] 过滤。
+  final List<SshServer> servers;
   final CredentialStore credentials;
 
   @override
@@ -321,6 +333,9 @@ class _ServerDialogState extends State<_ServerDialog> {
   );
   late final _notes = TextEditingController(text: widget.initial?.notes);
   late AuthMethod _auth = widget.initial?.authMethod ?? AuthMethod.privateKey;
+
+  /// 选中的跳板机 id；null 表示直连。
+  late String? _jumpServerId = widget.initial?.jumpServerId;
 
   /// 粘贴的元数据里带的密码，保存时写进安全存储。
   String? _password;
@@ -379,18 +394,28 @@ class _ServerDialogState extends State<_ServerDialog> {
     if (!mounted) return;
     // 分组留空即落到默认分组；填了新名字就当场建一个（GroupField 支持直接输入）。
     final group = _group.text.trim();
+    // 这里重建整台主机（而不是在 initial 上改），所以没显式带上的字段都会丢：
+    // forwards 归转发面板维护，必须原样带回去，否则每编辑一次就静默删光规则。
+    final saved = SshServer(
+      id: id,
+      group: group.isEmpty ? l10n.defaultGroupName : group,
+      name: _name.text.trim(),
+      host: _host.text.trim(),
+      username: _username.text.trim(),
+      port: int.parse(_port.text.trim()),
+      authMethod: _auth,
+      notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      tags: widget.initial?.tags ?? const [],
+      lastConnectedAt: widget.initial?.lastConnectedAt,
+      forwards: widget.initial?.forwards ?? const [],
+    );
     Navigator.of(context).pop(
-      SshServer(
-        id: id,
-        group: group.isEmpty ? l10n.defaultGroupName : group,
-        name: _name.text.trim(),
-        host: _host.text.trim(),
-        username: _username.text.trim(),
-        port: int.parse(_port.text.trim()),
-        authMethod: _auth,
-        notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-        tags: widget.initial?.tags ?? const [],
-        lastConnectedAt: widget.initial?.lastConnectedAt,
+      // 跳板机可以被取消，而 copyWith 的 `??` 表达不出「清掉」，
+      // 只有用户选了「不使用」且原本挂着跳板机时才置 clearJumpServer。
+      saved.copyWith(
+        jumpServerId: _jumpServerId,
+        clearJumpServer:
+            _jumpServerId == null && widget.initial?.jumpServerId != null,
       ),
     );
   }
@@ -486,6 +511,15 @@ class _ServerDialogState extends State<_ServerDialog> {
                   controller: _group,
                   groups: widget.groupNames,
                   textStyle: const TextStyle(fontSize: 13.5),
+                ),
+                const SizedBox(height: 12),
+                // 排在分组之后：分组是「这台主机属于哪」，跳板机是「怎么连过去」，
+                // 紧挨着认证方式（同为连接参数）。helper 文案占两行，弹窗高度够。
+                JumpHostField(
+                  servers: widget.servers,
+                  self: widget.initial,
+                  value: _jumpServerId,
+                  onChanged: (id) => setState(() => _jumpServerId = id),
                 ),
                 const SizedBox(height: 12),
                 SegmentedButton<AuthMethod>(

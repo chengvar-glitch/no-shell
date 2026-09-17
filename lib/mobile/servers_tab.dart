@@ -110,6 +110,8 @@ class _ServersTabState extends State<ServersTab> {
                     sessions: widget.sessions,
                     server: server,
                     credentials: widget.credentials,
+                    // 跳板机链路靠 store 解析，缺了它就静默退化成直连。
+                    store: widget.store,
                   );
                 },
               ),
@@ -300,6 +302,7 @@ class _ServersTabState extends State<ServersTab> {
                             sessions: widget.sessions,
                             server: server,
                             credentials: widget.credentials,
+                            store: widget.store,
                           ),
                         );
                       },
