@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
+import '../store.dart';
 import 'credential_store.dart';
 import 'credentials_dialog.dart';
 import 'host_key_store.dart';
+import 'jump_host.dart';
 import 'session_manager.dart';
 import 'ssh_credentials.dart';
 import 'terminal_session.dart';
@@ -49,6 +52,7 @@ Future<void> dropStoredCredential(
 
 /// 统一的连接 / 断开入口，桌面端与移动端共用：
 /// 已有活跃会话 → 直接断开；
+/// 有跳板机 → 先逐跳取凭据（没存过的当场弹窗），再连目标主机；
 /// 已存凭据 → 免弹窗直连，认证失败自动回退到预填弹窗；
 /// 否则先弹凭据框，勾选「记住凭据」时写入安全存储（取消勾选即清除）。
 Future<void> toggleSession(
@@ -56,12 +60,33 @@ Future<void> toggleSession(
   required SessionManager sessions,
   required SshServer server,
   required CredentialStore credentials,
+  ServerStore? store,
 }) async {
   final existing = sessions.byServerId(server.id);
   if (existing?.isActive ?? false) {
     sessions.close(server.id);
     return;
   }
+
+  final List<SshHop>? resolvedJumps;
+  try {
+    resolvedJumps = await _resolveJumps(
+      context,
+      sessions: sessions,
+      credentials: credentials,
+      server: server,
+      store: store,
+    );
+  } on JumpChainException catch (error) {
+    // 链路配置本身不成立：重试多少次都一样，只能回配置里改。
+    if (!context.mounted) return;
+    _showJumpChainError(context, error);
+    return;
+  }
+  // 用户在某一跳的凭据弹窗里取消了：整条连接取消，不留半截。
+  if (resolvedJumps == null || !context.mounted) return;
+  final jumps = resolvedJumps;
+
   final saved = await credentials.read(server.id);
   if (!context.mounted) return;
 
@@ -72,7 +97,7 @@ Future<void> toggleSession(
       existing.errorKind == TerminalErrorKind.auth;
 
   if (saved != null && !authFailedBefore) {
-    final session = sessions.open(server, saved);
+    final session = sessions.open(server, saved, jumps: jumps);
     if (await _failsWithAuth(session) &&
         context.mounted &&
         // 等待失败期间会话可能已被替换 / 移除，此时不再弹窗。
@@ -82,6 +107,7 @@ Future<void> toggleSession(
         sessions: sessions,
         server: server,
         credentials: credentials,
+        jumps: jumps,
         initial: saved,
         rememberInitially: true,
       );
@@ -94,9 +120,73 @@ Future<void> toggleSession(
     sessions: sessions,
     server: server,
     credentials: credentials,
+    jumps: jumps,
     initial: authFailedBefore ? saved : null,
     rememberInitially: saved != null,
   );
+}
+
+/// 解析跳板机链路并逐跳取凭据。
+///
+/// 返回 null 表示用户在某一步取消了；链路本身有问题时抛 [JumpChainException]。
+/// [store] 为 null（测试或嵌入场景）时按「没有跳板机」处理。
+Future<List<SshHop>?> _resolveJumps(
+  BuildContext context, {
+  required SessionManager sessions,
+  required CredentialStore credentials,
+  required SshServer server,
+  required ServerStore? store,
+}) async {
+  final backend = store;
+  if (backend == null || server.jumpServerId == null) return const [];
+  final chain = resolveJumpChain(server, backend.byId);
+  final hops = <SshHop>[];
+  for (final hop in chain) {
+    final hopCredentials = await _hopCredentials(
+      context,
+      sessions: sessions,
+      credentials: credentials,
+      server: hop,
+    );
+    if (hopCredentials == null || !context.mounted) return null;
+    hops.add(SshHop(server: hop, credentials: hopCredentials));
+  }
+  return hops;
+}
+
+/// 取一跳的凭据：存过就直接用（认证失败过则重新弹窗），没存过就弹窗。
+Future<SshCredentials?> _hopCredentials(
+  BuildContext context, {
+  required SessionManager sessions,
+  required CredentialStore credentials,
+  required SshServer server,
+}) async {
+  final saved = await credentials.read(server.id);
+  if (!context.mounted) return null;
+  final previous = sessions.byServerId(server.id);
+  final authFailedBefore =
+      previous != null &&
+      previous.phase == TerminalPhase.failed &&
+      previous.errorKind == TerminalErrorKind.auth;
+  if (saved != null && !authFailedBefore) return saved;
+
+  final submission = await showCredentialsDialog(
+    context,
+    server,
+    initial: authFailedBefore ? saved : null,
+    allowRemember: credentials.supported,
+    rememberInitially: saved != null,
+    viaJumpHost: true,
+  );
+  if (submission == null || !context.mounted) return null;
+  if (credentials.supported) {
+    if (submission.remember) {
+      await credentials.write(server.id, submission.credentials);
+    } else {
+      await credentials.delete(server.id);
+    }
+  }
+  return submission.credentials;
 }
 
 Future<void> _promptAndConnect(
@@ -104,6 +194,7 @@ Future<void> _promptAndConnect(
   required SessionManager sessions,
   required SshServer server,
   required CredentialStore credentials,
+  required List<SshHop> jumps,
   required SshCredentials? initial,
   required bool rememberInitially,
 }) async {
@@ -123,7 +214,21 @@ Future<void> _promptAndConnect(
     }
   }
   if (!context.mounted) return;
-  sessions.open(server, submission.credentials);
+  sessions.open(server, submission.credentials, jumps: jumps);
+}
+
+/// 跳板机链路不成立时的提示：指名道姓说清是哪台、哪一类问题。
+void _showJumpChainError(BuildContext context, JumpChainException error) {
+  final l10n = AppLocalizations.of(context);
+  final name = error.hostName;
+  final message = switch (error.kind) {
+    JumpChainErrorKind.missing => l10n.jumpHostMissing(name ?? ''),
+    JumpChainErrorKind.cycle => l10n.jumpHostCycle(name ?? ''),
+    JumpChainErrorKind.tooDeep => l10n.jumpHostTooDeep(kMaxJumpDepth),
+  };
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
 }
 
 /// 等待会话进入首个终态；仅认证失败返回 true。
