@@ -235,6 +235,7 @@
   "sftpOverwrite": "覆盖",
   "sftpTransfersTitle": "传输",
   "sftpClearFinished": "清除已完成",
+  "sftpCanceling": "正在取消…",
   "sftpCanceled": "已取消",
   "sftpDone": "已完成",
   "sftpFailed": "失败",

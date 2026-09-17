@@ -615,6 +615,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sftpClearFinished => 'Clear finished';
 
   @override
+  String get sftpCanceling => 'Canceling…';
+
+  @override
   String get sftpCanceled => 'Canceled';
 
   @override

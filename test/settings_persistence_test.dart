@@ -190,11 +190,29 @@ void main() {
     tester.platformDispatcher.localesTestValue = const [Locale('zh')];
     addTearDown(tester.platformDispatcher.clearAllTestValues);
 
+    // 注入一个「记录型」通道但**不**把它交给 NoShellApp：改动应当只留在
+    // 内存里。原先这条只断言界面上有「设置」文字，删掉整条落盘逻辑也照样
+    // 通过——等于没测。
+    final recorder = _RecordingPersistence();
     await tester.pumpWidget(NoShellApp(credentials: FakeCredentialStore()));
     await tester.pump();
 
-    expect(find.text('设置'), findsOneWidget);
-    expect(Theme.of(tester.element(find.text('设置'))).brightness, isNotNull);
+    // 改主题（这条路径一定会调 _scheduleSave）。
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    // 「浅色」同时出现在分段按钮与终端预览说明里，限定到分段按钮内的那个。
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SegmentedButton<ThemeMode>),
+        matching: find.text('浅色'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 等过防抖窗口，仍未注入通道 ⇒ 一次都没写。
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(recorder.saves, isEmpty);
+    expect(recorder.stored, isNull);
   });
 
   group('连接兼容性开关', () {

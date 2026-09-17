@@ -595,6 +595,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sftpClearFinished => '清除已完成';
 
   @override
+  String get sftpCanceling => '正在取消…';
+
+  @override
   String get sftpCanceled => '已取消';
 
   @override

@@ -1130,6 +1130,12 @@ abstract class AppLocalizations {
   /// **'Clear finished'**
   String get sftpClearFinished;
 
+  /// No description provided for @sftpCanceling.
+  ///
+  /// In en, this message translates to:
+  /// **'Canceling…'**
+  String get sftpCanceling;
+
   /// No description provided for @sftpCanceled.
   ///
   /// In en, this message translates to:

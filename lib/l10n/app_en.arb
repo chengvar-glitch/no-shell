@@ -301,6 +301,7 @@
   "sftpOverwrite": "Overwrite",
   "sftpTransfersTitle": "Transfers",
   "sftpClearFinished": "Clear finished",
+  "sftpCanceling": "Canceling…",
   "sftpCanceled": "Canceled",
   "sftpDone": "Done",
   "sftpFailed": "Failed",

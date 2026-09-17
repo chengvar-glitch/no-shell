@@ -541,6 +541,41 @@ void main() {
       expect(controller.transfers.transfers, isEmpty);
     });
 
+    test('下载中途失败：报错、清掉半成品，落点上原有的文件不动', () async {
+      final gateway = FakeLocalFileGateway()
+        ..downloadTarget = const LocalTarget(
+          path: '/tmp/raw.bin',
+          name: 'raw.bin',
+        );
+      // 落点上已有一份旧文件。
+      gateway.written['/tmp/raw.bin'] = const [9, 9];
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      final file = fs.addFile(
+        fs.home,
+        'raw.bin',
+        content: List.generate(64, (i) => i),
+      );
+      // 吐出一块之后连接断掉。
+      fs.readError = const SftpException(SftpErrorKind.network);
+      fs.readErrorAfterChunks = 1;
+
+      controller.transfers.enqueueDownload(
+        entry: file,
+        target: gateway.downloadTarget!,
+      );
+      await pumpEventQueue();
+
+      final transfer = controller.transfers.transfers.single;
+      expect(transfer.state, SftpTransferState.failed);
+      expect(transfer.errorKind, SftpErrorKind.network);
+      expect(gateway.discarded, ['/tmp/raw.bin.part']);
+      expect(gateway.written['/tmp/raw.bin'], [
+        9,
+        9,
+      ], reason: '下载失败不该动落点上原有的文件');
+    });
+
     test('已有结构性操作在执行时，后续请求明确报错而不是假装成功', () async {
       final fs = GatedListFileSystem();
       final controller = SftpBrowserController(

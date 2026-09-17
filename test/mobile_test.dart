@@ -290,4 +290,23 @@ void main() {
     expect(find.textContaining('备份'), findsNothing);
     expect(find.textContaining('加密'), findsNothing);
   });
+
+  group('极窄竖屏不溢出', () {
+    // 此前最窄的竖屏用例是 390x844，小屏只有一条 568x320 横屏；
+    // 320x568（iPhone SE 一代）这类真实竖屏从未被覆盖过。
+    for (final size in const [Size(320, 568), Size(360, 640)]) {
+      testWidgets('${size.width.toInt()}x${size.height.toInt()}：主机页与设置页都不溢出', (
+        tester,
+      ) async {
+        await pumpMobile(tester, size: size);
+
+        // Flutter 的溢出会以异常形式抛出，测试框架会直接判失败；
+        // 这里再显式确认关键元素都还在。
+        expect(find.text('web-prod-01'), findsOneWidget);
+        await tester.tap(find.text('设置'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SettingsSection), findsWidgets);
+      });
+    }
+  });
 }

@@ -35,6 +35,13 @@ final class FakeSftpFileSystem implements SftpFileSystem {
   /// 非 null 时 [write] 抛出该错误。
   SftpException? writeError;
 
+  /// 非 null 时 [read] 在吐出 [readErrorAfterChunks] 块之后抛出该错误，
+  /// 用来覆盖「下载到一半失败」这条路径（此前完全没有测试走到）。
+  SftpException? readError;
+
+  /// 抛出 [readError] 之前先吐出几块。
+  int readErrorAfterChunks = 1;
+
   /// 读取分块大小，用于让下载产生多块进度回调。
   int chunkSize = 4;
 
@@ -105,8 +112,12 @@ final class FakeSftpFileSystem implements SftpFileSystem {
   Stream<List<int>> read(String path) async* {
     final bytes = contents[path];
     if (bytes == null) throw const SftpException(SftpErrorKind.notFound);
+    var chunks = 0;
     for (var offset = 0; offset < bytes.length; offset += chunkSize) {
+      final error = readError;
+      if (error != null && chunks >= readErrorAfterChunks) throw error;
       final end = (offset + chunkSize).clamp(0, bytes.length);
+      chunks++;
       yield bytes.sublist(offset, end);
     }
   }
