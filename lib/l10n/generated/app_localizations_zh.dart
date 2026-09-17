@@ -737,4 +737,49 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get exportFailed => '导出失败，请重试';
+
+  @override
+  String get importHostsBackup => '导入加密备份';
+
+  @override
+  String get exportHostsBackup => '导出加密备份';
+
+  @override
+  String get backupCreateTitle => '设置备份口令';
+
+  @override
+  String get backupCreateHint => '整份清单都用这个口令加密，其中包含已记住的密码。恢复备份时需要输入该口令，且无法找回。';
+
+  @override
+  String get backupOpenTitle => '输入备份口令';
+
+  @override
+  String get backupOpenHint => '请输入创建这份备份时设置的口令。';
+
+  @override
+  String get backupPassword => '备份口令';
+
+  @override
+  String get backupPasswordConfirm => '再次输入口令';
+
+  @override
+  String get backupPasswordRequired => '请输入备份口令';
+
+  @override
+  String get backupPasswordMismatch => '两次输入的口令不一致';
+
+  @override
+  String get backupPasswordWarning => '没有这个口令就无法恢复备份，请妥善保管。';
+
+  @override
+  String get backupCreateConfirm => '导出';
+
+  @override
+  String get backupOpenConfirm => '导入';
+
+  @override
+  String get backupWrongPassword => '备份口令不正确，未导入任何主机';
+
+  @override
+  String get backupUnreadable => '该文件不是可读取的 NoShell 备份';
 }

@@ -28,6 +28,8 @@ class Sidebar extends StatefulWidget {
     required this.onOpenSettings,
     required this.onImportHosts,
     required this.onExportHosts,
+    required this.onImportHostsBackup,
+    required this.onExportHostsBackup,
   });
 
   final ServerStore store;
@@ -42,6 +44,8 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onImportHosts;
   final VoidCallback onExportHosts;
+  final VoidCallback onImportHostsBackup;
+  final VoidCallback onExportHostsBackup;
 
   @override
   State<Sidebar> createState() => _SidebarState();
@@ -379,6 +383,10 @@ class _SidebarState extends State<Sidebar> {
               widget.onImportHosts();
             case 'export':
               widget.onExportHosts();
+            case 'import-backup':
+              widget.onImportHostsBackup();
+            case 'export-backup':
+              widget.onExportHostsBackup();
           }
         },
         itemBuilder: (menuContext) {
@@ -407,6 +415,35 @@ class _SidebarState extends State<Sidebar> {
                   const SizedBox(width: 8),
                   Text(
                     menuL10n.exportHosts,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(height: 8),
+            PopupMenuItem(
+              value: 'import-backup',
+              height: 36,
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_open_rounded, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    menuL10n.importHostsBackup,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'export-backup',
+              height: 36,
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_outline_rounded, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    menuL10n.exportHostsBackup,
                     style: const TextStyle(fontSize: 13),
                   ),
                 ],

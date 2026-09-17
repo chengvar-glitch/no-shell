@@ -1309,6 +1309,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Export failed. Please try again.'**
   String get exportFailed;
+
+  /// No description provided for @importHostsBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Import encrypted backup'**
+  String get importHostsBackup;
+
+  /// No description provided for @exportHostsBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Export encrypted backup'**
+  String get exportHostsBackup;
+
+  /// No description provided for @backupCreateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set a backup password'**
+  String get backupCreateTitle;
+
+  /// No description provided for @backupCreateHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The whole list is encrypted with this password, saved passwords included. You will need it to restore the backup, and it cannot be recovered.'**
+  String get backupCreateHint;
+
+  /// No description provided for @backupOpenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the backup password'**
+  String get backupOpenTitle;
+
+  /// No description provided for @backupOpenHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the password that was set when this backup was created.'**
+  String get backupOpenHint;
+
+  /// No description provided for @backupPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup password'**
+  String get backupPassword;
+
+  /// No description provided for @backupPasswordConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat password'**
+  String get backupPasswordConfirm;
+
+  /// No description provided for @backupPasswordRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a backup password'**
+  String get backupPasswordRequired;
+
+  /// No description provided for @backupPasswordMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The two passwords do not match'**
+  String get backupPasswordMismatch;
+
+  /// No description provided for @backupPasswordWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Without this password the backup cannot be restored. Please keep it safe.'**
+  String get backupPasswordWarning;
+
+  /// No description provided for @backupCreateConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get backupCreateConfirm;
+
+  /// No description provided for @backupOpenConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Import'**
+  String get backupOpenConfirm;
+
+  /// No description provided for @backupWrongPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Wrong backup password, nothing was imported'**
+  String get backupWrongPassword;
+
+  /// No description provided for @backupUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'This file is not a readable NoShell backup'**
+  String get backupUnreadable;
 }
 
 class _AppLocalizationsDelegate

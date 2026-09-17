@@ -213,6 +213,18 @@ class _ServersTabState extends State<ServersTab> {
                         store: widget.store,
                         credentials: widget.credentials,
                       );
+                    case 'import-backup':
+                      importHostsBackupFlow(
+                        context,
+                        store: widget.store,
+                        credentials: widget.credentials,
+                      );
+                    case 'export-backup':
+                      exportHostsBackupFlow(
+                        context,
+                        store: widget.store,
+                        credentials: widget.credentials,
+                      );
                   }
                 },
                 itemBuilder: (menuContext) {
@@ -235,6 +247,27 @@ class _ServersTabState extends State<ServersTab> {
                           const Icon(Icons.upload_outlined, size: 20),
                           const SizedBox(width: 12),
                           Text(menuL10n.exportHosts),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'import-backup',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lock_open_rounded, size: 20),
+                          const SizedBox(width: 12),
+                          Text(menuL10n.importHostsBackup),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'export-backup',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lock_outline_rounded, size: 20),
+                          const SizedBox(width: 12),
+                          Text(menuL10n.exportHostsBackup),
                         ],
                       ),
                     ),

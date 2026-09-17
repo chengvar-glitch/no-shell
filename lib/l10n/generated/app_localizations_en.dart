@@ -764,4 +764,53 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get exportFailed => 'Export failed. Please try again.';
+
+  @override
+  String get importHostsBackup => 'Import encrypted backup';
+
+  @override
+  String get exportHostsBackup => 'Export encrypted backup';
+
+  @override
+  String get backupCreateTitle => 'Set a backup password';
+
+  @override
+  String get backupCreateHint =>
+      'The whole list is encrypted with this password, saved passwords included. You will need it to restore the backup, and it cannot be recovered.';
+
+  @override
+  String get backupOpenTitle => 'Enter the backup password';
+
+  @override
+  String get backupOpenHint =>
+      'Enter the password that was set when this backup was created.';
+
+  @override
+  String get backupPassword => 'Backup password';
+
+  @override
+  String get backupPasswordConfirm => 'Repeat password';
+
+  @override
+  String get backupPasswordRequired => 'Please enter a backup password';
+
+  @override
+  String get backupPasswordMismatch => 'The two passwords do not match';
+
+  @override
+  String get backupPasswordWarning =>
+      'Without this password the backup cannot be restored. Please keep it safe.';
+
+  @override
+  String get backupCreateConfirm => 'Export';
+
+  @override
+  String get backupOpenConfirm => 'Import';
+
+  @override
+  String get backupWrongPassword =>
+      'Wrong backup password, nothing was imported';
+
+  @override
+  String get backupUnreadable => 'This file is not a readable NoShell backup';
 }

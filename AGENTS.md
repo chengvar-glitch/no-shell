@@ -19,13 +19,13 @@
 
 - Dart SDK：`^3.13.3`（见 `pubspec.yaml`）
 - Lint 规则：`flutter_lints ^6.0.0`，通过 `analysis_options.yaml` 引入 `package:flutter_lints/flutter.yaml`
-- 运行时依赖：`dartssh2 ^4.1.0`（SSH 传输 / SFTP）、`xterm ^4.0.0`（终端渲染）、`file_selector ^1.1.0`（上传选文件、下载另存为）、`path_provider ^2.1.6`（下载默认目录）、`flutter_secure_storage`（凭据安全存储，macOS 需钥匙串 entitlement，已在 entitlements 中配置）、`shared_preferences`（主机列表持久化）、`flutter_localizations` + `intl`（国际化）
+- 运行时依赖：`dartssh2 ^4.1.0`（SSH 传输 / SFTP）、`xterm ^4.0.0`（终端渲染）、`file_selector ^1.1.0`（上传选文件、下载另存为）、`path_provider ^2.1.6`（下载默认目录）、`pointycastle ^4.0.0`（加密备份的 PBKDF2 + AES-256-GCM，纯 Dart、六端通用）、`flutter_secure_storage`（凭据安全存储，macOS 需钥匙串 entitlement，已在 entitlements 中配置）、`shared_preferences`（主机列表持久化）、`flutter_localizations` + `intl`（国际化）
 - 添加新依赖必须同步更新 `pubspec.yaml` 并重新执行 `flutter pub get`
 
 ## 目录结构
 
 - `lib/main.dart` — 应用入口（`NoShellApp`），持有全局状态并按窗口宽度切换桌面/移动骨架
-- `lib/host_portable.dart` — 主机文本格式编解码（中英文 key 识别）；`lib/host_transfer.dart` 为导入 / 导出用户流程
+- `lib/host_portable.dart` — 主机文本格式编解码（中英文 key 识别）；`lib/host_backup.dart` 为口令加密备份的信封编解码（PBKDF2-HMAC-SHA256 派生密钥 + AES-256-GCM，明文即上面的主机文本，`.nsbak` 后缀）；`lib/host_transfer.dart` 为导入 / 导出用户流程，两个通道共用解析与合并逻辑，文件交互经 `LocalFileGateway`
 - `lib/models.dart` — `SshServer` 等数据模型与示例数据（含 JSON 序列化）；`ServerGroup` 是渲染用的分组视图（名字 + 成员 + 折叠态）
 - `lib/server_persistence.dart` — 主机列表与分组布局落盘通道（`ServerArchive` 快照 + `ServerPersistence` 抽象 + shared_preferences 实现）；主机条目沿用 v1 纯数组格式，分组顺序 / 折叠态另存 `ssh_groups_v1`，旧档按主机出现次序重建分组
 - `lib/settings_persistence.dart` — 偏好落盘通道（`AppSettings` 快照：主题 / 语言 / 终端配色·字体·字号；`SettingsPersistence` 抽象 + shared_preferences 实现，枚举按名字存取，脏字段只退回该字段默认值）。已删除的字段（界面字体 `uiFont`、终端自定义字体名）读时忽略、下次保存即抹掉；终端字体的旧取值在 `_terminalFont` 里做一次性迁移（旧系统预设 → `systemMonospace`，旧自定义名 → 内置字体）
@@ -33,7 +33,7 @@
 - `lib/theme.dart` — `AppPalette` 色板、`AppTheme` 主题构建（按亮度缓存；界面字体固定跟随系统，`ThemeData` 不再按字体分叉）、`AppThemeX` 语义色扩展
 - `lib/settings.dart` — 偏好模型：`TerminalFont`（终端字体目录：族名 / 缺字形回退链 / 名称）、`TerminalPreset`（配色）、`TerminalStylePrefs`（配色 + 字体 + 字号）与 `TerminalStyleScope`；`kBundledFontLicenses` 登记内置字体的 OFL 文本 asset
 - `lib/home_page.dart` — 桌面端左右分栏骨架（侧边栏固定宽度、可整体收起，不提供拖拽调宽）
-- `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）；`sftp_browser.dart` 为库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`；`settings_controls.dart` 为设置面板共用件（分组卡片 `SettingsSection` / `SettingsCard` / 设置行 `SettingsRow` / `SettingsIconButton` 与各设置控件），桌面设置弹窗与移动端设置 Tab 共用同一套，两端观感必须一致；`group_controls.dart` 为分组共用件（可输入新建的分组输入框 `GroupField`、重命名 / 删除 / 移动分组流程 `runGroupAction`），桌面侧边栏与移动端主机页共用，两端观感必须一致
+- `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）；`sftp_browser.dart` 为库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`；`settings_controls.dart` 为设置面板共用件（分组卡片 `SettingsSection` / `SettingsCard` / 设置行 `SettingsRow` / `SettingsIconButton` 与各设置控件），桌面设置弹窗与移动端设置 Tab 共用同一套，两端观感必须一致；`group_controls.dart` 为分组共用件（可输入新建的分组输入框 `GroupField`、重命名 / 删除 / 移动分组流程 `runGroupAction`），桌面侧边栏与移动端主机页共用，两端观感必须一致；`password_dialog.dart` 为备份口令弹窗（`BackupPasswordMode.create` 设口令并二次确认 / `.open` 输一次口令），两个通道共用
 - `lib/ssh/` — 会话层（`SessionManager`、`TerminalSession`、传输层、终端视图、凭据弹窗、连接入口）
   - `credential_store.dart` — 凭据安全存储抽象；`credential_store_io.dart` / `credential_store_stub.dart` 为条件导出的原生实现与 web 桩（同 local_write 模式）
   - `host_key_store.dart` — 主机公钥指纹存储与 TOFU 校验决策（首连记录、变更拒绝）；`HostKeyChangedException` 由会话归类为 `TerminalErrorKind.hostKey`，界面提供「清除记录的指纹并重连」
@@ -43,7 +43,7 @@
 - `lib/mobile/` — 移动端四个 Tab 及详情/编辑页
 - `lib/l10n/` — arb 源文件（`app_en.arb` / `app_zh.arb`）；`lib/l10n/generated/` 为生成代码
 - `assets/fonts/` — 随包内置的终端字体（`jetbrains_mono/`、`fira_code/` 各含 Regular + Bold 与 `OFL.txt`，合计约 1.2 MB），由 `pubspec.yaml` 的 `fonts:` 声明、`assets:` 声明许可文本。族名一律带 `NoShell ` 前缀（如 `NoShell JetBrains Mono`）：与系统字体彻底解耦，引擎必定命中随包文件
-- `test/` — widget、mobile、session_manager、localization、persistence（序列化与持久化）、groups（分组建模 / 排序 / 落盘迁移与两端交互）、credentials_dialog、connect_flow、host_key（TOFU 决策与处置入口）、host_transfer（主机文本导入 / 导出）、sftp（browser / adapter / tab 三组）、window_caption（自绘标题条）、font_assets（内置字体与 pubspec / 许可 / FontManifest 的接线校验）测试；`test/support/` 放共享假实现（含 `FakeCredentialStore`）
+- `test/` — widget、mobile、session_manager、localization、persistence（序列化与持久化）、groups（分组建模 / 排序 / 落盘迁移与两端交互）、credentials_dialog、connect_flow、host_key（TOFU 决策与处置入口）、host_transfer（主机文本导入 / 导出）、host_backup（加密备份信封与导入 / 导出流程）、sftp（browser / adapter / tab 三组）、window_caption（自绘标题条）、font_assets（内置字体与 pubspec / 许可 / FontManifest 的接线校验）测试；`test/support/` 放共享假实现（含 `FakeCredentialStore`）
 - `integration_test/` — 驱动真实应用的集成测试（`screenshots_test.dart` 为 README 截图生成器，演示链路走本地一次性服务端，输出 `docs/screenshots/`）
 - `tool/` — 开发脚本（`smoke_ssh.dart` 冒烟脚本，`dev_sftp_server.py` 是配套的一次性本地 SFTP + 假 shell 服务端，只绑 127.0.0.1、账号 smoke/smoke，供 `--sftp` / `--shell` 冒烟与截图使用）
 - `docs/screenshots/` — README 截图，由 `integration_test/screenshots_test.dart` 生成，禁止放入真实主机信息
@@ -71,6 +71,11 @@
   - 长列表一律用 `ListView.builder`，行序列先扁平化一次再按下标直取
   - 终端等高频重绘区域必须用 `RepaintBoundary` 隔离
   - `ThemeData` 只在 `AppTheme` 中构建并缓存，禁止在 `build` 方法中新建
+- 导入 / 导出：
+  - 两个通道并存且各有用途：纯文本 `.txt`（`host_portable.dart`，跨工具通用，密码明文写入）与口令加密备份 `.nsbak`（`host_backup.dart`，整份清单一次 AES-256-GCM，口令经 PBKDF2 派生密钥）
+  - 加解密是同步 API：五万轮 PBKDF2 约两三百毫秒，一次导入 / 导出只算一遍；不要改回 `compute` / isolate——`pumpAndSettle` 下会与真 isolate 相互等待而挂死（已验证）
+  - 加密备份的明文就是 `encodeHostsText` 的输出，所以新增主机字段只需改文本格式一处，两个通道同时受益
+  - 信封改动必须保持向后可读：`version` 与 `iterations` 都写在文件里，旧备份要能一直解开
 - 颜色一律经 `theme.dart` 的语义色（`AppThemeX` 扩展 / `AppPalette`）获取，不得在组件里散落硬编码颜色
 - 任何真实主机凭据、私钥、口令不得写入代码、测试或仓库；冒烟脚本凭据只经命令行传入
 - 遵循 `flutter_lints` 规则，新文件需符合官方 Dart 风格；提交前 `flutter analyze` 必须无告警且 `flutter test` 全部通过

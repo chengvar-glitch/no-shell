@@ -16,6 +16,7 @@ dependencies:
   flutter_secure_storage: ^11.1.1
   intl: any
   path_provider: ^2.1.6
+  pointycastle: ^4.0.0
   screen_retriever: ^0.2.2
   shared_preferences: ^2.5.5
   window_manager: ^0.5.2

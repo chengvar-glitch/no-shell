@@ -414,5 +414,20 @@
     }
   },
   "exportEmpty": "No hosts to export",
-  "exportFailed": "Export failed. Please try again."
+  "exportFailed": "Export failed. Please try again.",
+  "importHostsBackup": "Import encrypted backup",
+  "exportHostsBackup": "Export encrypted backup",
+  "backupCreateTitle": "Set a backup password",
+  "backupCreateHint": "The whole list is encrypted with this password, saved passwords included. You will need it to restore the backup, and it cannot be recovered.",
+  "backupOpenTitle": "Enter the backup password",
+  "backupOpenHint": "Enter the password that was set when this backup was created.",
+  "backupPassword": "Backup password",
+  "backupPasswordConfirm": "Repeat password",
+  "backupPasswordRequired": "Please enter a backup password",
+  "backupPasswordMismatch": "The two passwords do not match",
+  "backupPasswordWarning": "Without this password the backup cannot be restored. Please keep it safe.",
+  "backupCreateConfirm": "Export",
+  "backupOpenConfirm": "Import",
+  "backupWrongPassword": "Wrong backup password, nothing was imported",
+  "backupUnreadable": "This file is not a readable NoShell backup"
 }

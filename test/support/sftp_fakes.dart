@@ -247,6 +247,9 @@ final class FakeLocalFileGateway implements LocalFileGateway {
   /// 非 null 时 [pickUploads] 抛出该错误，模拟选择器不可用。
   Object? pickError;
 
+  /// 非 null 时写入句柄在 close 时抛出该错误，模拟落盘失败。
+  Object? writeError;
+
   /// 写入成功的本地文件内容。
   final Map<String, List<int>> written = {};
 
@@ -274,7 +277,7 @@ final class FakeLocalFileGateway implements LocalFileGateway {
 
   @override
   LocalWriteHandle openWrite(String path) =>
-      _MemoryWriteHandle((bytes) => written[path] = bytes);
+      _MemoryWriteHandle((bytes) => written[path] = bytes, error: writeError);
 
   @override
   Future<void> discard(String path) async {
@@ -288,9 +291,13 @@ final class FakeLocalFileGateway implements LocalFileGateway {
 
 /// 收集写入字节、close 时回吐，模拟本地落盘。
 final class _MemoryWriteHandle implements LocalWriteHandle {
-  _MemoryWriteHandle(this._onClose);
+  _MemoryWriteHandle(this._onClose, {this.error});
 
   final void Function(List<int> bytes) _onClose;
+
+  /// 非 null 时 close 抛出该错误：对应「磁盘写满 / 无权限」这类落盘失败。
+  final Object? error;
+
   final List<int> _bytes = [];
 
   @override
@@ -300,7 +307,11 @@ final class _MemoryWriteHandle implements LocalWriteHandle {
   Future<void> flush() async {}
 
   @override
-  Future<void> close() async => _onClose(_bytes);
+  Future<void> close() async {
+    final failure = error;
+    if (failure != null) throw failure;
+    _onClose(_bytes);
+  }
 }
 
 /// 假传输层：直接给出 [openSftp] 的结果，便于会话层与面板层测试。
