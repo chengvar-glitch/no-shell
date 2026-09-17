@@ -200,8 +200,8 @@ void main() {
     );
 
     // 底部信息行在折叠区外，滚到底才参与布局：这里顺带守住不溢出。
+    // （生物识别锁定占位行已移除，信息卡只剩「关于」。）
     await tester.scrollUntilVisible(find.text('关于'), 200);
-    expect(find.text('即将推出'), findsOneWidget);
 
     // 窄屏下分段标签必须单行：段内边距收窄一档就是为了这个（见 AppTheme）。
     expect(tester.getSize(find.text('English')).height, lessThan(20));

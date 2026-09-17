@@ -353,9 +353,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get navServers => '服务器';
 
   @override
-  String get navKeys => '密钥';
-
-  @override
   String get navSettings => '设置';
 
   @override
@@ -375,12 +372,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get tryAnotherKeyword => '换个关键词试试';
-
-  @override
-  String get keysComingSoon => '密钥管理即将推出';
-
-  @override
-  String get keysComingSoonHint => '将支持生成与导入 Ed25519 / RSA 密钥';
 
   @override
   String get noActiveSessions => '暂无活跃会话';
@@ -420,12 +411,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get presetDefaultDark => '默认深色';
-
-  @override
-  String get biometricLock => '生物识别锁定';
-
-  @override
-  String get comingSoon => '即将推出';
 
   @override
   String get settingsSubtitle => '主题、终端与语言';

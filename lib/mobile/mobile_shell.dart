@@ -6,7 +6,6 @@ import '../ssh/credential_store.dart';
 import '../ssh/host_key_store.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
-import 'keys_tab.dart';
 import 'servers_tab.dart';
 import 'settings_tab.dart';
 import 'terminal_tab.dart';
@@ -63,7 +62,6 @@ class _MobileShellState extends State<MobileShell> {
             hostKeys: widget.hostKeys,
           ),
           TerminalTab(sessions: widget.sessions),
-          const KeysTab(),
           // 告警依赖 store 的可读状态，且 Shell 不随 store 重建，
           // 因此在这里单独订阅一次，只在设置 Tab 一棵子树内响应。
           ListenableBuilder(
@@ -93,11 +91,6 @@ class _MobileShellState extends State<MobileShell> {
             icon: const Icon(Icons.terminal_outlined),
             selectedIcon: const Icon(Icons.terminal_rounded),
             label: l10n.terminal,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.key_outlined),
-            selectedIcon: const Icon(Icons.key_rounded),
-            label: l10n.navKeys,
           ),
           NavigationDestination(
             icon: const Icon(Icons.settings_outlined),

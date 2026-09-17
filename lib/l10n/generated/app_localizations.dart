@@ -710,12 +710,6 @@ abstract class AppLocalizations {
   /// **'Servers'**
   String get navServers;
 
-  /// No description provided for @navKeys.
-  ///
-  /// In en, this message translates to:
-  /// **'Keys'**
-  String get navKeys;
-
   /// No description provided for @navSettings.
   ///
   /// In en, this message translates to:
@@ -757,18 +751,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Try a different keyword'**
   String get tryAnotherKeyword;
-
-  /// No description provided for @keysComingSoon.
-  ///
-  /// In en, this message translates to:
-  /// **'Key management coming soon'**
-  String get keysComingSoon;
-
-  /// No description provided for @keysComingSoonHint.
-  ///
-  /// In en, this message translates to:
-  /// **'You will be able to generate and import Ed25519 / RSA keys'**
-  String get keysComingSoonHint;
 
   /// No description provided for @noActiveSessions.
   ///
@@ -847,18 +829,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Default dark'**
   String get presetDefaultDark;
-
-  /// No description provided for @biometricLock.
-  ///
-  /// In en, this message translates to:
-  /// **'Biometric lock'**
-  String get biometricLock;
-
-  /// No description provided for @comingSoon.
-  ///
-  /// In en, this message translates to:
-  /// **'Coming soon'**
-  String get comingSoon;
 
   /// No description provided for @settingsSubtitle.
   ///

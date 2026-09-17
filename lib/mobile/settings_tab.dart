@@ -175,11 +175,6 @@ class SettingsTab extends StatelessWidget {
           SettingsCard(
             children: [
               _MoreRow(
-                icon: Icons.fingerprint,
-                title: l10n.biometricLock,
-                subtitle: l10n.comingSoon,
-              ),
-              _MoreRow(
                 icon: Icons.info_outline,
                 title: l10n.about,
                 subtitle: '${l10n.appName} v$appVersion',

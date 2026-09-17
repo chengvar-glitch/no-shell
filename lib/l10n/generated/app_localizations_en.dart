@@ -363,9 +363,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navServers => 'Servers';
 
   @override
-  String get navKeys => 'Keys';
-
-  @override
   String get navSettings => 'Settings';
 
   @override
@@ -386,13 +383,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tryAnotherKeyword => 'Try a different keyword';
-
-  @override
-  String get keysComingSoon => 'Key management coming soon';
-
-  @override
-  String get keysComingSoonHint =>
-      'You will be able to generate and import Ed25519 / RSA keys';
 
   @override
   String get noActiveSessions => 'No active sessions';
@@ -433,12 +423,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get presetDefaultDark => 'Default dark';
-
-  @override
-  String get biometricLock => 'Biometric lock';
-
-  @override
-  String get comingSoon => 'Coming soon';
 
   @override
   String get settingsSubtitle => 'Theme, terminal and language';
