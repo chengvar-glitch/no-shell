@@ -112,6 +112,8 @@ jobs:
           Exec=/opt/noshell/NoShell
           Icon=noshell
           Terminal=false
+          StartupWMClass=com.noshell
+          StartupNotify=true
           Categories=Network;RemoteAccess;
           DESKTOP
           dpkg-deb --build --root-owner-group .deb-pkg/noshell \
@@ -148,6 +150,8 @@ jobs:
           Exec=/opt/noshell/NoShell
           Icon=noshell
           Terminal=false
+          StartupWMClass=com.noshell
+          StartupNotify=true
           Categories=Network;RemoteAccess;
           DESKTOP
 
