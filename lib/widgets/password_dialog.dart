@@ -32,6 +32,10 @@ class _BackupPasswordDialogState extends State<_BackupPasswordDialog> {
   final _password = TextEditingController();
   final _confirm = TextEditingController();
 
+  /// 两个框各自独立记忆显隐：对确认框看清了再回头检查口令，不该被连带翻回去。
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
+
   bool get _needsConfirm => widget.mode == BackupPasswordMode.create;
 
   @override
@@ -45,6 +49,19 @@ class _BackupPasswordDialogState extends State<_BackupPasswordDialog> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     Navigator.of(context).pop(_password.text);
   }
+
+  /// 与连接凭据弹窗的密码框同款显隐按钮：同一个动作在应用里只有一副长相。
+  Widget _visibilityToggle({
+    required bool obscure,
+    required VoidCallback onPressed,
+  }) => IconButton(
+    visualDensity: VisualDensity.compact,
+    icon: Icon(
+      obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+      size: 18,
+    ),
+    onPressed: onPressed,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -68,12 +85,19 @@ class _BackupPasswordDialogState extends State<_BackupPasswordDialog> {
               TextFormField(
                 controller: _password,
                 autofocus: true,
-                obscureText: true,
+                obscureText: _obscurePassword,
                 style: const TextStyle(fontSize: 13.5),
                 textInputAction: creating
                     ? TextInputAction.next
                     : TextInputAction.done,
-                decoration: InputDecoration(labelText: l10n.backupPassword),
+                decoration: InputDecoration(
+                  labelText: l10n.backupPassword,
+                  suffixIcon: _visibilityToggle(
+                    obscure: _obscurePassword,
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                ),
                 validator: (value) =>
                     (value ?? '').isEmpty ? l10n.backupPasswordRequired : null,
                 onFieldSubmitted: (_) {
@@ -84,10 +108,15 @@ class _BackupPasswordDialogState extends State<_BackupPasswordDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _confirm,
-                  obscureText: true,
+                  obscureText: _obscureConfirm,
                   style: const TextStyle(fontSize: 13.5),
                   decoration: InputDecoration(
                     labelText: l10n.backupPasswordConfirm,
+                    suffixIcon: _visibilityToggle(
+                      obscure: _obscureConfirm,
+                      onPressed: () =>
+                          setState(() => _obscureConfirm = !_obscureConfirm),
+                    ),
                   ),
                   validator: (value) => value == _password.text
                       ? null

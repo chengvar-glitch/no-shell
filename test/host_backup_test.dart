@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:no_shell/models.dart';
 import 'package:no_shell/ssh/local_files.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/store.dart';
+import 'package:no_shell/widgets/password_dialog.dart';
 
 import 'support/credential_store_fake.dart';
 import 'support/sftp_fakes.dart';
@@ -148,6 +150,80 @@ void main() {
     test('空清单也能往返：解出来是空文本', () async {
       final contents = encodeHostsBackup('', 'pw-123456');
       expect(decodeHostsBackup(contents, 'pw-123456'), '');
+    });
+  });
+
+  group('口令弹窗', () {
+    late BuildContext context;
+
+    Future<void> pump(WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Builder(
+              builder: (builderContext) {
+                context = builderContext;
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
+    /// 第 [index] 个口令框当前的遮蔽状态。
+    bool obscured(WidgetTester tester, int index) => tester
+        .widgetList<TextField>(find.byType(TextField))
+        .elementAt(index)
+        .obscureText;
+
+    testWidgets('导出：两个框各有小眼睛，可分别显隐', (tester) async {
+      await pump(tester);
+      unawaited(
+        showBackupPasswordDialog(context, mode: BackupPasswordMode.create),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsNWidgets(2));
+      expect(obscured(tester, 0), isTrue);
+      expect(obscured(tester, 1), isTrue);
+      expect(find.byIcon(Icons.visibility_off_outlined), findsNWidgets(2));
+
+      // 点第一个：只有它显形，确认框不受影响。
+      await tester.tap(find.byIcon(Icons.visibility_off_outlined).first);
+      await tester.pumpAndSettle();
+      expect(obscured(tester, 0), isFalse);
+      expect(obscured(tester, 1), isTrue);
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+
+      // 再点回去，两个框都恢复遮蔽。
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.visibility_off_outlined).last);
+      await tester.pumpAndSettle();
+      expect(obscured(tester, 0), isTrue);
+      expect(obscured(tester, 1), isFalse);
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+    });
+
+    testWidgets('导入：单个口令框也有小眼睛', (tester) async {
+      await pump(tester);
+      unawaited(
+        showBackupPasswordDialog(context, mode: BackupPasswordMode.open),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsOneWidget);
+      expect(obscured(tester, 0), isTrue);
+
+      await tester.tap(find.byIcon(Icons.visibility_off_outlined));
+      await tester.pumpAndSettle();
+
+      expect(obscured(tester, 0), isFalse);
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
     });
   });
 
