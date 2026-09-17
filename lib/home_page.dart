@@ -56,28 +56,10 @@ class _HomePageState extends State<HomePage> {
   bool _sidebarCollapsed = false;
   String? _selectedId;
 
-  /// 是否插入设置弹窗的离屏预热层（只存在一帧，见 [initState]）。
-  bool _prewarmSettings = false;
-
   @override
   void initState() {
     super.initState();
     widget.store.addListener(_onStoreChanged);
-    // 首帧之后再占一帧，把设置弹窗的子树离屏布局一次。
-    //
-    // 原因：本机（Linux：文字全走 fontconfig + 系统字体，应用不打包正文字体）
-    // 上，每个「本进程从未布局过的（文本 × 样式）组合」首次排版都要走一遍字体
-    // 栈冷路径——实测 0.3~4.4ms/组合，暖了之后约 0.2ms；设置弹窗一次引入约
-    // 250~370 个这样的组合，单帧累计约 1s（release 实测首开 980~998ms、第二次
-    // 19~21ms）。放在窗口刚出现的这一帧，用户感受到的是「启动收尾」，而不是
-    // 「点了设置却卡住」；下一帧立即移除，不参与后续渲染。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() => _prewarmSettings = true);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _prewarmSettings = false);
-      });
-    });
   }
 
   @override
@@ -220,49 +202,32 @@ class _HomePageState extends State<HomePage> {
         child: Scaffold(
           // 拖拽调宽等高频交互只在 _SplitPane 内部 setState；
           // sidebar / detail 子组件实例不变时，Flutter 会跳过其整棵子树重建。
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              _SplitPane(
-                collapsed: collapsed,
-                sidebar: Sidebar(
-                  store: widget.store,
-                  selectedId: _selectedId,
-                  onSelect: (server) => setState(() => _selectedId = server.id),
-                  onCreate: () => _editOrCreate(),
-                  onEdit: (server) => _editOrCreate(server),
-                  onDelete: _deleteServer,
-                  onToggleConnect: _toggleConnect,
-                  onToggleSidebar: _toggleSidebar,
-                  onOpenSettings: _openSettings,
-                  onImportHosts: _importHosts,
-                  onExportHosts: _exportHosts,
-                ),
-                // 详情面板自带窗口标题条（Windows/Linux 上是它里面的第一行，
-                // 且服务器头部就排在这一行里），侧边栏因此可以整块顶到窗口最上沿。
-                detail: ServerDetailPanel(
-                  server: _selected,
-                  sessions: widget.sessions,
-                  onConnect: _toggleConnect,
-                  onCreate: () => _editOrCreate(),
-                  onDelete: _deleteServer,
-                  sidebarCollapsed: collapsed,
-                  onToggleSidebar: _toggleSidebar,
-                ),
-              ),
-              // 预热层：只为让设置弹窗的子树完成一次「首次布局」，见 initState。
-              // Offstage 在 offstage 状态下仍然给子树布局（RenderOffstage 里照样
-              // child.layout），但跳过绘制、命中测试与语义；find.* 默认也跳过
-              // offstage，所以它不会影响任何既有断言，也不改变 _SplitPane 的约束。
-              if (_prewarmSettings)
-                Offstage(
-                  child: settingsDialogContent(
-                    themeMode: widget.themeMode,
-                    language: widget.language,
-                    uiFont: widget.uiFont,
-                  ),
-                ),
-            ],
+          body: _SplitPane(
+            collapsed: collapsed,
+            sidebar: Sidebar(
+              store: widget.store,
+              selectedId: _selectedId,
+              onSelect: (server) => setState(() => _selectedId = server.id),
+              onCreate: () => _editOrCreate(),
+              onEdit: (server) => _editOrCreate(server),
+              onDelete: _deleteServer,
+              onToggleConnect: _toggleConnect,
+              onToggleSidebar: _toggleSidebar,
+              onOpenSettings: _openSettings,
+              onImportHosts: _importHosts,
+              onExportHosts: _exportHosts,
+            ),
+            // 详情面板自带窗口标题条（Windows/Linux 上是它里面的第一行，
+            // 且服务器头部就排在这一行里），侧边栏因此可以整块顶到窗口最上沿。
+            detail: ServerDetailPanel(
+              server: _selected,
+              sessions: widget.sessions,
+              onConnect: _toggleConnect,
+              onCreate: () => _editOrCreate(),
+              onDelete: _deleteServer,
+              sidebarCollapsed: collapsed,
+              onToggleSidebar: _toggleSidebar,
+            ),
           ),
         ),
       ),
