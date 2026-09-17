@@ -250,5 +250,43 @@ void main() {
       notifier.value = const TerminalStylePrefs(fontSize: 18);
       expect(notifications, 1);
     });
+
+    test('copyOnSelect 参与 == 判定', () {
+      expect(
+        const TerminalStylePrefs() ==
+            const TerminalStylePrefs(copyOnSelect: true),
+        isFalse,
+      );
+      expect(
+        const TerminalStylePrefs(copyOnSelect: true) ==
+            const TerminalStylePrefs(copyOnSelect: true),
+        isTrue,
+      );
+    });
+  });
+
+  group('copyOnSelect（选中即复制）落盘', () {
+    test('JSON 往返保留取值', () {
+      const on = AppSettings(
+        terminalStyle: TerminalStylePrefs(copyOnSelect: true),
+      );
+      expect(
+        AppSettings.fromJson(on.toJson()).terminalStyle.copyOnSelect,
+        isTrue,
+      );
+      expect(
+        AppSettings.fromJson(const AppSettings().toJson())
+            .terminalStyle
+            .copyOnSelect,
+        isFalse,
+      );
+    });
+
+    test('缺字段（旧存档）默认关闭', () {
+      expect(
+        AppSettings.fromJson(const {}).terminalStyle.copyOnSelect,
+        isFalse,
+      );
+    });
   });
 }

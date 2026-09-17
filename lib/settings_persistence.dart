@@ -51,6 +51,7 @@ class AppSettings {
     'terminalPreset': terminalStyle.preset.name,
     'terminalFont': terminalStyle.font.name,
     'terminalFontSize': terminalStyle.fontSize,
+    'terminalCopyOnSelect': terminalStyle.copyOnSelect,
     'allowLegacyHostKeys': allowLegacyHostKeys,
   };
 
@@ -73,6 +74,8 @@ class AppSettings {
       ),
       font: _terminalFont(json['terminalFont']),
       fontSize: TerminalStylePrefs.clampFontSize(json['terminalFontSize']),
+      // 缺字段（旧存档）即默认关闭。
+      copyOnSelect: json['terminalCopyOnSelect'] == true,
     ),
     // 缺字段（旧存档）即默认关闭。
     allowLegacyHostKeys: json['allowLegacyHostKeys'] == true,
@@ -86,6 +89,7 @@ class AppSettings {
       other.terminalStyle.preset == terminalStyle.preset &&
       other.terminalStyle.font == terminalStyle.font &&
       other.terminalStyle.fontSize == terminalStyle.fontSize &&
+      other.terminalStyle.copyOnSelect == terminalStyle.copyOnSelect &&
       other.allowLegacyHostKeys == allowLegacyHostKeys;
 
   @override
@@ -95,6 +99,8 @@ class AppSettings {
     terminalStyle.preset,
     terminalStyle.font,
     terminalStyle.fontSize,
+    terminalStyle.copyOnSelect,
+    allowLegacyHostKeys,
   );
 }
 

@@ -319,6 +319,7 @@ class TerminalStylePrefs {
     this.preset = TerminalPreset.githubDark,
     this.font = TerminalFont.jetBrainsMono,
     this.fontSize = defaultFontSize,
+    this.copyOnSelect = false,
   });
 
   /// 字号默认值与范围（逻辑像素）。界面只做 ± 步进，边界收在这里。
@@ -331,6 +332,13 @@ class TerminalStylePrefs {
 
   /// 终端字号（逻辑像素）。
   final int fontSize;
+
+  /// 选中即复制：在终端里拖选 / 双击 / 长按选中文字后自动写入剪贴板。
+  ///
+  /// 行为偏好而非样式，跟着本类走是因为 [TerminalStyleScope] 已经打通
+  /// 「设置处直写 → 全局下发 → 节流落盘」整条链路，为单个开关再造一条
+  /// 作用域不值得。默认关闭：每次选中都动剪贴板会覆盖用户已复制的内容。
+  final bool copyOnSelect;
 
   TerminalTheme get theme => preset.theme;
 
@@ -358,10 +366,12 @@ class TerminalStylePrefs {
     TerminalPreset? preset,
     TerminalFont? font,
     int? fontSize,
+    bool? copyOnSelect,
   }) => TerminalStylePrefs(
     preset: preset ?? this.preset,
     font: font ?? this.font,
     fontSize: fontSize ?? this.fontSize,
+    copyOnSelect: copyOnSelect ?? this.copyOnSelect,
   );
 
   /// 值相等即同一份偏好。
@@ -375,10 +385,11 @@ class TerminalStylePrefs {
       other is TerminalStylePrefs &&
       other.preset == preset &&
       other.font == font &&
-      other.fontSize == fontSize;
+      other.fontSize == fontSize &&
+      other.copyOnSelect == copyOnSelect;
 
   @override
-  int get hashCode => Object.hash(preset, font, fontSize);
+  int get hashCode => Object.hash(preset, font, fontSize, copyOnSelect);
 }
 
 /// 终端样式作用域：挂在 MaterialApp.builder 之上，
