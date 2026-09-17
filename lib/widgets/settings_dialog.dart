@@ -34,6 +34,29 @@ Future<void> showSettingsDialog(
   );
 }
 
+/// 供离屏预热使用：与 [showSettingsDialog] 弹出的完全同一棵子树，只是不入路由。
+///
+/// 无内置字体的平台上（Linux 文字全走 fontconfig + 系统字体），每个「本进程
+/// 从未布局过的（文本 × 样式）组合」首次排版都要走一遍字体栈冷路径：实测约
+/// 0.3~4.4ms/组合，暖了之后约 0.2ms。弹窗一次引入约 250~370 个这样的组合，
+/// 单帧累计约 1s——release 实测首开 980~998ms、第二次 19~21ms。调用方可以在
+/// 空闲帧里先把它离屏布局一次，把这次性成本挪出点击路径（见 home_page.dart
+/// 的预热调用）。回调给空实现即可：预热实例不与用户交互。
+Widget settingsDialogContent({
+  required ThemeMode themeMode,
+  required AppLanguage language,
+  required UiFont uiFont,
+}) {
+  return _SettingsDialog(
+    initialThemeMode: themeMode,
+    onThemeModeChanged: (_) {},
+    initialLanguage: language,
+    onLanguageChanged: (_) {},
+    initialUiFont: uiFont,
+    onUiFontChanged: (_) {},
+  );
+}
+
 final class _SettingsDialog extends StatefulWidget {
   const _SettingsDialog({
     required this.initialThemeMode,

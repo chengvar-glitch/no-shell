@@ -226,4 +226,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('English'), findsOneWidget);
   });
+
+  testWidgets('设置弹窗的离屏预热只占一帧，之后即从树里移除', (tester) async {
+    // 预热的唯一目的是让弹窗子树完成一次「首次布局」——Linux 上这次首次布局
+    // 会阻塞约 1s，见 home_page.dart 的说明。它必须只存在一帧：留在树里白占
+    // 内存，而如果它根本没出现，则说明预热没跑起来、这次性能修复已静默失效。
+    await pumpDesktop(tester);
+
+    // pumpDesktop 结束时正好停在预热帧上。预热层是 Offstage，默认的 find.*
+    // 会跳过它，所以要显式 skipOffstage: false 才看得见。
+    expect(find.byType(Dialog, skipOffstage: false), findsOneWidget);
+
+    await tester.pump();
+    expect(find.byType(Dialog, skipOffstage: false), findsNothing);
+  });
 }
