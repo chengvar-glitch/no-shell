@@ -1,6 +1,15 @@
-# 跨平台首开耗时探针：手动触发，在 Linux / macOS / Windows 三类 runner 上各跑一次
+# 跨平台首开耗时探针：手动触发，在 Linux / macOS / Windows 上各跑一次
 # integration_test/settings_open_perf_test.dart，用来回答「设置弹窗首次打开约 1s 的
-# 冷排版成本是否只有 Linux 有」。
+# 冷排版成本」到底是平台属性、还是某台机器的字体环境问题。
+#
+# 臂的设计（每条臂都跑同一份 release 产物，只有环境/顺序不同）：
+#   linux-bare       裸 Ubuntu runner：中文字体数为 0，作为「没有 CJK 字体」的对照
+#   linux-cjk        同上 + fonts-noto-cjk/arphic：复刻真实 Linux 桌面的 CJK 字体环境
+#   macos            CoreText
+#   windows          DirectWrite
+#   windows-emptyfirst  先开一个空 Dialog 再测设置弹窗：把「首次开任何弹窗」的
+#                    路由级成本与「弹窗内容排版」的内容级成本分开
+#                    （上一轮 Windows 的空 Dialog 对照自己就花了 660ms，必须拆开）
 #
 # 结果怎么取：探针会把表格 debugPrint 到 stdout，但 Windows 的 release 产物是 GUI
 # 子系统程序、stdout 进不了 CI 日志，所以一律以落盘的 build/settings_open_perf_*.json
@@ -9,9 +18,7 @@
 # 读数注意：
 # - runner 没有 GPU（软件渲染 / 虚拟显示），raster 数字不可信；要看的是 build/布局
 #   那一段，属 CPU 侧，仍有平台间相对参考价值。
-# - runner 的字体集与真实用户机器不同（尤其中文回退），数字不等于用户机上的一致。
-# - 与本地同口径命令：flutter build <platform> --release --target=integration_test/
-#   settings_open_perf_test.dart，然后直接跑产物。
+# - runner 是 VM，CPU 与真实桌面不同；macos-latest 机型会变。
 name: Perf probe
 
 on:
@@ -28,10 +35,25 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux
+            tag: linux-bare
+            cjk: 'no'
+          - os: ubuntu-latest
+            target: linux
+            tag: linux-cjk
+            cjk: 'yes'
           - os: macos-latest
             target: macos
+            tag: macos
+            cjk: 'no'
           - os: windows-latest
             target: windows
+            tag: windows
+            cjk: 'no'
+          - os: windows-latest
+            target: windows
+            tag: windows-emptyfirst
+            cjk: 'no'
+            order: emptyfirst
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -49,6 +71,10 @@ jobs:
           sudo apt-get install -y ninja-build libgtk-3-dev clang cmake pkg-config
           libsecret-1-dev libjsoncpp-dev xvfb
 
+      - name: 安装 CJK 字体（linux-cjk 臂）
+        if: matrix.cjk == 'yes'
+        run: sudo apt-get install -y fonts-noto-cjk fonts-arphic-ukai fonts-arphic-uming
+
       - name: 安装依赖
         run: flutter pub get
 
@@ -56,10 +82,17 @@ jobs:
         shell: bash
         run: |
           flutter --version
-          echo "--- 中文字体数（解释数字时要用）---"
+          echo "--- 中文字族数（解释数字时要用）---"
           case "${{ matrix.target }}" in
-            linux)   fc-list :lang=zh 2>/dev/null | wc -l ;;
+            linux)   fc-list :lang=zh 2>/dev/null | wc -l
+                     fc-list :lang=zh 2>/dev/null | sed -E 's/.*: //' | sort -u | head -8 ;;
             macos)   ls /System/Library/Fonts 2>/dev/null | wc -l ;;
+            windows) powershell -NoProfile -Command "(Get-ChildItem C:\Windows\Fonts).Count" ;;
+          esac
+          echo "--- 全部字体数 ---"
+          case "${{ matrix.target }}" in
+            linux)   fc-list 2>/dev/null | wc -l ;;
+            macos)   ls /System/Library/Fonts /Library/Fonts 2>/dev/null | wc -l ;;
             windows) powershell -NoProfile -Command "(Get-ChildItem C:\Windows\Fonts).Count" ;;
           esac
 
@@ -70,12 +103,18 @@ jobs:
         if: matrix.target == 'linux'
         timeout-minutes: 8
         continue-on-error: true
+        env:
+          SETTINGS_PERF_ORDER: ${{ matrix.order || 'dialog' }}
+          SETTINGS_PERF_RUN: ${{ matrix.tag }}
         run: xvfb-run -a --server-args="-screen 0 1600x1000x24" ./build/linux/x64/release/bundle/NoShell
 
       - name: 跑探针（macOS）
         if: matrix.target == 'macos'
         timeout-minutes: 8
         continue-on-error: true
+        env:
+          SETTINGS_PERF_ORDER: ${{ matrix.order || 'dialog' }}
+          SETTINGS_PERF_RUN: ${{ matrix.tag }}
         run: ./build/macos/Build/Products/Release/NoShell.app/Contents/MacOS/NoShell
 
       - name: 跑探针（Windows）
@@ -83,6 +122,9 @@ jobs:
         timeout-minutes: 8
         continue-on-error: true
         shell: bash
+        env:
+          SETTINGS_PERF_ORDER: ${{ matrix.order || 'dialog' }}
+          SETTINGS_PERF_RUN: ${{ matrix.tag }}
         run: ./build/windows/x64/runner/Release/NoShell.exe
 
       - name: 打印报告
@@ -98,6 +140,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: perf-probe-${{ matrix.target }}
+          name: perf-probe-${{ matrix.tag }}
           path: build/settings_open_perf_*.json
           if-no-files-found: warn
