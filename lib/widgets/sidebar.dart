@@ -56,10 +56,14 @@ class _SidebarState extends State<Sidebar> {
   final _scrollController = ScrollController();
 
   /// 搜索关键词内聚在侧边栏：输入时只重建本子树，不惊动详情面板与终端。
-  String _query = '';
+  /// 搜索关键词走 ValueNotifier：每次输入只重建「输入框后缀 + 列表」这两
+  /// 棵子树，不把 setState 上抛到整个侧边栏（头部 / 三个动作按钮 / 底部
+  /// 都会跟着重建）。移动端主机页用的是同一套做法。
+  final ValueNotifier<String> _query = ValueNotifier('');
 
   @override
   void dispose() {
+    _query.dispose();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -456,12 +460,11 @@ class _SidebarState extends State<Sidebar> {
   }
 
   Widget _buildSearchField(ThemeData theme) {
-    final hasText = _searchController.text.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: TextField(
         controller: _searchController,
-        onChanged: (value) => setState(() => _query = value),
+        onChanged: (value) => _query.value = value,
         style: const TextStyle(fontSize: 13),
         decoration: InputDecoration(
           hintText: AppLocalizations.of(context).searchHint,
@@ -475,32 +478,43 @@ class _SidebarState extends State<Sidebar> {
             minWidth: 34,
             minHeight: 34,
           ),
-          suffixIcon: hasText
-              ? IconButton(
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(
-                    Icons.close_rounded,
-                    size: 14,
-                    color: theme.secondaryText,
+          // 清除按钮只在有输入时出现：这里单独订阅关键词，
+          // 免得每次输入都把整个输入框（乃至侧边栏）重建一遍。
+          suffixIcon: ValueListenableBuilder<String>(
+            valueListenable: _query,
+            builder: (context, query, _) => query.isEmpty
+                ? const SizedBox.shrink()
+                : IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: theme.secondaryText,
+                    ),
+                    onPressed: () {
+                      _searchController.clear();
+                      _query.value = '';
+                    },
                   ),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _query = '');
-                  },
-                )
-              : null,
+          ),
           fillColor: theme.hoverOverlay,
         ),
       ),
     );
   }
 
-  Widget _buildList() {
+  /// 列表订阅搜索关键词：输入只重建这一棵子树。
+  Widget _buildList() => ValueListenableBuilder<String>(
+    valueListenable: _query,
+    builder: (context, query, _) => _buildRows(query),
+  );
+
+  Widget _buildRows(String query) {
     // 搜索时强制展开所有分组，保证结果可见；平时折叠态由 store 记着（落盘）。
-    final searching = _query.isNotEmpty;
+    final searching = query.isNotEmpty;
     // 扁平化为「分组头 / 主机行」序列，交给 ListView.builder 懒构建，
     // 仅可见行会真正创建 Widget，主机数量多时不再整表一次性构建。
-    final groups = widget.store.groups(query: _query);
+    final groups = widget.store.groups(query: query);
     final rows = <Object>[];
     for (final group in groups) {
       rows.add(group);

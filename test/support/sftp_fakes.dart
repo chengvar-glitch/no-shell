@@ -395,6 +395,72 @@ final class GatedReadFileSystem implements SftpFileSystem {
   void dispose() => _inner.dispose();
 }
 
+/// 目录载入可手动放行的文件系统：把控制器钉在 `isMutating` 那一帧上，
+/// 用来验证「已有结构性操作在执行」时并发请求的行为。
+final class GatedListFileSystem implements SftpFileSystem {
+  GatedListFileSystem() : _inner = FakeSftpFileSystem();
+
+  final FakeSftpFileSystem _inner;
+
+  /// 首次进入 [list] 时完成（含 ensureReady 的那次，因此用后要 reset）。
+  final listStarted = Completer<void>();
+
+  final _gate = Completer<void>();
+
+  /// 让 [list] 在下次调用时重新挂住。
+  void arm() {
+    _armed = true;
+  }
+
+  bool _armed = true;
+
+  /// 放行被挂住的目录载入。
+  void releaseList() {
+    if (!_gate.isCompleted) _gate.complete();
+  }
+
+  SftpEntry addFile(String dir, String name, {List<int>? content}) =>
+      _inner.addFile(dir, name, content: content);
+
+  @override
+  Future<String> homeDirectory() => _inner.homeDirectory();
+
+  @override
+  Future<List<SftpEntry>> list(String path) async {
+    if (_armed) {
+      _armed = false;
+      if (!listStarted.isCompleted) listStarted.complete();
+      await _gate.future;
+    }
+    return _inner.list(path);
+  }
+
+  @override
+  Stream<List<int>> read(String path) => _inner.read(path);
+
+  @override
+  Future<void> write(
+    String path,
+    Stream<List<int>> data, {
+    void Function(int bytes)? onProgress,
+  }) => _inner.write(path, data, onProgress: onProgress);
+
+  @override
+  Future<void> createDirectory(String path) => _inner.createDirectory(path);
+
+  @override
+  Future<void> rename(String from, String to) => _inner.rename(from, to);
+
+  @override
+  Future<void> removeFile(String path) => _inner.removeFile(path);
+
+  @override
+  Future<void> removeDirectory(String path) => _inner.removeDirectory(path);
+
+  @override
+  void dispose() => _inner.dispose();
+}
+
 /// 收集写入字节、close 时回吐，模拟本地落盘。
 final class _MemoryWriteHandle implements LocalWriteHandle {
   _MemoryWriteHandle(this._onClose, {this.error});

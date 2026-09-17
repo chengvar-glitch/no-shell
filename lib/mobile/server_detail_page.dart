@@ -76,6 +76,9 @@ class ServerDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // 注意：这里的 store 订阅必须保留——名称 / 状态 / 会话都来自它。
+    // 三个 Tab 各自的保活子树已经尽力隔离（见下方 _KeepAlive），
+    // 终端那边的重排版由 SshTerminalView 内部的 TerminalStyle 缓存兜住。
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {

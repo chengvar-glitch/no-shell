@@ -40,12 +40,7 @@ final class SshTerminalView extends StatelessWidget {
                 autofocus: true,
                 // 移动端软键盘的删除键不走硬件按键事件，需要开启检测。
                 deleteDetection: true,
-                textStyle: TerminalStyle(
-                  fontSize: prefs.fontSize.toDouble(),
-                  height: 1.45,
-                  fontFamily: prefs.resolvedFontFamily,
-                  fontFamilyFallback: prefs.fontFallback,
-                ),
+                textStyle: _styleOf(prefs),
                 padding: const EdgeInsets.all(10),
               ),
             ),
@@ -54,6 +49,30 @@ final class SshTerminalView extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// 按偏好缓存 [TerminalStyle]。
+  ///
+  /// 必须缓存，不能每次 build 新建：xterm 的 `TerminalStyle` 没有
+  /// `operator ==`，而它在 painter 与 render 两处的守卫都是身份比较。
+  /// 新建一个内容相同的实例会一路穿过守卫，触发 `_measureCharSize()`
+  /// （一次 `mmmmmmmmmm` 的 TextPainter 排版）并清空 10240 条段落缓存，
+  /// 随后整个视口重排版。偏好没变就复用同一个实例。
+  static TerminalStylePrefs? _cachedPrefsStyle;
+  static TerminalStyle? _cachedStyle;
+
+  static TerminalStyle _styleOf(TerminalStylePrefs prefs) {
+    final cached = _cachedStyle;
+    if (cached != null && _cachedPrefsStyle == prefs) return cached;
+    final style = TerminalStyle(
+      fontSize: prefs.fontSize.toDouble(),
+      height: 1.45,
+      fontFamily: prefs.resolvedFontFamily,
+      fontFamilyFallback: prefs.fontFallback,
+    );
+    _cachedPrefsStyle = prefs;
+    _cachedStyle = style;
+    return style;
   }
 
   Widget _overlay(BuildContext context, TerminalPhase phase) {

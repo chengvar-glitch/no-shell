@@ -292,6 +292,7 @@
   "sftpErrorNotFound": "路径不存在",
   "sftpErrorUnsupported": "当前连接不支持 SFTP",
   "sftpErrorNetwork": "连接已断开",
+  "sftpErrorBusy": "上一个文件操作还没结束",
   "sftpErrorOther": "操作失败",
   "neverConnected": "从未连接",
   "justNow": "刚刚",

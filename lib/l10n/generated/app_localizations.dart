@@ -1220,6 +1220,12 @@ abstract class AppLocalizations {
   /// **'Connection lost'**
   String get sftpErrorNetwork;
 
+  /// No description provided for @sftpErrorBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Another file operation is still running'**
+  String get sftpErrorBusy;
+
   /// No description provided for @sftpErrorOther.
   ///
   /// In en, this message translates to:

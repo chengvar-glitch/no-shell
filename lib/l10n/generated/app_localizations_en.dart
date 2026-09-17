@@ -672,6 +672,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sftpErrorNetwork => 'Connection lost';
 
   @override
+  String get sftpErrorBusy => 'Another file operation is still running';
+
+  @override
   String get sftpErrorOther => 'Operation failed';
 
   @override

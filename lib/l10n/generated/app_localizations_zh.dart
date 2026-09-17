@@ -652,6 +652,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sftpErrorNetwork => '连接已断开';
 
   @override
+  String get sftpErrorBusy => '上一个文件操作还没结束';
+
+  @override
   String get sftpErrorOther => '操作失败';
 
   @override

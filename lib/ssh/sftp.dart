@@ -31,7 +31,16 @@ final class SftpEntry {
 }
 
 /// SFTP 失败原因归类，视图层据此挑选本地化文案。
-enum SftpErrorKind { permission, notFound, unsupported, network, other }
+enum SftpErrorKind {
+  permission,
+  notFound,
+  unsupported,
+  network,
+
+  /// 已有结构性操作在执行（新建 / 重命名 / 删除 / 刷新），本次请求被拒。
+  busy,
+  other,
+}
 
 /// SFTP 操作异常：适配器负责把底层错误归类，视图层无需感知 dartssh2 类型。
 final class SftpException implements Exception {

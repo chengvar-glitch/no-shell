@@ -358,6 +358,7 @@
   "sftpErrorNotFound": "Path not found",
   "sftpErrorUnsupported": "This connection does not support SFTP",
   "sftpErrorNetwork": "Connection lost",
+  "sftpErrorBusy": "Another file operation is still running",
   "sftpErrorOther": "Operation failed",
   "neverConnected": "Never connected",
   "justNow": "Just now",

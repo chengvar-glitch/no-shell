@@ -540,6 +540,59 @@ void main() {
       controller.transfers.clearFinished();
       expect(controller.transfers.transfers, isEmpty);
     });
+
+    test('已有结构性操作在执行时，后续请求明确报错而不是假装成功', () async {
+      final fs = GatedListFileSystem();
+      final controller = SftpBrowserController(
+        openFileSystem: () async => fs,
+        localFiles: FakeLocalFileGateway(),
+      );
+      addTearDown(controller.dispose);
+      // 首次载入先放行，避免它把后面的闸门吃掉。
+      final ready = controller.ensureReady();
+      fs.releaseList();
+      fs.arm();
+      await ready;
+
+      // 钉住这次操作收尾时的刷新，让 isMutating 保持为 true。
+      final mutating = controller.createFolder('new-dir');
+      await fs.listStarted.future;
+      expect(controller.isMutating, isTrue);
+
+      // 静默 return 会让调用方以为改成功了，其实什么都没做。
+      await expectLater(
+        controller.createFolder('another'),
+        throwsA(
+          isA<SftpException>().having(
+            (e) => e.kind,
+            'kind',
+            SftpErrorKind.busy,
+          ),
+        ),
+      );
+
+      fs.releaseList();
+      await mutating;
+    });
+
+    test('落点数量少于目标时整体不下载，不半途下标越界', () async {
+      final gateway = FakeLocalFileGateway()
+        // 选择器只回了一个落点，但要下两个文件。
+        ..downloadDirectory = const [
+          LocalTarget(path: '/tmp/a.txt', name: 'a.txt'),
+        ];
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      final a = fs.addFile(fs.home, 'a.txt', content: const [1]);
+      final b = fs.addFile(fs.home, 'b.txt', content: const [2]);
+
+      expect(
+        await controller.downloadEntries([a, b], '保存'),
+        SftpDownloadOutcome.unavailable,
+      );
+      // 一个都不该入队：要么整批下载，要么都不下。
+      expect(controller.transfers.transfers, isEmpty);
+    });
   });
 }
 

@@ -196,4 +196,38 @@ void main() {
     expect(find.text('设置'), findsOneWidget);
     expect(Theme.of(tester.element(find.text('设置'))).brightness, isNotNull);
   });
+
+  group('TerminalStylePrefs 值语义', () {
+    test('内容相同即相等（ValueNotifier 的无变化守卫依赖它）', () {
+      const a = TerminalStylePrefs();
+      const b = TerminalStylePrefs();
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+    });
+
+    test('任一项不同即不等', () {
+      const base = TerminalStylePrefs();
+      expect(base == base.copyWith(fontSize: base.fontSize + 1), isFalse);
+      expect(
+        base == base.copyWith(preset: TerminalPreset.solarizedDark),
+        isFalse,
+      );
+      expect(base == base.copyWith(font: TerminalFont.firaCode), isFalse);
+    });
+
+    test('重复写入相同值不触发通知', () {
+      final notifier = ValueNotifier<TerminalStylePrefs>(
+        const TerminalStylePrefs(),
+      );
+      addTearDown(notifier.dispose);
+      var notifications = 0;
+      notifier.addListener(() => notifications++);
+
+      notifier.value = const TerminalStylePrefs();
+      expect(notifications, 0, reason: '内容没变就不该通知下游重建');
+
+      notifier.value = const TerminalStylePrefs(fontSize: 18);
+      expect(notifications, 1);
+    });
+  });
 }
