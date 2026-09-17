@@ -31,6 +31,8 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
+  # 断线重连的退避计时器用假时钟驱动，测试不再等真实的秒数。
+  fake_async: ^1.3.3
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
   msix: ^3.18.0

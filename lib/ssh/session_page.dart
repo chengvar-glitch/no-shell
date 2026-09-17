@@ -44,6 +44,9 @@ final class SessionPage extends StatelessWidget {
                 : SshTerminalView(
                     session: session,
                     onRetry: () => sessions.retry(serverId),
+                    reconnectPlan: sessions.reconnectPlanOf(serverId),
+                    onStopAutoReconnect: () =>
+                        sessions.cancelAutoReconnect(serverId),
                   ),
           ),
         );

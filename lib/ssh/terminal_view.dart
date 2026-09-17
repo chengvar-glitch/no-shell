@@ -4,7 +4,11 @@ import 'package:xterm/ui.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../settings.dart';
+import '../snippets.dart';
 import '../theme.dart';
+import '../widgets/session_log_dialog.dart';
+import '../widgets/snippet_dialog.dart';
+import 'auto_reconnect.dart';
 import 'terminal_session.dart';
 
 /// 会话阶段映射为主机展示状态，复用现有的状态圆点 / 徽章。
@@ -16,13 +20,27 @@ ServerStatus serverStatusOf(TerminalPhase phase) => switch (phase) {
 };
 
 /// 真实 SSH 终端视图：按全局偏好渲染会话缓冲区，非连接态时叠加状态浮层。
+/// 右上角常驻会话工具条（命令片段 / 会话日志），挂了重连计划时浮层里
+/// 会多出倒计时与「停止自动重连」。
 final class SshTerminalView extends StatelessWidget {
-  const SshTerminalView({super.key, required this.session, this.onRetry});
+  const SshTerminalView({
+    super.key,
+    required this.session,
+    this.onRetry,
+    this.reconnectPlan,
+    this.onStopAutoReconnect,
+  });
 
   final TerminalSession session;
 
   /// 失败 / 已结束时的重连动作；为空时不展示重连按钮。
   final VoidCallback? onRetry;
+
+  /// 该会话挂着的自动重连计划；为空表示没有排队中的重连。
+  final ReconnectPlan? reconnectPlan;
+
+  /// 停止自动重连；为空时不展示停止按钮。
+  final VoidCallback? onStopAutoReconnect;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +63,11 @@ final class SshTerminalView extends StatelessWidget {
               ),
             ),
             if (phase != TerminalPhase.connected) _overlay(context, phase),
+            Positioned(
+              top: 6,
+              right: 8,
+              child: _SessionToolbar(session: session),
+            ),
           ],
         );
       },
@@ -78,9 +101,10 @@ final class SshTerminalView extends StatelessWidget {
   Widget _overlay(BuildContext context, TerminalPhase phase) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final plan = reconnectPlan;
     final message = phase == TerminalPhase.connecting
         ? l10n.connectingTo(session.server.account)
-        : _failureText(l10n);
+        : _failureText(l10n, phase);
     return Positioned.fill(
       child: ColoredBox(
         color: const Color(0xCC0A0C0F),
@@ -114,6 +138,22 @@ final class SshTerminalView extends StatelessWidget {
                   color: Color(0xFFB9C4CF),
                 ),
               ),
+              // 自动重连排在错误原因之后：先看到发生了什么，再看到接下来
+              // 会发生什么；点「停止」后这行连同按钮一起消失，错误现场还原。
+              if (plan != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  l10n.autoReconnectCountdown(
+                    plan.delay.inSeconds,
+                    plan.attempt,
+                  ),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.outline.withValues(alpha: 0.9),
+                  ),
+                ),
+              ],
               if (phase != TerminalPhase.connecting && onRetry != null) ...[
                 const SizedBox(height: 18),
                 FilledButton.tonalIcon(
@@ -121,6 +161,13 @@ final class SshTerminalView extends StatelessWidget {
                   icon: const Icon(Icons.refresh_rounded, size: 17),
                   label: Text(l10n.reconnect),
                 ),
+                if (plan != null && onStopAutoReconnect != null) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton(
+                    onPressed: onStopAutoReconnect,
+                    child: Text(l10n.autoReconnectStop),
+                  ),
+                ],
                 // 指纹读不出来时不给「清除指纹」这条路：那会真的丢掉可信
                 // 记录，而故障在存储层，重连或重启才是有意义的动作。
                 if (phase == TerminalPhase.failed &&
@@ -141,7 +188,9 @@ final class SshTerminalView extends StatelessWidget {
     );
   }
 
-  String _failureText(AppLocalizations l10n) {
+  String _failureText(AppLocalizations l10n, TerminalPhase phase) {
+    // 干净地断开（远端关闭）不是失败原因：别把「网络错误」扣在它头上。
+    if (phase == TerminalPhase.closed) return l10n.sessionClosedMsg;
     final reason = _reasonText(l10n);
     // 跳板链路上出的错必须指出是哪一跳：三台机器排在一起时，
     // 只说「认证失败」用户不知道该去改哪台的密码。
@@ -179,5 +228,84 @@ final class SshTerminalView extends StatelessWidget {
       changed?.port ?? session.server.port,
     );
     onRetry?.call();
+  }
+}
+
+/// 终端右上角的会话工具条：命令片段与日志查看的入口。
+/// 悬浮在终端内容之上，底色用终端配色，图标对比度不随主题漂移。
+final class _SessionToolbar extends StatelessWidget {
+  const _SessionToolbar({required this.session});
+
+  final TerminalSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final snippets = SnippetScope.maybeOf(context);
+    // 终端样式只在「本工具条」这一小棵子树里监听：配色 / 字号变化时
+    // 不连带终端视口重排。
+    return ValueListenableBuilder<TerminalStylePrefs>(
+      valueListenable: TerminalStyleScope.of(context).notifier,
+      builder: (context, prefs, _) {
+        final foreground = prefs.theme.foreground;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+          decoration: BoxDecoration(
+            color: prefs.theme.background.withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: foreground.withValues(alpha: 0.18)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (snippets != null)
+                _ToolbarButton(
+                  tooltip: l10n.snippets,
+                  icon: Icons.code_rounded,
+                  color: foreground,
+                  onTap: () => showSnippetDialog(
+                    context,
+                    snippets: snippets,
+                    session: session,
+                  ),
+                ),
+              _ToolbarButton(
+                tooltip: l10n.sessionLog,
+                icon: Icons.receipt_long_rounded,
+                color: foreground,
+                onTap: () => showSessionLogDialog(context, session: session),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 工具条按钮：紧凑的图标按钮，尺寸手工收紧以贴合圆角胶囊。
+final class _ToolbarButton extends StatelessWidget {
+  const _ToolbarButton({
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      icon: Icon(icon, size: 17, color: color),
+      onPressed: onTap,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.all(5),
+      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+    );
   }
 }

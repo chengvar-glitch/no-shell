@@ -14,6 +14,7 @@ import 'mobile/mobile_shell.dart';
 import 'server_persistence.dart';
 import 'settings.dart';
 import 'settings_persistence.dart';
+import 'snippets.dart';
 import 'ssh/credential_store.dart';
 import 'ssh/host_key_store.dart';
 import 'ssh/session_manager.dart';
@@ -25,15 +26,23 @@ Future<void> main() async {
   _registerBundledFontLicenses();
   await _setupDesktopWindow();
   // 启动即载入已保存的主机列表与偏好，避免先闪一帧空列表 / 默认主题
-  // 再被替换；两者互不依赖，并行读盘。
+  // 再被替换；三者互不依赖，并行读盘。
   final store = ServerStore(persistence: SharedPreferencesServerPersistence());
   final settings = SharedPreferencesSettingsPersistence();
-  final (_, savedSettings) = await (store.load(), settings.load()).wait;
+  final snippets = SnippetStore(
+    persistence: SharedPreferencesSnippetPersistence(),
+  );
+  final (_, savedSettings, _) = await (
+    store.load(),
+    settings.load(),
+    snippets.load(),
+  ).wait;
   runApp(
     NoShellApp(
       store: store,
       settings: settings,
       initialSettings: savedSettings,
+      snippetStore: snippets,
     ),
   );
 }
@@ -139,6 +148,8 @@ class NoShellApp extends StatefulWidget {
     this.settings,
     this.initialSettings,
     this.agentKeysProbe,
+    this.snippetStore,
+    this.autoReconnect = true,
   });
 
   /// 测试或嵌入方可注入；缺省时主机列表不落盘，凭据走平台安全存储，
@@ -156,6 +167,13 @@ class NoShellApp extends StatefulWidget {
   /// 「本机 agent 是否可用且有钥匙」的探针；测试注入假探针，
   /// 缺省连真实的 SSH_AUTH_SOCK。
   final AgentKeysProbe? agentKeysProbe;
+
+  /// 命令片段注册表；为 null 时用内存注册表（测试或嵌入场景）。
+  final SnippetStore? snippetStore;
+
+  /// 会话意外断开后是否自动重连（指数退避）。默认打开；测试可关闭，
+  /// 免得假传输的「连接后立即断开」凭空长出重连会话。
+  final bool autoReconnect;
 
   @override
   State<NoShellApp> createState() => _NoShellAppState();
@@ -180,7 +198,11 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
     hostKeys: _hostKeys,
     allowLegacyHostKeys: _allowLegacyHostKeys,
     agentKeysProbe: widget.agentKeysProbe,
+    autoReconnect: widget.autoReconnect,
   );
+
+  /// 命令片段注册表；经由 [SnippetScope] 下发，终端工具条直接取用。
+  late final SnippetStore _snippets = widget.snippetStore ?? SnippetStore();
 
   /// 主题默认跟随系统；启动时以落盘偏好为准，没有存档才用默认值。
   late ThemeMode _themeMode =
@@ -223,7 +245,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
 
   Future<void> _flushAndClose() async {
     _saveNow();
-    await _store.flush();
+    await (_store.flush(), _snippets.flush()).wait;
     if (!_windowHooked) return;
     await windowManager.destroy();
   }
@@ -265,6 +287,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
     _saveNow();
     _sessions.dispose();
     _store.dispose();
+    _snippets.dispose();
     _terminalStyle.dispose();
     super.dispose();
   }
@@ -299,10 +322,14 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
         duration: Duration(milliseconds: 240),
         curve: Curves.linear,
       ),
-      // 作用域必须包住 Navigator，全屏路由与对话框才能读取终端样式。
+      // 作用域必须包住 Navigator，全屏路由与对话框才能读取终端样式；
+      // 命令片段的作用域同理，终端工具条与片段弹窗都从树上取同一个注册表。
       builder: (context, child) => TerminalStyleScope(
         notifier: _terminalStyle,
-        child: child ?? const SizedBox.shrink(),
+        child: SnippetScope(
+          store: _snippets,
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
       home: LayoutBuilder(
         builder: (context, constraints) {

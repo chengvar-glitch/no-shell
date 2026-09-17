@@ -245,6 +245,7 @@ class _ServerDetailState extends State<_ServerDetail> {
         TerminalTab(
           server: server,
           session: session,
+          sessions: widget.sessions,
           idleHint: l10n.sessionDesktopHint,
           onRetry: session == null
               ? null
@@ -727,12 +728,14 @@ class _InfoCard extends StatelessWidget {
 }
 
 /// 终端视图：有会话时渲染真实 SSH 终端，否则展示静态引导画面。
-/// 桌面端详情面板与移动端详情页共用。
+/// 桌面端详情面板与移动端详情页共用；传入 [sessions] 时终端浮层里
+/// 会带上自动重连的倒计时与「停止」入口。
 final class TerminalTab extends StatelessWidget {
   const TerminalTab({
     super.key,
     required this.server,
     this.session,
+    this.sessions,
     this.onRetry,
     this.idleHint,
   });
@@ -741,6 +744,9 @@ final class TerminalTab extends StatelessWidget {
 
   /// 当前主机的 SSH 会话；为空表示尚未建立，展示引导画面。
   final TerminalSession? session;
+
+  /// 会话管理器；为空（部分测试）时终端不展示自动重连状态。
+  final SessionManager? sessions;
 
   /// 失败 / 已结束时的重连动作。
   final VoidCallback? onRetry;
@@ -772,12 +778,32 @@ final class TerminalTab extends StatelessWidget {
             child: RepaintBoundary(
               child: session == null
                   ? _buildIdleOutput(context, prefs)
-                  : SshTerminalView(session: session, onRetry: onRetry),
+                  : _terminalWithReconnect(context, session),
             ),
           );
         },
       ),
     );
+  }
+
+  /// 终端视图套一层会话订阅：只有自动重连的计划变化时才重建这一小块，
+  /// 会话层的其它通知不经过这里。
+  Widget _terminalWithReconnect(BuildContext context, TerminalSession session) {
+    Widget view(BuildContext context) => SshTerminalView(
+      session: session,
+      onRetry: onRetry,
+      reconnectPlan: sessions?.reconnectPlanOf(server.id),
+      onStopAutoReconnect: sessions == null
+          ? null
+          : () => sessions!.cancelAutoReconnect(server.id),
+    );
+    final manager = sessions;
+    return manager == null
+        ? view(context)
+        : ListenableBuilder(
+            listenable: manager,
+            builder: (context, _) => view(context),
+          );
   }
 
   Widget _buildIdleOutput(BuildContext context, TerminalStylePrefs prefs) {

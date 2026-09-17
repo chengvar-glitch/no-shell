@@ -157,6 +157,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copyAddress => 'Copy address';
 
   @override
+  String get copy => 'Copy';
+
+  @override
   String copied(String value) {
     return 'Copied $value';
   }
@@ -1022,4 +1025,80 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get jumpHostUnavailable =>
       'Unavailable (deleted, or would form a loop)';
+
+  @override
+  String get sessionLog => 'Session log';
+
+  @override
+  String get sessionLogHint =>
+      'Captures everything shown in this terminal. Passwords typed at hidden prompts are not echoed by the server, so they never enter the log.';
+
+  @override
+  String get sessionLogEmpty =>
+      'Nothing logged yet — output will appear here as the session runs.';
+
+  @override
+  String get sessionLogSave => 'Save log';
+
+  @override
+  String sessionLogSaved(String name) {
+    return 'Log saved: $name';
+  }
+
+  @override
+  String get sessionLogSaveFailed =>
+      'Failed to save the log. Please try again.';
+
+  @override
+  String get sessionLogCopied => 'Log copied to clipboard';
+
+  @override
+  String get snippets => 'Snippets';
+
+  @override
+  String get snippetsHint => 'Tap a snippet to run it in this session.';
+
+  @override
+  String get snippetNew => 'New snippet';
+
+  @override
+  String get snippetEdit => 'Edit snippet';
+
+  @override
+  String get snippetName => 'Name';
+
+  @override
+  String get snippetNameRequired => 'Please enter a name';
+
+  @override
+  String get snippetCommand => 'Command';
+
+  @override
+  String get snippetCommandRequired => 'Please enter a command';
+
+  @override
+  String get snippetCommandHint => 'Sent as-is, followed by Enter.';
+
+  @override
+  String get snippetEmpty => 'No snippets yet';
+
+  @override
+  String get snippetEmptyHint =>
+      'Save commands you run often and fire them with one tap.';
+
+  @override
+  String snippetDeleteTitle(String name) {
+    return 'Delete \"$name\"?';
+  }
+
+  @override
+  String get snippetDeleteBody => 'This snippet will be removed.';
+
+  @override
+  String autoReconnectCountdown(int seconds, int attempt) {
+    return 'Reconnecting automatically in $seconds s (attempt $attempt)';
+  }
+
+  @override
+  String get autoReconnectStop => 'Stop auto reconnect';
 }
