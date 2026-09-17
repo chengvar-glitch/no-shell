@@ -6,7 +6,6 @@ import '../ssh/session_page.dart';
 import '../ssh/terminal_view.dart';
 import '../theme.dart';
 import '../widgets/status_badges.dart';
-import 'frosted_bar.dart';
 
 /// 终端 Tab：统一管理活跃 SSH 会话，点击进入全屏终端。
 final class TerminalTab extends StatelessWidget {
@@ -21,46 +20,33 @@ final class TerminalTab extends StatelessWidget {
       builder: (context, _) {
         final all = sessions.sessions;
         return Scaffold(
-          extendBodyBehindAppBar: true,
-          appBar: FrostedBar(
-            title: Text(AppLocalizations.of(context).terminal),
-          ),
+          appBar: AppBar(title: Text(AppLocalizations.of(context).terminal)),
           body: all.isEmpty
-              ? Padding(
-                  padding: EdgeInsets.only(top: FrostedBar.topInset(context)),
-                  child: _emptyView(context),
-                )
-              : FrostedBody(
-                  child: ListView.builder(
-                    padding: EdgeInsets.only(
-                      top: FrostedBar.topInset(context),
-                      bottom: 16,
-                    ),
-                    itemCount: all.length,
-                    itemBuilder: (context, index) {
-                      final session = all[index];
-                      return ListTile(
-                        leading: StatusDot(
-                          status: serverStatusOf(session.phase),
-                        ),
-                        title: Text(session.server.name),
-                        subtitle: Text(session.server.account),
-                        trailing: IconButton(
-                          tooltip: AppLocalizations.of(context).disconnect,
-                          icon: const Icon(Icons.link_off_rounded, size: 19),
-                          onPressed: () => sessions.close(session.server.id),
-                        ),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => SessionPage(
-                              sessions: sessions,
-                              serverId: session.server.id,
-                            ),
+              ? _emptyView(context)
+              : ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  itemCount: all.length,
+                  itemBuilder: (context, index) {
+                    final session = all[index];
+                    return ListTile(
+                      leading: StatusDot(status: serverStatusOf(session.phase)),
+                      title: Text(session.server.name),
+                      subtitle: Text(session.server.account),
+                      trailing: IconButton(
+                        tooltip: AppLocalizations.of(context).disconnect,
+                        icon: const Icon(Icons.link_off_rounded, size: 19),
+                        onPressed: () => sessions.close(session.server.id),
+                      ),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => SessionPage(
+                            sessions: sessions,
+                            serverId: session.server.id,
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
         );
       },

@@ -9,7 +9,6 @@ import '../ssh/session_manager.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets/status_badges.dart';
-import 'frosted_bar.dart';
 import 'server_detail_page.dart';
 import 'server_edit_page.dart';
 
@@ -34,7 +33,7 @@ class _ServersTabState extends State<ServersTab> {
   bool _searching = false;
 
   /// 搜索关键词走 ValueNotifier：每次输入只重建列表子树，
-  /// 不把 setState 上抛到整个 Tab（含毛玻璃顶栏与 FAB）。
+  /// 不把 setState 上抛到整个 Tab（含顶栏与 FAB）。
   final ValueNotifier<String> _query = ValueNotifier('');
 
   @override
@@ -168,8 +167,7 @@ class _ServersTabState extends State<ServersTab> {
       listenable: widget.store,
       builder: (context, _) {
         return Scaffold(
-          extendBodyBehindAppBar: true,
-          appBar: FrostedBar(
+          appBar: AppBar(
             title: _searching ? _searchField() : Text(l10n.navServers),
             actions: [
               IconButton(
@@ -238,40 +236,29 @@ class _ServersTabState extends State<ServersTab> {
                 for (final group in groups) ...[group, ...group.servers],
               ];
               return rows.isEmpty
-                  ? Padding(
-                      padding: EdgeInsets.only(
-                        top: FrostedBar.topInset(context),
-                      ),
-                      child: _emptyView(context, total),
-                    )
-                  // 扁平化为「分组头 / 主机行」序列，懒构建可见行即可；
-                  // 初始顶部内边距让首行落在玻璃下缘，滚动后内容从玻璃下穿过。
-                  : FrostedBody(
-                      child: ListView.builder(
-                        padding: EdgeInsets.only(
-                          top: FrostedBar.topInset(context),
-                          bottom: 96,
-                        ),
-                        itemCount: rows.length,
-                        itemBuilder: (context, index) {
-                          final row = rows[index];
-                          if (row is ServerGroup) {
-                            return _groupHeader(context, row);
-                          }
-                          final server = row as SshServer;
-                          return _ServerTile(
+                  ? _emptyView(context, total)
+                  // 扁平化为「分组头 / 主机行」序列，懒构建可见行即可。
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 96),
+                      itemCount: rows.length,
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        if (row is ServerGroup) {
+                          return _groupHeader(context, row);
+                        }
+                        final server = row as SshServer;
+                        return _ServerTile(
+                          server: server,
+                          onTap: () => _openDetail(server),
+                          onLongPress: () => _showActions(server),
+                          onToggleConnect: () => toggleSession(
+                            context,
+                            sessions: widget.sessions,
                             server: server,
-                            onTap: () => _openDetail(server),
-                            onLongPress: () => _showActions(server),
-                            onToggleConnect: () => toggleSession(
-                              context,
-                              sessions: widget.sessions,
-                              server: server,
-                              credentials: widget.credentials,
-                            ),
-                          );
-                        },
-                      ),
+                            credentials: widget.credentials,
+                          ),
+                        );
+                      },
                     );
             },
           ),
