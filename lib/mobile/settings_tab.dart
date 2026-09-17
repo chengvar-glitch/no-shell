@@ -49,6 +49,7 @@ class SettingsTab extends StatelessWidget {
         scrolledUnderElevation: 0,
       ),
       body: ListView(
+        physics: const ClampingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
           if (archiveUnreadable) const ArchiveWarningCard(),
@@ -100,11 +101,16 @@ class SettingsTab extends StatelessWidget {
               ),
               SettingsRow(
                 label: l10n.terminalFont,
-                child: const TerminalFontDropdown(),
-              ),
-              SettingsRow(
-                label: l10n.terminalFontSize,
-                child: const TerminalFontSizeControl(),
+                child: Row(
+                  children: [
+                    const Expanded(child: TerminalFontDropdown()),
+                    const SizedBox(width: 12),
+                    const SizedBox(
+                      width: 140,
+                      child: TerminalFontSizeControl(),
+                    ),
+                  ],
+                ),
               ),
               SettingsRow(
                 label: l10n.terminalPreview,

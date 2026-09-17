@@ -230,7 +230,6 @@ class _HomePageState extends State<HomePage> {
               sessions: widget.sessions,
               onConnect: _toggleConnect,
               onCreate: () => _editOrCreate(),
-              onDelete: _deleteServer,
               sidebarCollapsed: collapsed,
               onToggleSidebar: _toggleSidebar,
             ),

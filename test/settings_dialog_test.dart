@@ -108,9 +108,8 @@ void main() {
 
   test('终端样式偏好：默认字体是随包内置，字号越界夹住', () {
     const defaults = TerminalStylePrefs();
-    // 旧版写死 13，用户反馈偏小：默认值上调两号。
-    expect(TerminalStylePrefs.defaultFontSize, 15);
-    expect(defaults.fontSize, 15);
+    expect(TerminalStylePrefs.defaultFontSize, 13);
+    expect(defaults.fontSize, 13);
     expect(defaults.font, TerminalFont.jetBrainsMono);
     expect(
       defaults.resolvedFontFamily,
@@ -139,10 +138,11 @@ void main() {
   testWidgets('设置弹窗：终端字号可增减，预览字号跟着变', (tester) async {
     await pumpDesktop(tester);
     await openSettings(tester);
-    await tester.ensureVisible(find.text('终端字号'));
+    // 字体与字号已合并为一行，字号控件本身定宽在字体下拉右侧。
+    await tester.ensureVisible(find.byTooltip('增大字号'));
     await tester.pumpAndSettle();
 
-    final scope = TerminalStyleScope.of(tester.element(find.text('终端字号')));
+    final scope = TerminalStyleScope.of(tester.element(find.byTooltip('增大字号')));
     expect(scope.notifier.value.fontSize, TerminalStylePrefs.defaultFontSize);
 
     double previewFontSize() {

@@ -95,6 +95,8 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
             _buildHeader(context, theme, l10n),
             Flexible(
               child: SingleChildScrollView(
+                // 桌面默认的回弹（果冻）效果在设置页没有意义，钳住。
+                physics: const ClampingScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -158,11 +160,17 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                         ),
                         SettingsRow(
                           label: l10n.terminalFont,
-                          child: const TerminalFontDropdown(),
-                        ),
-                        SettingsRow(
-                          label: l10n.terminalFontSize,
-                          child: const TerminalFontSizeControl(),
+                          // 字体 + 字号同行：字号控件定宽，字体吃剩余宽度。
+                          child: Row(
+                            children: [
+                              const Expanded(child: TerminalFontDropdown()),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: 150,
+                                child: const TerminalFontSizeControl(),
+                              ),
+                            ],
+                          ),
                         ),
                         SettingsRow(
                           label: l10n.terminalPreview,

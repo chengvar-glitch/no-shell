@@ -321,9 +321,8 @@ class TerminalStylePrefs {
     this.fontSize = defaultFontSize,
   });
 
-  /// 字号默认值与范围（逻辑像素）。默认比早先写死的 13 大两号：13 在
-  /// 高分屏上偏小，长会话看起来吃力；界面只做 ± 步进，边界收在这里。
-  static const defaultFontSize = 15;
+  /// 字号默认值与范围（逻辑像素）。界面只做 ± 步进，边界收在这里。
+  static const defaultFontSize = 13;
   static const minFontSize = 11;
   static const maxFontSize = 22;
 

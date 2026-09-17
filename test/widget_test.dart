@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -6,7 +7,7 @@ import 'package:no_shell/main.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/store.dart';
 import 'package:no_shell/theme.dart';
-import 'package:no_shell/widgets/server_detail.dart';
+import 'package:no_shell/widgets/sidebar.dart';
 import 'package:no_shell/widgets/window_caption.dart';
 
 import 'support/credential_store_fake.dart';
@@ -62,15 +63,20 @@ void main() {
     await pumpDesktop(tester);
 
     Future<void> askDelete() async {
-      // 分组头上也有「⋯」，这里只要详情面板那一枚。
-      await tester.tap(
-        find.descendant(
-          of: find.byType(ServerDetailPanel),
-          matching: find.byIcon(Icons.more_horiz_rounded),
+      // 详情面板的「⋯」已移除：删除入口在侧边栏主机的右键菜单。
+      final gesture = await tester.startGesture(
+        tester.getCenter(
+          find.descendant(
+            of: find.byType(Sidebar),
+            matching: find.text('web-prod-01'),
+          ),
         ),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
       );
+      await gesture.up();
       await tester.pumpAndSettle();
-      await tester.tap(find.text('删除主机'));
+      await tester.tap(find.text('删除').last);
       await tester.pumpAndSettle();
     }
 

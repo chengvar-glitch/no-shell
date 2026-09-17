@@ -126,21 +126,12 @@ void main() {
       // 内容整体上移：服务器名就在标题条这一行里，而不是另起一行。
       expect(tester.getCenter(title).dy, lessThan(kWindowCaptionHeight));
 
-      // 断开 / 连接与「⋯」跟在名字后面，不再贴面板右端，
+      // 断开 / 连接按钮跟在名字后面，不再贴面板右端，
       // 免得内容上移后和窗口的关闭按钮挤在一起。
-      // 侧边栏分组头上也有「⋯」，断言限定在标题条里的那一枚。
-      final moreLeft = tester
-          .getTopLeft(
-            find.descendant(
-              of: find.byType(WindowCaptionBar),
-              matching: find.byIcon(Icons.more_horiz_rounded),
-            ),
-          )
-          .dx;
+      // 详情头部的「⋯」已移除（删除入口在侧边栏主机右键菜单）。
       final connectRect = tester.getRect(find.byIcon(Icons.bolt_rounded));
       final minimizeLeft = tester.getTopLeft(find.byIcon(Icons.minimize)).dx;
-      expect(moreLeft, greaterThan(tester.getTopRight(title).dx));
-      expect(connectRect.left, greaterThan(moreLeft));
+      expect(connectRect.left, greaterThan(tester.getTopRight(title).dx));
       expect(connectRect.right, lessThan(minimizeLeft));
 
       // 标签行仍然排在标题条之下（不齐进 48px 的行内）。

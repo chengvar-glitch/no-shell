@@ -25,7 +25,6 @@ class ServerDetailPanel extends StatelessWidget {
     required this.sessions,
     required this.onConnect,
     required this.onCreate,
-    required this.onDelete,
     this.sidebarCollapsed = false,
     this.onToggleSidebar,
   });
@@ -35,7 +34,6 @@ class ServerDetailPanel extends StatelessWidget {
   final SessionManager sessions;
   final ValueChanged<SshServer> onConnect;
   final VoidCallback onCreate;
-  final ValueChanged<SshServer> onDelete;
   final bool sidebarCollapsed;
   final VoidCallback? onToggleSidebar;
 
@@ -54,7 +52,6 @@ class ServerDetailPanel extends StatelessWidget {
       store: store,
       sessions: sessions,
       onConnect: () => onConnect(selected),
-      onDelete: () => onDelete(selected),
       sidebarCollapsed: sidebarCollapsed,
       onToggleSidebar: onToggleSidebar,
     );
@@ -208,7 +205,6 @@ class _ServerDetail extends StatefulWidget {
     required this.store,
     required this.sessions,
     required this.onConnect,
-    required this.onDelete,
     required this.sidebarCollapsed,
     required this.onToggleSidebar,
   });
@@ -217,7 +213,6 @@ class _ServerDetail extends StatefulWidget {
   final ServerStore store;
   final SessionManager sessions;
   final VoidCallback onConnect;
-  final VoidCallback onDelete;
   final bool sidebarCollapsed;
   final VoidCallback? onToggleSidebar;
 
@@ -237,7 +232,6 @@ class _ServerDetailState extends State<_ServerDetail> {
       sidebarCollapsed: widget.sidebarCollapsed,
       onToggleSidebar: widget.onToggleSidebar,
       onConnect: widget.onConnect,
-      onDelete: widget.onDelete,
     );
     final tabs = _DetailTabs(
       labels: [l10n.overview, l10n.terminal, l10n.sftp, l10n.portForwarding],
@@ -340,7 +334,6 @@ class _DetailHeader extends StatelessWidget {
     required this.sidebarCollapsed,
     required this.onToggleSidebar,
     required this.onConnect,
-    required this.onDelete,
   });
 
   final SshServer server;
@@ -348,7 +341,6 @@ class _DetailHeader extends StatelessWidget {
   final bool sidebarCollapsed;
   final VoidCallback? onToggleSidebar;
   final VoidCallback onConnect;
-  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -379,41 +371,6 @@ class _DetailHeader extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         StatusPill(status: server.status),
-        const SizedBox(width: 4),
-        PopupMenuButton<String>(
-          tooltip: l10n.moreActions,
-          icon: Icon(
-            Icons.more_horiz_rounded,
-            size: 19,
-            color: theme.secondaryText,
-          ),
-          onSelected: (action) {
-            if (action == 'delete') onDelete();
-          },
-          itemBuilder: (menuContext) => [
-            PopupMenuItem(
-              value: 'delete',
-              height: 36,
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.delete_outline_rounded,
-                    size: 16,
-                    color: AppPalette.danger,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    AppLocalizations.of(menuContext).deleteHost,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppPalette.danger,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
         const SizedBox(width: 4),
         connected
             ? OutlinedButton.icon(

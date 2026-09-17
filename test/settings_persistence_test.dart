@@ -130,7 +130,7 @@ void main() {
     // 打开设置改字号：防抖窗口内合并写盘。
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('终端字号'));
+    await tester.ensureVisible(find.byTooltip('增大字号'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('增大字号'));
     await tester.pump();
@@ -150,7 +150,7 @@ void main() {
     await tester.tap(lightOption);
     await tester.pumpAndSettle();
     expect(
-      Theme.of(tester.element(find.text('终端字号'))).brightness,
+      Theme.of(tester.element(find.byTooltip('增大字号'))).brightness,
       Brightness.light,
       reason: '主题应已切到浅色',
     );
