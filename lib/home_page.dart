@@ -12,6 +12,7 @@ import 'ssh/connect_flow.dart';
 import 'ssh/credential_store.dart';
 import 'ssh/host_key_store.dart';
 import 'ssh/session_manager.dart';
+import 'ssh/ssh_agent.dart';
 import 'ssh/ssh_credentials.dart';
 import 'store.dart';
 import 'theme.dart';
@@ -423,6 +424,7 @@ class _ServerDialogState extends State<_ServerDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return AlertDialog(
       title: Text(
         widget.initial == null ? l10n.newConnection : l10n.editConnection,
@@ -534,12 +536,27 @@ class _ServerDialogState extends State<_ServerDialog> {
                       label: Text(l10n.authKey),
                       icon: const Icon(Icons.vpn_key_outlined, size: 16),
                     ),
+                    // 本平台没有 agent 时不给这个入口；主机预设就是 Agent
+                    // 时仍要展示，否则保存的取值在界面上无从呈现。
+                    if (sshAgentSupported || _auth == AuthMethod.agent)
+                      ButtonSegment(
+                        value: AuthMethod.agent,
+                        label: Text(l10n.authAgent),
+                        icon: const Icon(Icons.extension_outlined, size: 16),
+                      ),
                   ],
                   selected: {_auth},
                   showSelectedIcon: false,
                   onSelectionChanged: (selection) =>
                       setState(() => _auth = selection.first),
                 ),
+                if (_auth == AuthMethod.agent) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.agentAuthHint,
+                    style: TextStyle(fontSize: 12, color: theme.secondaryText),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _notes,

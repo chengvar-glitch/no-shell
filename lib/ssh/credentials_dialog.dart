@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../theme.dart';
+import 'ssh_agent.dart';
 import 'ssh_credentials.dart';
 
 /// 一次凭据弹窗的提交结果：[remember] 表示用户愿意把凭据存入安全存储。
@@ -90,6 +91,7 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
     final initial = widget.initial;
     if (initial?.password != null) return AuthMethod.password;
     if (initial?.privateKey != null) return AuthMethod.privateKey;
+    if (initial?.useAgent ?? false) return AuthMethod.agent;
     return widget.server.authMethod;
   }
 
@@ -97,16 +99,27 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     Navigator.of(context).pop(
       CredentialsSubmission(
-        credentials: SshCredentials(
-          password: _auth == AuthMethod.password ? _password.text : null,
-          privateKey: _auth == AuthMethod.privateKey ? _privateKey.text : null,
-          passphrase: _passphrase.text.trim().isEmpty
-              ? null
-              : _passphrase.text.trim(),
-        ),
+        credentials: switch (_auth) {
+          AuthMethod.password => SshCredentials(
+            password: _password.text,
+            passphrase: _passphraseOrNull(),
+          ),
+          AuthMethod.privateKey => SshCredentials(
+            privateKey: _privateKey.text,
+            passphrase: _passphraseOrNull(),
+          ),
+          // agent 里没有可输入的机密：只带意图标记，密钥清单连接时再向
+          // 本机 agent 要。
+          AuthMethod.agent => const SshCredentials(useAgent: true),
+        },
         remember: widget.allowRemember && _remember,
       ),
     );
+  }
+
+  String? _passphraseOrNull() {
+    final passphrase = _passphrase.text.trim();
+    return passphrase.isEmpty ? null : passphrase;
   }
 
   @override
@@ -161,6 +174,14 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
                   label: Text(l10n.authKey),
                   icon: const Icon(Icons.vpn_key_outlined, size: 16),
                 ),
+                // 本平台没有 agent 时不给这个入口；但主机预设就是 Agent 时
+                // 仍要展示，否则保存的取值在界面上无从呈现。
+                if (sshAgentSupported || _auth == AuthMethod.agent)
+                  ButtonSegment(
+                    value: AuthMethod.agent,
+                    label: Text(l10n.authAgent),
+                    icon: const Icon(Icons.extension_outlined, size: 16),
+                  ),
               ],
               selected: {_auth},
               showSelectedIcon: false,
@@ -197,7 +218,29 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
                     : null,
                 onFieldSubmitted: (_) => _submit(),
               )
-            else ...[
+            else if (_auth == AuthMethod.agent) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 14,
+                    color: theme.secondaryText,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      l10n.agentAuthHint,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.secondaryText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+            ] else ...[
               TextFormField(
                 controller: _privateKey,
                 autofocus: true,

@@ -164,6 +164,7 @@ final class SshTerminalView extends StatelessWidget {
             ),
     TerminalErrorKind.hostKeyStore => l10n.hostKeyUnavailableMsg,
     TerminalErrorKind.privateKey => l10n.privateKeyUnsupportedMsg,
+    TerminalErrorKind.agent => l10n.agentErrorMsg,
     TerminalErrorKind.jumpChain => l10n.jumpChainErrorMsg,
     TerminalErrorKind.other => session.error ?? l10n.networkErrorMsg,
   };

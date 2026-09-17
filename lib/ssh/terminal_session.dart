@@ -10,6 +10,7 @@ import 'jump_host.dart';
 import 'local_files.dart';
 import 'port_forward_runtime.dart';
 import 'sftp_browser.dart';
+import 'ssh_agent.dart';
 import 'ssh_credentials.dart';
 import 'ssh_transport.dart';
 import 'tunnel_gateway.dart';
@@ -30,6 +31,9 @@ enum TerminalErrorKind {
 
   /// 私钥格式不受支持或口令不对。
   privateKey,
+
+  /// 本机 SSH agent 用不了：agent 没在运行 / 没装密钥 / 拒绝签名。
+  agent,
 
   /// 跳板机链路本身不成立（环、深度超限、跳板机已被删除）。
   /// 与 network / auth 分开：这类问题重试多少次都一样，得去改配置。
@@ -210,6 +214,13 @@ final class TerminalSession extends ChangeNotifier {
     }
     if (cause is PrivateKeyUnsupportedException) {
       return TerminalErrorKind.privateKey;
+    }
+    // 签名器（agent）抛的错会被 dartssh2 包进 SSHInternalError 再关闭传输，
+    // 剥开这层壳才能看到真正的 agent 异常。
+    final inner = cause is SSHInternalError ? cause.error : cause;
+    if (inner is SshAgentUnavailableException ||
+        inner is SshAgentFailureException) {
+      return TerminalErrorKind.agent;
     }
     // 只有 web 的「浏览器没有原始 TCP」才归为平台不支持。不能把任意
     // UnsupportedError 都算进来：dartssh2 对不认识的 PEM 头也抛它。

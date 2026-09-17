@@ -2,6 +2,8 @@
 // 用法：
 //   dart run tool/smoke_ssh.dart <host> <port> <user> --password <密码>
 //   dart run tool/smoke_ssh.dart <host> <port> <user> --identity <PEM路径> [--passphrase <口令>]
+//   dart run tool/smoke_ssh.dart <host> <port> <user> --agent
+//     （经本机 SSH agent（SSH_AUTH_SOCK）里的密钥认证，密钥需先 ssh-add 装入）
 //   追加 --shell 验证 PTY 交互式 shell；追加 --sftp 验证 SFTP 浏览与上传 / 下载链路。
 // 凭据只经命令行传入，不写入本文件。
 import 'dart:convert';
@@ -12,6 +14,32 @@ import 'package:dartssh2/dartssh2.dart';
 // 一旦牵扯到 Flutter（models / l10n）就无法编译。
 import 'package:no_shell/ssh/dartssh2_sftp.dart';
 import 'package:no_shell/ssh/sftp.dart';
+import 'package:no_shell/ssh/ssh_agent.dart';
+
+/// 按命令行参数装载认证身份：--agent 走本机 SSH agent，--identity 读 PEM
+/// 文件；两者都不给就是纯密码认证（返回空清单）。
+Future<List<SSHIdentity>> _loadIdentities(
+  String? identityPath,
+  String? passphrase, {
+  bool useAgent = false,
+}) async {
+  if (useAgent) {
+    final agent = await connectSshAgent();
+    final keys = await agent.listIdentities();
+    // ignore: avoid_print
+    print(
+      'AGENT OK: ${keys.length} key(s): '
+      '${keys.map((k) => '${k.type} ${k.comment}'.trim()).join(', ')}',
+    );
+    if (keys.isEmpty) {
+      await agent.close();
+      throw StateError('agent has no loaded keys (ssh-add first)');
+    }
+    return agentIdentitiesAsSsh(agent, keys);
+  }
+  if (identityPath == null) return const [];
+  return SSHKeyPair.fromPem(File(identityPath).readAsStringSync(), passphrase);
+}
 
 Future<void> main(List<String> args) async {
   final positional = args.where((a) => !a.startsWith('--')).toList();
@@ -39,6 +67,7 @@ Future<void> main(List<String> args) async {
   final password = option('--password');
   final identityPath = option('--identity');
   final passphrase = option('--passphrase');
+  final useAgent = flag('--agent');
 
   // --sftp 走 App 自己的传输层与适配器，覆盖界面用到的全部 SFTP 操作。
   if (flag('--sftp')) {
@@ -49,6 +78,7 @@ Future<void> main(List<String> args) async {
       password: password,
       identityPath: identityPath,
       passphrase: passphrase,
+      useAgent: useAgent,
     );
     return;
   }
@@ -61,10 +91,11 @@ Future<void> main(List<String> args) async {
   // ignore: avoid_print
   print('TCP OK -> $host:$port');
 
-  final identities = <SSHIdentity>[
-    if (identityPath != null)
-      ...SSHKeyPair.fromPem(File(identityPath).readAsStringSync(), passphrase),
-  ];
+  final identities = await _loadIdentities(
+    identityPath,
+    passphrase,
+    useAgent: useAgent,
+  );
 
   final client = SSHClient(
     socket,
@@ -133,11 +164,13 @@ Future<void> smokeSftp({
   String? password,
   String? identityPath,
   String? passphrase,
+  bool useAgent = false,
 }) async {
-  final identities = <SSHIdentity>[
-    if (identityPath != null)
-      ...SSHKeyPair.fromPem(File(identityPath).readAsStringSync(), passphrase),
-  ];
+  final identities = await _loadIdentities(
+    identityPath,
+    passphrase,
+    useAgent: useAgent,
+  );
 
   final scratch = '.no_shell_smoke_${DateTime.now().millisecondsSinceEpoch}';
   var scratchPath = '';

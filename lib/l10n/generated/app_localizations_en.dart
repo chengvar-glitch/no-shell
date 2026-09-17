@@ -177,6 +177,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authKey => 'SSH key';
 
   @override
+  String get authAgent => 'Agent';
+
+  @override
+  String get agentAuthHint =>
+      'Authenticate with keys held by your local SSH agent (macOS / Linux). Load your key with ssh-add first — the connection fails when the agent is not running or has no keys.';
+
+  @override
   String get lastConnected => 'Last connected';
 
   @override
@@ -238,6 +245,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get authFailedMsg =>
       'Authentication failed — check your password or key';
+
+  @override
+  String get agentErrorMsg =>
+      'Cannot use the local SSH agent — make sure it is running and your key is loaded (ssh-add), then retry.';
 
   @override
   String get networkErrorMsg =>
