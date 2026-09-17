@@ -247,6 +247,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Authentication failed — check your password or key';
 
   @override
+  String get credentialsSaveFailedMsg =>
+      'Failed to save credentials — this connection is unaffected, but you\'ll need to enter them again next time. Check the system keychain settings.';
+
+  @override
   String get agentErrorMsg =>
       'Cannot use the local SSH agent — make sure it is running and your key is loaded (ssh-add), then retry.';
 

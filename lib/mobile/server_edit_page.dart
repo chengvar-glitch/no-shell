@@ -101,7 +101,17 @@ class _ServerEditPageState extends State<ServerEditPage> {
     if (password != null &&
         _auth == AuthMethod.password &&
         widget.credentials.supported) {
-      await widget.credentials.write(id, SshCredentials(password: password));
+      final saved = await widget.credentials.write(
+        id,
+        SshCredentials(password: password),
+      );
+      if (!saved && mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text(l10n.credentialsSaveFailedMsg)),
+          );
+      }
     } else if (_auth != AuthMethod.password &&
         widget.initial?.authMethod == AuthMethod.password) {
       // 改成密钥认证后旧密码没人再用，但导出备份时会把它一起打包走。

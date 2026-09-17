@@ -37,7 +37,7 @@
 - `lib/home_page.dart` — 桌面端左右分栏骨架（侧边栏固定宽度、可整体收起，不提供拖拽调宽）
 - `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）；`port_forward_panel.dart` 为「转发」页（规则列表 + 新建 / 编辑弹窗），桌面与移动端共用；`jump_host_field.dart` 为跳板机下拉（桌面弹窗与移动端编辑页共用）；`sftp_browser.dart` 为库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`；`settings_controls.dart` 为设置面板共用件（分组卡片 `SettingsSection` / `SettingsCard` / 设置行 `SettingsRow` / `SettingsIconButton` 与各设置控件），桌面设置弹窗与移动端设置 Tab 共用同一套，两端观感必须一致；`group_controls.dart` 为分组共用件（可输入新建的分组输入框 `GroupField`、重命名 / 删除 / 移动分组流程 `runGroupAction`），桌面侧边栏与移动端主机页共用，两端观感必须一致；`password_dialog.dart` 为备份口令弹窗（`BackupPasswordMode.create` 设口令并二次确认 / `.open` 输一次口令）
 - `lib/ssh/` — 会话层（`SessionManager`、`TerminalSession`、传输层、终端视图、凭据弹窗、连接入口）
-  - `credential_store.dart` — 凭据安全存储抽象；`credential_store_io.dart` / `credential_store_stub.dart` 为条件导出的原生实现与 web 桩（同 local_write 模式）
+  - `credential_store.dart` — 凭据安全存储抽象；`credential_store_io.dart` / `credential_store_stub.dart` 为条件导出的原生实现与 web 桩（同 local_write 模式）。`write` 返回是否真的落盘：底层故障不打断连接，但调用方必须提示「没存上」，绝不静默——钥匙串不可用时静默失败曾让「记住凭据」形同虚设
   - `host_key_store.dart` — 主机公钥指纹存储与 TOFU 校验决策。**一台主机存一组指纹**（`HostKeyRecord` 只含指纹），判据就是指纹本身：dartssh2 的指纹只哈希密钥体、不含算法名，所以同一把密钥换算法名指纹不变，按「算法名 + 指纹」比对会把良性协商变化误判成中间人。读取失败走 `HostKeysUnavailable` 并**拒绝连接**（fail closed，绝不按「从未记录」放行后覆盖可信记录）；`HostKeyChangedException` / `HostKeyUnavailableException` 分别归类为 `TerminalErrorKind.hostKey` / `.hostKeyStore`，前者才提供「清除记录的指纹并重连」，且文案必须带上指纹供用户与服务器核对
   - `forward.dart` — 转发的公共类型：双向通道 `DuplexChannel`、服务端监听 `RemoteForwardListener`、本地 SOCKS5 代理 `DynamicForwardProxy`，以及失败归类 `ForwardErrorKind` / `ForwardException`（与平台无关，web 也要能编译）
   - `tunnel_gateway.dart` — 转发本机一侧的网关（监听 / 拨号），条件导出 `tunnel_gateway_io.dart`（真套接字）与 `tunnel_gateway_stub.dart`（web 抛 `UnsupportedError`）
@@ -56,7 +56,7 @@
 - `tool/` — 开发脚本（`smoke_ssh.dart` 冒烟脚本，`dev_sftp_server.py` 是配套的一次性本地 SFTP + 假 shell 服务端，只绑 127.0.0.1、账号 smoke/smoke，供 `--sftp` / `--shell` 冒烟与截图使用）
 - `docs/screenshots/` — README 截图，由 `integration_test/screenshots_test.dart` 生成，禁止放入真实主机信息
 - `icon/` — 应用图标：`art.svg` 是唯一样式来源，`render.py` 生成 `png/` 全套尺寸；iOS / macOS / Windows / Android / Web 由 `dart run flutter_launcher_icons`（配置在 `pubspec.yaml`）写入平台目录，Linux 走 `icon/png/linux/*.png`，由 `release.yml` 装成 hicolor 主题
-- `android/` `ios/` `macos/` `linux/` `windows/` `web/` — 六个平台的原生宿主工程；`analysis_options.yaml` 已排除这些目录
+- `android/` `ios/` `macos/` `linux/` `windows/` `web/` — 六个平台的原生宿主工程；`analysis_options.yaml` 已排除这些目录。macOS **未开 App Sandbox**：沙盒下钥匙串访问组必须通过 application-identifier（团队签名）校验，而项目无 Apple 团队（ad-hoc，TeamIdentifier=not set），$(AppIdentifierPrefix) 展开为空，flutter_secure_storage 读写一律 -34018；同时 macOS 侧 `MacOsOptions.usesDataProtectionKeychain` 必须为 false（数据保护钥匙串同样要求团队签名）。恢复沙盒的前提是接入 DEVELOPMENT_TEAM 并逐项重验凭据链路
 
 ## 编辑约定
 

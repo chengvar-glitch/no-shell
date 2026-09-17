@@ -245,6 +245,30 @@ void main() {
     expect(harness.sessions.byServerId('srv-1'), isNull);
   });
 
+  testWidgets('凭据保存失败给出提示，连接照常进行', (tester) async {
+    final credentials = FakeCredentialStore()..failWrite = true;
+    final harness = await _pump(
+      tester,
+      transports: [_FakeTransport()],
+      credentials: credentials,
+    );
+
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'pw');
+    await tester.tap(find.text('记住凭据'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('连接'));
+    await tester.pumpAndSettle();
+
+    // 底层写失败不再静默：明确告知没存上，同时连接本身成功。
+    expect(find.textContaining('凭据保存失败'), findsOneWidget);
+    expect(
+      harness.sessions.byServerId('srv-1')?.phase,
+      TerminalPhase.connected,
+    );
+  });
+
   testWidgets('无存档凭据时静默试 agent，成功则免弹窗直连', (tester) async {
     final harness = await _pump(
       tester,

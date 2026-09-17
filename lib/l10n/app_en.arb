@@ -125,6 +125,7 @@
   },
   "sessionClosedMsg": "Session closed",
   "authFailedMsg": "Authentication failed — check your password or key",
+  "credentialsSaveFailedMsg": "Failed to save credentials — this connection is unaffected, but you'll need to enter them again next time. Check the system keychain settings.",
   "agentErrorMsg": "Cannot use the local SSH agent — make sure it is running and your key is loaded (ssh-add), then retry.",
   "networkErrorMsg": "Cannot reach host — check address, port and network",
   "webUnsupportedMsg": "SSH connections are not supported on web yet",
