@@ -356,6 +356,12 @@ abstract class AppLocalizations {
   /// **'Copy address'**
   String get copyAddress;
 
+  /// No description provided for @copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copy;
+
   /// No description provided for @copied.
   ///
   /// In en, this message translates to:
@@ -1735,6 +1741,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unavailable (deleted, or would form a loop)'**
   String get jumpHostUnavailable;
+
+  /// No description provided for @sessionLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Session log'**
+  String get sessionLog;
+
+  /// No description provided for @sessionLogHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Captures everything shown in this terminal. Passwords typed at hidden prompts are not echoed by the server, so they never enter the log.'**
+  String get sessionLogHint;
+
+  /// No description provided for @sessionLogEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing logged yet — output will appear here as the session runs.'**
+  String get sessionLogEmpty;
+
+  /// No description provided for @sessionLogSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save log'**
+  String get sessionLogSave;
+
+  /// No description provided for @sessionLogSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Log saved: {name}'**
+  String sessionLogSaved(String name);
+
+  /// No description provided for @sessionLogSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save the log. Please try again.'**
+  String get sessionLogSaveFailed;
+
+  /// No description provided for @sessionLogCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Log copied to clipboard'**
+  String get sessionLogCopied;
+
+  /// No description provided for @snippets.
+  ///
+  /// In en, this message translates to:
+  /// **'Snippets'**
+  String get snippets;
+
+  /// No description provided for @snippetsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a snippet to run it in this session.'**
+  String get snippetsHint;
+
+  /// No description provided for @snippetNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New snippet'**
+  String get snippetNew;
+
+  /// No description provided for @snippetEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit snippet'**
+  String get snippetEdit;
+
+  /// No description provided for @snippetName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get snippetName;
+
+  /// No description provided for @snippetNameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a name'**
+  String get snippetNameRequired;
+
+  /// No description provided for @snippetCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Command'**
+  String get snippetCommand;
+
+  /// No description provided for @snippetCommandRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a command'**
+  String get snippetCommandRequired;
+
+  /// No description provided for @snippetCommandHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent as-is, followed by Enter.'**
+  String get snippetCommandHint;
+
+  /// No description provided for @snippetEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No snippets yet'**
+  String get snippetEmpty;
+
+  /// No description provided for @snippetEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Save commands you run often and fire them with one tap.'**
+  String get snippetEmptyHint;
+
+  /// No description provided for @snippetDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete \"{name}\"?'**
+  String snippetDeleteTitle(String name);
+
+  /// No description provided for @snippetDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This snippet will be removed.'**
+  String get snippetDeleteBody;
+
+  /// No description provided for @autoReconnectCountdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnecting automatically in {seconds} s (attempt {attempt})'**
+  String autoReconnectCountdown(int seconds, int attempt);
+
+  /// No description provided for @autoReconnectStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop auto reconnect'**
+  String get autoReconnectStop;
 }
 
 class _AppLocalizationsDelegate

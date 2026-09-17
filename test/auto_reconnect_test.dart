@@ -1,0 +1,292 @@
+import 'package:dartssh2/dartssh2.dart';
+import 'package:fake_async/fake_async.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:no_shell/models.dart';
+import 'package:no_shell/ssh/auto_reconnect.dart';
+import 'package:no_shell/ssh/session_manager.dart';
+import 'package:no_shell/ssh/sftp.dart';
+import 'package:no_shell/ssh/ssh_credentials.dart';
+import 'package:no_shell/ssh/terminal_session.dart';
+import 'package:no_shell/ssh/ssh_transport.dart';
+import 'package:no_shell/store.dart';
+import 'package:xterm/core.dart';
+
+import 'support/forward_fakes.dart';
+
+/// 可编程假传输：连上后写欢迎语；[error] 非空时 attach 抛错。
+final class _FakeTransport with NoForwardingTransport {
+  _FakeTransport({this.error});
+
+  final Object? error;
+
+  bool disposed = false;
+  Terminal? attachedTerminal;
+  void Function()? _onClosed;
+
+  /// 模拟远端断开（意外掉线）。
+  void closeFromRemote() => _onClosed?.call();
+
+  @override
+  Future<void> attach(
+    Terminal terminal, {
+    required void Function() onConnected,
+    required void Function() onClosed,
+  }) async {
+    // 与真实网络一致：握手要走事件循环，connecting 状态可被观察。
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    if (error != null) throw error!;
+    _onClosed = onClosed;
+    attachedTerminal = terminal;
+    terminal.write('welcome');
+    onConnected();
+  }
+
+  @override
+  Future<SftpFileSystem> openSftp() async =>
+      throw const SftpException(SftpErrorKind.unsupported, 'fake transport');
+
+  @override
+  void dispose() => disposed = true;
+}
+
+SshServer _server() => SshServer(
+  id: 'srv-01',
+  group: 'g',
+  name: 'reconnect-test',
+  host: '10.0.0.1',
+  username: 'root',
+);
+
+SessionManager _manager(
+  ServerStore store,
+  List<SshTransport> transports, {
+  bool autoReconnect = true,
+}) => SessionManager(
+  store: store,
+  autoReconnect: autoReconnect,
+  sessionFactory: (server, credentials, _) => TerminalSession(
+    server: server,
+    credentials: credentials,
+    transport: transports.removeAt(0),
+  ),
+);
+
+const _credentials = SshCredentials(password: 'pw');
+
+/// 推进到排队的微任务与毫秒级延迟任务都跑完（假传输的握手延迟 1ms）。
+void _settle(FakeAsync async) => async.elapse(const Duration(milliseconds: 5));
+
+void main() {
+  group('ReconnectBackoff', () {
+    test('默认节奏 2s 起步、逐次翻倍、60s 封顶', () {
+      const backoff = ReconnectBackoff();
+      expect(backoff.delayFor(1), const Duration(seconds: 2));
+      expect(backoff.delayFor(2), const Duration(seconds: 4));
+      expect(backoff.delayFor(3), const Duration(seconds: 8));
+      expect(backoff.delayFor(5), const Duration(seconds: 32));
+      // 128s 会被压到 60s，之后一直 60s。
+      expect(backoff.delayFor(7), const Duration(seconds: 60));
+      expect(backoff.delayFor(1000), const Duration(seconds: 60));
+    });
+
+    test('可注入节奏', () {
+      const backoff = ReconnectBackoff(
+        initial: Duration(milliseconds: 3),
+        factor: 3,
+        max: Duration(milliseconds: 30),
+      );
+      expect(backoff.delayFor(1), const Duration(milliseconds: 3));
+      expect(backoff.delayFor(2), const Duration(milliseconds: 9));
+      expect(backoff.delayFor(3), const Duration(milliseconds: 27));
+      expect(backoff.delayFor(4), const Duration(milliseconds: 30));
+    });
+  });
+
+  group('SessionManager 空闲重连退避', () {
+    test('默认关闭：断开不自动重连', () {
+      fakeAsync((async) {
+        final transport = _FakeTransport();
+        final sessions = _manager(ServerStore(seed: [_server()]), [
+          transport,
+        ], autoReconnect: false);
+        sessions.open(_server(), _credentials);
+        _settle(async);
+        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.connected);
+
+        transport.closeFromRemote();
+        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.closed);
+        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        async.elapse(const Duration(minutes: 10));
+        expect(sessions.sessionCount, 1);
+      });
+    });
+
+    test('意外断开排一次退避，到点换新传输重连并复用原会话参数', () {
+      fakeAsync((async) {
+        final first = _FakeTransport();
+        final second = _FakeTransport();
+        final sessions = _manager(ServerStore(seed: [_server()]), [
+          first,
+          second,
+        ]);
+        sessions.open(_server(), _credentials);
+        _settle(async);
+        final original = sessions.byServerId('srv-01')!;
+        expect(original.phase, TerminalPhase.connected);
+
+        first.closeFromRemote();
+        final plan = sessions.reconnectPlanOf('srv-01');
+        expect(plan, isNotNull);
+        expect(plan!.attempt, 1);
+        expect(plan.delay, const Duration(seconds: 2));
+
+        // 退避期内保持断开，主机状态是 idle。
+        async.elapse(const Duration(seconds: 1));
+        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.closed);
+        expect(statusOf(sessions), ServerStatus.idle);
+
+        async.elapse(const Duration(seconds: 1));
+        _settle(async);
+        final session = sessions.byServerId('srv-01')!;
+        expect(session.phase, TerminalPhase.connected);
+        // 旧会话已被替换回收，新会话用的是第二台假传输。
+        expect(identical(original, session), isFalse);
+        expect(identical(session.terminal, second.attachedTerminal), isTrue);
+        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        expect(statusOf(sessions), ServerStatus.connected);
+      });
+    });
+
+    test('重连再失败时退避递增（4s → 8s），暂不放弃', () {
+      fakeAsync((async) {
+        final first = _FakeTransport();
+        final sessions = _manager(ServerStore(seed: [_server()]), [
+          first,
+          _FakeTransport(error: Exception('connection refused')),
+          _FakeTransport(error: Exception('connection refused')),
+          _FakeTransport(), // 第三次成功
+        ]);
+        sessions.open(_server(), _credentials);
+        _settle(async);
+
+        first.closeFromRemote();
+        expect(sessions.reconnectPlanOf('srv-01')!.attempt, 1);
+
+        async.elapse(const Duration(seconds: 2));
+        _settle(async);
+        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.failed);
+        expect(statusOf(sessions), ServerStatus.error);
+        final plan = sessions.reconnectPlanOf('srv-01')!;
+        expect(plan.attempt, 2);
+        expect(plan.delay, const Duration(seconds: 4));
+
+        async.elapse(const Duration(seconds: 4));
+        _settle(async);
+        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.failed);
+        expect(sessions.reconnectPlanOf('srv-01')!.attempt, 3);
+
+        async.elapse(const Duration(seconds: 8));
+        _settle(async);
+        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.connected);
+        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+      });
+    });
+
+    test('认证失败不自动重试：停下来把错误交还用户', () {
+      fakeAsync((async) {
+        final first = _FakeTransport();
+        final sessions = _manager(ServerStore(seed: [_server()]), [
+          first,
+          _FakeTransport(error: SSHAuthFailError('Permission denied')),
+        ]);
+        sessions.open(_server(), _credentials);
+        _settle(async);
+
+        first.closeFromRemote();
+        expect(sessions.reconnectPlanOf('srv-01'), isNotNull);
+
+        async.elapse(const Duration(seconds: 2));
+        _settle(async);
+        final session = sessions.byServerId('srv-01')!;
+        expect(session.phase, TerminalPhase.failed);
+        expect(session.errorKind, TerminalErrorKind.auth);
+        // 重试多少次都一样的失败，不该在后台无限循环。
+        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        async.elapse(const Duration(minutes: 5));
+        expect(sessions.sessionCount, 1);
+      });
+    });
+
+    test('用户主动断开会取消退避计划', () {
+      fakeAsync((async) {
+        final transport = _FakeTransport();
+        final sessions = _manager(ServerStore(seed: [_server()]), [transport]);
+        sessions.open(_server(), _credentials);
+        _settle(async);
+
+        transport.closeFromRemote();
+        expect(sessions.reconnectPlanOf('srv-01'), isNotNull);
+
+        sessions.close('srv-01');
+        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        async.elapse(const Duration(minutes: 10));
+        expect(sessions.sessionCount, 0);
+      });
+    });
+
+    test('用户手动重连接管后不再自动重连', () {
+      fakeAsync((async) {
+        final first = _FakeTransport();
+        final second = _FakeTransport();
+        final sessions = _manager(ServerStore(seed: [_server()]), [
+          first,
+          second,
+        ]);
+        sessions.open(_server(), _credentials);
+        _settle(async);
+
+        first.closeFromRemote();
+        sessions.retry('srv-01');
+        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        _settle(async);
+        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.connected);
+        async.elapse(const Duration(minutes: 10));
+        expect(sessions.sessionCount, 1);
+      });
+    });
+
+    test('cancelAutoReconnect 只停计划，保留断开的会话', () {
+      fakeAsync((async) {
+        final transport = _FakeTransport();
+        final sessions = _manager(ServerStore(seed: [_server()]), [transport]);
+        sessions.open(_server(), _credentials);
+        _settle(async);
+
+        transport.closeFromRemote();
+        sessions.cancelAutoReconnect('srv-01');
+        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.closed);
+        async.elapse(const Duration(minutes: 10));
+        expect(sessions.sessionCount, 1);
+      });
+    });
+
+    test('首次手动连接就失败不触发退避', () {
+      fakeAsync((async) {
+        final sessions = _manager(ServerStore(seed: [_server()]), [
+          _FakeTransport(error: Exception('no route to host')),
+        ]);
+        sessions.open(_server(), _credentials);
+        _settle(async);
+        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.failed);
+        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        async.elapse(const Duration(minutes: 10));
+        expect(sessions.sessionCount, 1);
+      });
+    });
+  });
+}
+
+/// 从会话管理器里读该主机的展示状态。
+ServerStatus statusOf(SessionManager sessions) =>
+    sessions.store.byId('srv-01')?.status ?? ServerStatus.idle;

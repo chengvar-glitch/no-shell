@@ -154,6 +154,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copyAddress => '复制地址';
 
   @override
+  String get copy => '复制';
+
+  @override
   String copied(String value) {
     return '已复制 $value';
   }
@@ -977,4 +980,76 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get jumpHostUnavailable => '已失效（跳板机被删除，或会形成环）';
+
+  @override
+  String get sessionLog => '会话日志';
+
+  @override
+  String get sessionLogHint => '记录终端上出现过的全部输出。输密码时服务器不回显，因此密码不会进入日志。';
+
+  @override
+  String get sessionLogEmpty => '还没有内容——会话运行后输出会出现在这里。';
+
+  @override
+  String get sessionLogSave => '保存日志';
+
+  @override
+  String sessionLogSaved(String name) {
+    return '日志已保存：$name';
+  }
+
+  @override
+  String get sessionLogSaveFailed => '日志保存失败，请重试。';
+
+  @override
+  String get sessionLogCopied => '日志已复制到剪贴板';
+
+  @override
+  String get snippets => '命令片段';
+
+  @override
+  String get snippetsHint => '点按片段即可在当前会话中执行。';
+
+  @override
+  String get snippetNew => '新建片段';
+
+  @override
+  String get snippetEdit => '编辑片段';
+
+  @override
+  String get snippetName => '名称';
+
+  @override
+  String get snippetNameRequired => '请输入名称';
+
+  @override
+  String get snippetCommand => '命令';
+
+  @override
+  String get snippetCommandRequired => '请输入命令';
+
+  @override
+  String get snippetCommandHint => '按原样发送，末尾自动回车执行。';
+
+  @override
+  String get snippetEmpty => '还没有命令片段';
+
+  @override
+  String get snippetEmptyHint => '把常用的命令存起来，需要时一键发送。';
+
+  @override
+  String snippetDeleteTitle(String name) {
+    return '删除「$name」？';
+  }
+
+  @override
+  String get snippetDeleteBody => '该片段将被移除。';
+
+  @override
+  String autoReconnectCountdown(int seconds, int attempt) {
+    return '将在 $seconds 秒后自动重连（第 $attempt 次）';
+  }
+
+  @override
+  String get autoReconnectStop => '停止自动重连';
 }

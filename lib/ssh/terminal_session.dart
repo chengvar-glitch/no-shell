@@ -10,6 +10,7 @@ import 'jump_host.dart';
 import 'local_files.dart';
 import 'port_forward_runtime.dart';
 import 'sftp_browser.dart';
+import 'session_log.dart';
 import 'ssh_agent.dart';
 import 'ssh_credentials.dart';
 import 'ssh_transport.dart';
@@ -87,7 +88,19 @@ final class TerminalSession extends ChangeNotifier {
   late final PortForwardManager forwards;
 
   /// 终端缓冲区（含回滚行），视图层直接渲染。
-  final Terminal terminal = Terminal(maxLines: 5000);
+  /// 带转录旁路：远端输出同步落进 [sessionLog]，会话日志因此与画面一致。
+  final LoggingTerminal terminal = LoggingTerminal(maxLines: 5000);
+
+  /// 会话日志：本次会话出现过的全部远端输出（有界，保留最近的内容）。
+  SessionLog get sessionLog => terminal.log;
+
+  /// 把 [text] 当作本机键入发给远端（命令片段的执行路径）。
+  /// 传输层尚未接好（未连接）时是空操作。
+  void sendText(String text) {
+    final output = terminal.onOutput;
+    if (output == null) return;
+    output(text);
+  }
 
   TerminalPhase _phase = TerminalPhase.connecting;
   TerminalErrorKind _errorKind = TerminalErrorKind.other;

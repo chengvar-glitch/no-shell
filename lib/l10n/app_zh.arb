@@ -43,6 +43,7 @@
   "deleteHost": "删除主机",
   "hostAddress": "主机地址",
   "copyAddress": "复制地址",
+  "copy": "复制",
   "copied": "已复制 {value}",
   "port": "端口",
   "username": "用户名",
@@ -459,5 +460,51 @@
       }
     }
   },
-  "jumpHostUnavailable": "已失效（跳板机被删除，或会形成环）"
+  "jumpHostUnavailable": "已失效（跳板机被删除，或会形成环）",
+  "sessionLog": "会话日志",
+  "sessionLogHint": "记录终端上出现过的全部输出。输密码时服务器不回显，因此密码不会进入日志。",
+  "sessionLogEmpty": "还没有内容——会话运行后输出会出现在这里。",
+  "sessionLogSave": "保存日志",
+  "sessionLogSaved": "日志已保存：{name}",
+  "@sessionLogSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionLogSaveFailed": "日志保存失败，请重试。",
+  "sessionLogCopied": "日志已复制到剪贴板",
+  "snippets": "命令片段",
+  "snippetsHint": "点按片段即可在当前会话中执行。",
+  "snippetNew": "新建片段",
+  "snippetEdit": "编辑片段",
+  "snippetName": "名称",
+  "snippetNameRequired": "请输入名称",
+  "snippetCommand": "命令",
+  "snippetCommandRequired": "请输入命令",
+  "snippetCommandHint": "按原样发送，末尾自动回车执行。",
+  "snippetEmpty": "还没有命令片段",
+  "snippetEmptyHint": "把常用的命令存起来，需要时一键发送。",
+  "snippetDeleteTitle": "删除「{name}」？",
+  "@snippetDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "snippetDeleteBody": "该片段将被移除。",
+  "autoReconnectCountdown": "将在 {seconds} 秒后自动重连（第 {attempt} 次）",
+  "@autoReconnectCountdown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      },
+      "attempt": {
+        "type": "int"
+      }
+    }
+  },
+  "autoReconnectStop": "停止自动重连"
 }

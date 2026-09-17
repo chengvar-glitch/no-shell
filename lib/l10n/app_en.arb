@@ -78,6 +78,7 @@
   "deleteHost": "Delete host",
   "hostAddress": "Host address",
   "copyAddress": "Copy address",
+  "copy": "Copy",
   "copied": "Copied {value}",
   "@copied": {
     "placeholders": {
@@ -567,5 +568,51 @@
       }
     }
   },
-  "jumpHostUnavailable": "Unavailable (deleted, or would form a loop)"
+  "jumpHostUnavailable": "Unavailable (deleted, or would form a loop)",
+  "sessionLog": "Session log",
+  "sessionLogHint": "Captures everything shown in this terminal. Passwords typed at hidden prompts are not echoed by the server, so they never enter the log.",
+  "sessionLogEmpty": "Nothing logged yet — output will appear here as the session runs.",
+  "sessionLogSave": "Save log",
+  "sessionLogSaved": "Log saved: {name}",
+  "@sessionLogSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionLogSaveFailed": "Failed to save the log. Please try again.",
+  "sessionLogCopied": "Log copied to clipboard",
+  "snippets": "Snippets",
+  "snippetsHint": "Tap a snippet to run it in this session.",
+  "snippetNew": "New snippet",
+  "snippetEdit": "Edit snippet",
+  "snippetName": "Name",
+  "snippetNameRequired": "Please enter a name",
+  "snippetCommand": "Command",
+  "snippetCommandRequired": "Please enter a command",
+  "snippetCommandHint": "Sent as-is, followed by Enter.",
+  "snippetEmpty": "No snippets yet",
+  "snippetEmptyHint": "Save commands you run often and fire them with one tap.",
+  "snippetDeleteTitle": "Delete \"{name}\"?",
+  "@snippetDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "snippetDeleteBody": "This snippet will be removed.",
+  "autoReconnectCountdown": "Reconnecting automatically in {seconds} s (attempt {attempt})",
+  "@autoReconnectCountdown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      },
+      "attempt": {
+        "type": "int"
+      }
+    }
+  },
+  "autoReconnectStop": "Stop auto reconnect"
 }

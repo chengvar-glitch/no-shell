@@ -138,6 +138,7 @@ class ServerDetailPage extends StatelessWidget {
                         child: TerminalTab(
                           server: server,
                           session: session,
+                          sessions: sessions,
                           idleHint: l10n.sessionMobileHint,
                           onRetry: session == null
                               ? null
