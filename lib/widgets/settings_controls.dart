@@ -379,7 +379,13 @@ class TerminalFontSizeControl extends StatelessWidget {
       builder: (context, prefs, _) {
         final size = prefs.fontSize;
         return InputDecorator(
-          decoration: const InputDecoration(isDense: true),
+          // 高度与同行的字体下拉（48）对齐：内容 30 的图标按钮
+          // 加上下各 9 的内边距正好撑满，两边不再一高一低。
+          decoration: const InputDecoration(
+            isDense: true,
+            constraints: BoxConstraints(minHeight: 48),
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          ),
           child: Row(
             children: [
               SettingsIconButton(
