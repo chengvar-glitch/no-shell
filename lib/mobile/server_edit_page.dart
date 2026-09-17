@@ -57,6 +57,20 @@ class _ServerEditPageState extends State<ServerEditPage> {
   String? _password;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_groupSeeded) return;
+    _groupSeeded = true;
+    if (_group.text.isEmpty) {
+      // 新建时预填默认分组：分组与跳板机一样带默认值呈现（标签浮到上方，
+      // 值可见），不再是空框。保存语义不变——空分组本来就会落到默认分组。
+      _group.text = AppLocalizations.of(context).defaultGroupName;
+    }
+  }
+
+  bool _groupSeeded = false;
+
+  @override
   void dispose() {
     for (final controller in [
       _metadata,
