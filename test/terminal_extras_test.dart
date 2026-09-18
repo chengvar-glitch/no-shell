@@ -5,11 +5,14 @@ import 'package:no_shell/models.dart';
 import 'package:no_shell/settings.dart';
 import 'package:no_shell/snippets.dart';
 import 'package:no_shell/ssh/auto_reconnect.dart';
+import 'package:no_shell/ssh/session_manager.dart';
 import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
 import 'package:no_shell/ssh/terminal_view.dart';
+import 'package:no_shell/store.dart';
 import 'package:no_shell/theme.dart';
+import 'package:no_shell/widgets/server_detail.dart';
 import 'package:xterm/core.dart';
 
 import 'support/forward_fakes.dart';
@@ -85,7 +88,7 @@ Future<TerminalSession> _connectedSession(_ConnectedTransport transport) async {
 
 void main() {
   group('SshTerminalView 会话工具条', () {
-    testWidgets('展示片段与日志入口；日志弹窗内容与会话转录一致', (tester) async {
+    testWidgets('展示片段入口，空态可打开可关闭', (tester) async {
       final transport = _ConnectedTransport();
       final session = await _connectedSession(transport);
       addTearDown(session.dispose);
@@ -101,10 +104,7 @@ void main() {
       expect(find.text('还没有命令片段'), findsOneWidget);
       await tester.tap(find.text('取消'));
       await tester.pumpAndSettle();
-
-      await tester.tap(find.byTooltip('会话日志'));
-      await tester.pumpAndSettle();
-      expect(find.text('banner\n'), findsOneWidget);
+      expect(find.text('还没有命令片段'), findsNothing);
     });
 
     testWidgets('点按片段把命令连回车发往会话', (tester) async {
@@ -157,13 +157,60 @@ void main() {
       );
       expect(tile.enabled, isFalse);
     });
+  });
+
+  group('会话日志入口（状态胶囊）', () {
+    // 桌面详情面板：头部是「服务器名 + 状态胶囊 + 连接按钮」，
+    // 会话由注入假传输的管理器建立，胶囊可点即代表入口已接通。
+    Widget panel(ServerStore store, SessionManager manager) =>
+        ServerDetailPanel(
+          server: _server,
+          store: store,
+          sessions: manager,
+          onConnect: (_) {},
+          onCreate: () {},
+        );
+
+    SessionManager managerWith(
+      ServerStore store,
+      _ConnectedTransport transport, {
+      required bool connect,
+    }) {
+      final manager = SessionManager(
+        store: store,
+        sessionFactory: (server, credentials, jumps) => TerminalSession(
+          server: server,
+          credentials: credentials,
+          transport: transport,
+        ),
+      );
+      if (connect) manager.open(_server, const SshCredentials(password: 'pw'));
+      return manager;
+    }
+
+    testWidgets('点状态胶囊打开会话日志，内容与会话转录一致', (tester) async {
+      final store = ServerStore(seed: [_server]);
+      addTearDown(store.dispose);
+      final manager = managerWith(store, _ConnectedTransport(), connect: true);
+      addTearDown(manager.dispose);
+
+      await tester.pumpWidget(_host(panel(store, manager)));
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('会话日志'));
+      await tester.pumpAndSettle();
+      expect(find.text('banner\n'), findsOneWidget);
+    });
 
     testWidgets('空日志的「复制 / 保存」按钮禁用', (tester) async {
-      final session = await _connectedSession(_ConnectedTransport());
-      addTearDown(session.dispose);
-      session.sessionLog.clear();
+      final transport = _ConnectedTransport();
+      final store = ServerStore(seed: [_server]);
+      addTearDown(store.dispose);
+      final manager = managerWith(store, transport, connect: true);
+      addTearDown(manager.dispose);
+      manager.byServerId(_server.id)!.sessionLog.clear();
 
-      await tester.pumpWidget(_host(SshTerminalView(session: session)));
+      await tester.pumpWidget(_host(panel(store, manager)));
       await tester.pump();
       await tester.tap(find.byTooltip('会话日志'));
       await tester.pumpAndSettle();
@@ -177,6 +224,18 @@ void main() {
         find.widgetWithText(OutlinedButton, '保存日志'),
       );
       expect(save.onPressed, isNull);
+    });
+
+    testWidgets('没有会话时状态胶囊不可点', (tester) async {
+      final store = ServerStore(seed: [_server]);
+      addTearDown(store.dispose);
+      final manager = managerWith(store, _ConnectedTransport(), connect: false);
+      addTearDown(manager.dispose);
+
+      await tester.pumpWidget(_host(panel(store, manager)));
+      await tester.pump();
+
+      expect(find.byTooltip('会话日志'), findsNothing);
     });
   });
 

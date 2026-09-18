@@ -29,10 +29,15 @@ class StatusDot extends StatelessWidget {
 }
 
 /// 主机状态胶囊标签。
+///
+/// [onTap] 非空时整颗胶囊可点：会话日志的入口就挂在连接状态上——
+/// 有会话才有日志可看，调用方据此决定是否传回调。
 class StatusPill extends StatelessWidget {
-  const StatusPill({super.key, required this.status});
+  const StatusPill({super.key, required this.status, this.onTap});
 
   final ServerStatus status;
+
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +49,7 @@ class StatusPill extends StatelessWidget {
       ServerStatus.error => AppLocalizations.of(context).statusError,
       ServerStatus.idle => AppLocalizations.of(context).statusIdle,
     };
-    return Container(
+    final pill = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.13),
@@ -70,6 +75,17 @@ class StatusPill extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+    if (onTap == null) return pill;
+    // Tooltip 与点击能力一起出现：胶囊长得不像按钮，悬停提示是唯一的
+    // 可发现性线索（点开的是会话日志）。
+    return Tooltip(
+      message: AppLocalizations.of(context).sessionLog,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: pill,
       ),
     );
   }

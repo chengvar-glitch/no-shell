@@ -10,7 +10,6 @@ import '../settings.dart';
 import '../snippets.dart';
 import '../theme.dart';
 import '../widgets/confirm_dialog.dart';
-import '../widgets/session_log_dialog.dart';
 import '../widgets/snippet_dialog.dart';
 import 'auto_reconnect.dart';
 import 'terminal_interactions.dart';
@@ -25,8 +24,9 @@ ServerStatus serverStatusOf(TerminalPhase phase) => switch (phase) {
 };
 
 /// 真实 SSH 终端视图：按全局偏好渲染会话缓冲区，非连接态时叠加状态浮层。
-/// 右上角常驻会话工具条（复制 / 粘贴 / 命令片段 / 会话日志），挂了重连计划时
-/// 浮层里会多出倒计时与「停止自动重连」。
+/// 右上角常驻会话工具条（复制 / 粘贴 / 命令片段；会话日志的入口在详情头部
+/// 与全屏终端页的状态胶囊上），挂了重连计划时浮层里会多出倒计时与
+/// 「停止自动重连」。
 ///
 /// 便捷交互：右键菜单（复制 / 粘贴 / 全选）、Cmd/Ctrl +/- 字号缩放、
 /// Cmd/Ctrl+点击打开链接，以及可选的「选中即复制」。
@@ -375,7 +375,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 }
 
-/// 终端右上角的会话工具条：复制 / 粘贴 / 命令片段 / 日志查看的入口。
+/// 终端右上角的会话工具条：复制 / 粘贴 / 命令片段的入口。
 /// 悬浮在终端内容之上，底色用终端配色，图标对比度不随主题漂移。
 final class _SessionToolbar extends StatelessWidget {
   const _SessionToolbar({required this.session, required this.controller});
@@ -443,12 +443,6 @@ final class _SessionToolbar extends StatelessWidget {
                     session: session,
                   ),
                 ),
-              _ToolbarButton(
-                tooltip: l10n.sessionLog,
-                icon: Icons.receipt_long_rounded,
-                color: foreground,
-                onTap: () => showSessionLogDialog(context, session: session),
-              ),
             ],
           ),
         );

@@ -12,6 +12,7 @@ import '../ssh/terminal_view.dart';
 import '../store.dart';
 import '../theme.dart';
 import 'port_forward_panel.dart';
+import 'session_log_dialog.dart';
 import 'sftp_browser.dart';
 import 'status_badges.dart';
 import 'window_caption.dart';
@@ -228,6 +229,7 @@ class _ServerDetailState extends State<_ServerDetail> {
     final session = widget.sessions.byServerId(server.id);
     final header = _DetailHeader(
       server: server,
+      session: session,
       connected: session?.isActive ?? false,
       sidebarCollapsed: widget.sidebarCollapsed,
       onToggleSidebar: widget.onToggleSidebar,
@@ -331,6 +333,7 @@ class _ServerDetailState extends State<_ServerDetail> {
 class _DetailHeader extends StatelessWidget {
   const _DetailHeader({
     required this.server,
+    required this.session,
     required this.connected,
     required this.sidebarCollapsed,
     required this.onToggleSidebar,
@@ -338,6 +341,11 @@ class _DetailHeader extends StatelessWidget {
   });
 
   final SshServer server;
+
+  /// 该主机挂着的会话；会话日志的入口在状态胶囊上，有会话才可点。
+  /// 断开但未关闭的会话仍算有——日志要能事后查看。
+  final TerminalSession? session;
+
   final bool connected;
   final bool sidebarCollapsed;
   final VoidCallback? onToggleSidebar;
@@ -347,6 +355,8 @@ class _DetailHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    // 局部变量让空检查提升进闭包：可空的字段本身不行。
+    final session = this.session;
     // macOS 收起态同样排进行内：头部已平移到红绿灯右侧（96pt），
     // 按钮不会与灯重叠，用户不必靠 ⌘B 也能找回侧边栏。
     final showExpand = sidebarCollapsed && onToggleSidebar != null;
@@ -371,7 +381,12 @@ class _DetailHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        StatusPill(status: server.status),
+        StatusPill(
+          status: server.status,
+          onTap: session == null
+              ? null
+              : () => showSessionLogDialog(context, session: session),
+        ),
         const SizedBox(width: 4),
         connected
             ? OutlinedButton.icon(

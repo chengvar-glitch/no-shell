@@ -8,6 +8,7 @@ import '../ssh/session_manager.dart';
 import '../store.dart';
 import '../widgets/port_forward_panel.dart' show PortForwardPanel;
 import '../widgets/server_detail.dart' show OverviewTab, TerminalTab;
+import '../widgets/session_log_dialog.dart';
 import '../widgets/sftp_browser.dart' show SftpTab;
 import '../widgets/status_badges.dart';
 import 'server_edit_page.dart';
@@ -92,7 +93,12 @@ class ServerDetailPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                StatusPill(status: server.status),
+                StatusPill(
+                  status: server.status,
+                  onTap: session == null
+                      ? null
+                      : () => showSessionLogDialog(context, session: session),
+                ),
               ],
             ),
             actions: [
