@@ -65,6 +65,7 @@
 - `lib/l10n/generated/` 下的文件为生成产物，禁止手改；文案改动一律修改 arb 源文件后执行 `flutter gen-l10n`
 - 所有面向用户的文案必须经 `AppLocalizations` 获取，禁止硬编码字符串；新增文案需同时补齐 en/zh 两个 arb
 - 平台兼容：代码需同时兼容全部六个平台；web 无原生 TCP，SSH 连接会抛 `UnsupportedError`，依赖 `TerminalErrorKind.unsupported` 归类处理，不得移除该路径
+- Android 签名：release 包签名由 `android/key.properties`（gitignore，不入库）决定——文件缺失（新 clone、未配 Secrets 的 CI）回退 debug 签名，保证 `flutter run --release` 与静态检查照常可用；文件存在但缺字段则直接构建失败，不静默降级。keystore 在 `android/app/upload-keystore.jks`，**它与口令丢了就永远无法覆盖升级已发布的包**，必须单独备份到仓库之外。CI 从 4 个 Secrets 还原（`ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`）。此前 release 用 runner 现生成的 debug 签名，装过旧版的手机因此报「无法安装」——不要退回该状态
 - 字体：
   - 终端字体只允许两种来源：随包内置的族，或通用族名 `monospace`。禁止把「系统里可能存在的具体族名」交给渲染——Linux 上 fontconfig 对任何请求名都会返回替代品（可能是比例字体），而终端按固定格子绘字（格宽由 `mmmmmmmmmm` 量出），字形一比例网格就散架；更糟的是主名「命中」了替代品，`fontFamilyFallback` 就永远轮不到
   - 内置族名一律带 `NoShell ` 前缀：与系统字体彻底解耦，引擎必定命中随包文件

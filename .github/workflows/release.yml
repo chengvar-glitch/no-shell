@@ -60,6 +60,28 @@ jobs:
       - name: 安装依赖
         run: flutter pub get
 
+      # 正式签名：keystore 与密码只存仓库 Secrets（明文与 key.properties 均不入库，
+      # android/.gitignore 已挡）。Secrets 未配置时跳过，Gradle 回退 debug 签名。
+      - name: 还原 Android 签名密钥
+        if: matrix.target == 'android'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "未配置 ANDROID_KEYSTORE_BASE64，回退 debug 签名"
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          cat > android/key.properties <<PROPS
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=upload-keystore.jks
+          PROPS
+
       - name: 构建产物
         run: flutter build ${{ matrix.flutter-build }} --release
 
