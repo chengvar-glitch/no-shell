@@ -1751,7 +1751,7 @@ abstract class AppLocalizations {
   /// No description provided for @sessionLogHint.
   ///
   /// In en, this message translates to:
-  /// **'Captures everything shown in this terminal. Passwords typed at hidden prompts are not echoed by the server, so they never enter the log.'**
+  /// **'A plain-text snapshot of the terminal screen and its scrollback — colors and control sequences are stripped. Content wiped by clear or by a full-screen app is not included; passwords typed at hidden prompts are not echoed by the server, so they never enter the log.'**
   String get sessionLogHint;
 
   /// No description provided for @sessionLogEmpty.

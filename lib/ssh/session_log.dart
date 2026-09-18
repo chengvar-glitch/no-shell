@@ -1,52 +1,36 @@
 import 'package:xterm/core.dart';
 
-/// 会话日志：一个会话内所有「出现在终端上的输出」的有界转录。
+/// 会话日志：终端画面（含回滚）的纯文本快照。
 ///
-/// 只记远端输出（含回显），不记本机键盘输入：远端提示输密码时会关闭回显，
-/// 输入若另行记录就会绕过这层保护、把密码明文写进日志——会话日志因此
-/// 与终端画面保持同一份内容，画面上没有的日志里也没有。
+/// 取的是终端缓冲区里已经解析好的文本，而不是远端原始字节流。原始流里混着
+/// 配色、窗口标题（OSC 0）、bracketed paste 等控制序列，直接落盘就是满屏
+/// `]0;host:~` `[?2004h` 这类 ESC 乱码；行编辑与 `\r` 重画也会把中间态留下
+/// （`downloading 10% 55%100%`）。缓冲区里没有这些问题：颜色没了，进度条只剩
+/// 最终一帧，转义序列被切成两块到达也照样解析正确。
+///
+/// 代价是日志跟着画面走：终端里执行 `clear`、或退出全屏程序之后被抹掉的内容
+/// 不会保留，与 iTerm2「保存内容」/ tmux capture-pane 同一语义。容量上限是
+/// 终端的回滚行数（见 `TerminalSession.terminal` 的 `maxLines`）。
+///
+/// 快照与画面同源，画面上没有的日志里也没有：远端提示输密码时会关回显，
+/// 密码因此进不了日志。
 final class SessionLog {
-  SessionLog({int capacity = 512 * 1024})
-    : _capacity = capacity > 0 ? capacity : 1;
+  SessionLog(this._terminal);
 
-  /// 转录最多保留的字符数；超出后丢弃最旧的内容，保住最近的。
-  final int _capacity;
+  final Terminal _terminal;
 
-  final StringBuffer _buffer = StringBuffer();
+  /// 缓冲区全文（含回滚）的纯文本，屏幕底部没写到的空行不算内容。
+  String get text => _trimTrailingBlankLines(_terminal.buffer.getText());
 
-  String get text => _buffer.toString();
-
-  bool get isEmpty => _buffer.isEmpty;
-
-  void clear() {
-    _buffer.clear();
-  }
-
-  /// 追加一段远端输出。超限时不逐次裁剪（那会让每次写都是一次全量拷贝），
-  /// 攒到两倍容量再一次性裁回容量，摊还为均摊常数。
-  void append(String data) {
-    if (data.isEmpty) return;
-    _buffer.write(data);
-    if (_buffer.length > _capacity * 2) {
-      final keep = _buffer.toString().substring(_buffer.length - _capacity);
-      _buffer
-        ..clear()
-        ..write(keep);
+  /// 去掉尾部整行空白：屏幕行数固定，光标下面那些行只是「还没写到的格子」。
+  /// 只在末尾倒着找第一行有内容的，中间的空行（`echo; echo` 那种）原样保留。
+  static String _trimTrailingBlankLines(String text) {
+    final lines = text.split('\n');
+    var end = lines.length;
+    while (end > 0 && lines[end - 1].trim().isEmpty) {
+      end--;
     }
-  }
-}
-
-/// 带转录旁路的终端：远端每写入一笔，同步落进 [SessionLog]。
-///
-/// 传输层持有的、传给 xterm 视图的是同一个实例，视图与日志因此天然一致。
-final class LoggingTerminal extends Terminal {
-  LoggingTerminal({super.maxLines});
-
-  final SessionLog log = SessionLog();
-
-  @override
-  void write(String data) {
-    super.write(data);
-    log.append(data);
+    if (end == lines.length) return text;
+    return lines.take(end).join('\n');
   }
 }

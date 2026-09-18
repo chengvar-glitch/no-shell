@@ -87,12 +87,14 @@ final class TerminalSession extends ChangeNotifier {
   /// 会话结束即随之失效（见 [PortForwardManager]）。
   late final PortForwardManager forwards;
 
-  /// 终端缓冲区（含回滚行），视图层直接渲染。
-  /// 带转录旁路：远端输出同步落进 [sessionLog]，会话日志因此与画面一致。
-  final LoggingTerminal terminal = LoggingTerminal(maxLines: 5000);
+  /// 终端缓冲区（含回滚行），视图层直接渲染；会话日志也从这里取。
+  ///
+  /// `maxLines` 是日志的长度上限：缓冲区保留 5000 行回滚，超出的最旧行被丢弃。
+  final Terminal terminal = Terminal(maxLines: 5000);
 
-  /// 会话日志：本次会话出现过的全部远端输出（有界，保留最近的内容）。
-  SessionLog get sessionLog => terminal.log;
+  /// 会话日志：终端画面与回滚的纯文本快照（见 [SessionLog]）。
+  /// 惰性构造，无状态——每次读取都现从缓冲区取一份。
+  late final SessionLog sessionLog = SessionLog(terminal);
 
   /// 把 [text] 当作本机键入发给远端（命令片段的执行路径）。
   /// 传输层尚未接好（未连接）时是空操作。

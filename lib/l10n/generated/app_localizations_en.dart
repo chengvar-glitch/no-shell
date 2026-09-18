@@ -1031,7 +1031,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sessionLogHint =>
-      'Captures everything shown in this terminal. Passwords typed at hidden prompts are not echoed by the server, so they never enter the log.';
+      'A plain-text snapshot of the terminal screen and its scrollback — colors and control sequences are stripped. Content wiped by clear or by a full-screen app is not included; passwords typed at hidden prompts are not echoed by the server, so they never enter the log.';
 
   @override
   String get sessionLogEmpty =>

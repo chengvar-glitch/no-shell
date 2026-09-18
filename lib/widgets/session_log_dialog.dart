@@ -1,6 +1,6 @@
 /// 会话日志查看器：桌面弹窗，移动端同样以弹窗呈现（内容可全屏滚动）。
 /// 入口是主机详情头部 / 全屏终端页标题旁的状态胶囊——点连接状态打开。
-/// 查看的是会话内存里的有界转录，复制与保存都出自同一份。
+/// 查看的是终端画面（含回滚）的纯文本快照，复制与保存都出自同一份。
 library;
 
 import 'dart:convert';
@@ -15,7 +15,7 @@ import 'confirm_dialog.dart';
 import '../ssh/local_files.dart';
 import '../ssh/terminal_session.dart';
 
-/// 打开会话日志弹窗：展示转录全文，支持复制与另存为 `.log` 文件。
+/// 打开会话日志弹窗：展示画面快照全文，支持复制与另存为 `.log` 文件。
 /// 保存走 [LocalFileGateway]（桌面「另存为」，移动端写临时目录后交分享面板）。
 Future<void> showSessionLogDialog(
   BuildContext context, {
@@ -79,7 +79,8 @@ final class _SessionLogDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final log = session.sessionLog;
+    // 画面快照：读的是终端缓冲区，不是另存的原始流，所以不会有控制序列。
+    final log = session.sessionLog.text;
     return AlertDialog(
       title: Text(l10n.sessionLog),
       content: SizedBox(
@@ -97,7 +98,7 @@ final class _SessionLogDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Expanded(child: _LogBody(log: log.text)),
+            Expanded(child: _LogBody(log: log)),
           ],
         ),
       ),

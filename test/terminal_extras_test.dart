@@ -27,6 +27,11 @@ const _server = SshServer(
 
 /// 连接成功、可捕获「发往远端」内容、可模拟远端断开的假传输。
 final class _ConnectedTransport with NoForwardingTransport {
+  _ConnectedTransport({this.banner = 'banner\n'});
+
+  /// 连上后立刻写进终端的远端输出；传空串即「还没输出过的会话」。
+  final String banner;
+
   final sent = <String>[];
 
   void Function()? _onClosed;
@@ -42,7 +47,7 @@ final class _ConnectedTransport with NoForwardingTransport {
   }) async {
     _onClosed = onClosed;
     terminal.onOutput = sent.add;
-    terminal.write('banner\n');
+    if (banner.isNotEmpty) terminal.write(banner);
     onConnected();
   }
 
@@ -188,7 +193,7 @@ void main() {
       return manager;
     }
 
-    testWidgets('点状态胶囊打开会话日志，内容与会话转录一致', (tester) async {
+    testWidgets('点状态胶囊打开会话日志，内容与终端画面一致', (tester) async {
       final store = ServerStore(seed: [_server]);
       addTearDown(store.dispose);
       final manager = managerWith(store, _ConnectedTransport(), connect: true);
@@ -199,16 +204,16 @@ void main() {
 
       await tester.tap(find.byTooltip('会话日志'));
       await tester.pumpAndSettle();
-      expect(find.text('banner\n'), findsOneWidget);
+      // 快照去掉屏幕底部没写到的空行，因此没有结尾换行。
+      expect(find.text('banner'), findsOneWidget);
     });
 
     testWidgets('空日志的「复制 / 保存」按钮禁用', (tester) async {
-      final transport = _ConnectedTransport();
+      final transport = _ConnectedTransport(banner: '');
       final store = ServerStore(seed: [_server]);
       addTearDown(store.dispose);
       final manager = managerWith(store, transport, connect: true);
       addTearDown(manager.dispose);
-      manager.byServerId(_server.id)!.sessionLog.clear();
 
       await tester.pumpWidget(_host(panel(store, manager)));
       await tester.pump();

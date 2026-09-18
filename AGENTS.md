@@ -46,6 +46,7 @@
   - `ssh_agent.dart` — 本机 SSH agent 客户端：协议编解码（列密钥 / 签名，含 RSA 自动换 `rsa-sha2-256`）、一问一答的请求配对与 dartssh2 身份映射（`shouldProbe` 先探后签）；条件导出 `ssh_agent_io.dart`（macOS / Linux 走 `SSH_AUTH_SOCK`）与 `ssh_agent_stub.dart`（web）。Windows 的命名管道 agent 第一版不做（dart:io 连不上），`sshAgentSupported` 对其返回 false，UI 不给入口
   - `connect_flow.dart` 的**无感 agent**：没有存档凭据时连接入口先问 `SessionManager.agentKeysProbe`（纯本地检查），本机 agent 有钥匙就经 `tryAgentConnect` 静默连一次——服务器认就免弹窗直连（会话照常留在管理器里）；钥匙被拒 / 连接中断才收掉探测会话、回常规凭据框，网络 / 主机密钥类失败保留错误现场不弹框。跳板链路同理：`SessionManager.hopAgentProbe` 逐跳静默试 agent（裸传输，不建会话）。两个探针都可注入，widget 测试必须注入假探针——默认实现会碰开发机真实的 `SSH_AUTH_SOCK`，结果随环境漂移
   - `sftp.dart` / `dartssh2_sftp.dart` — SFTP 领域模型、抽象接口与 dartssh2 适配器
+  - `session_log.dart` — 会话日志是**终端缓冲区（含回滚）的纯文本快照**（`SessionLog.text` 取自 `Buffer.getText()`），不是另存一份远端原始字节流：原始流里混着 OSC 标题 / 配色 / bracketed paste，直接落盘就是满屏 `]0;host:~`、`[?2004h` 的 ESC 乱码，`\r` 重画与行编辑还会留下中间态。快照与画面同源，「画面上没有的日志里也没有」——输密码时远端关回显，密码因此进不了日志；代价是 `clear`、全屏程序退场后抹掉的内容不保留（同 iTerm2「保存内容」/ tmux capture-pane），长度上限是 `TerminalSession.terminal` 的 `maxLines`（把「日志」当成历史转录来改回去就是重犯这个 bug）
   - `sftp_browser.dart` / `sftp_transfer.dart` — SFTP 面板状态：目录浏览与串行传输队列
   - `local_files.dart` — 本地文件网关（选文件 / 落盘 / 导出落点）；`local_write*.dart` 为按平台条件导出的落盘实现（含 `promote` 改名与 `ownerOnly` 权限收紧），`local_chmod.dart` 是只为 0600 存在的最小 FFI 绑定，`local_share*.dart` 为按平台条件导出的分享面板实现
 - `lib/mobile/` — 移动端四个 Tab 及详情/编辑页

@@ -570,7 +570,7 @@
   },
   "jumpHostUnavailable": "Unavailable (deleted, or would form a loop)",
   "sessionLog": "Session log",
-  "sessionLogHint": "Captures everything shown in this terminal. Passwords typed at hidden prompts are not echoed by the server, so they never enter the log.",
+  "sessionLogHint": "A plain-text snapshot of the terminal screen and its scrollback — colors and control sequences are stripped. Content wiped by clear or by a full-screen app is not included; passwords typed at hidden prompts are not echoed by the server, so they never enter the log.",
   "sessionLogEmpty": "Nothing logged yet — output will appear here as the session runs.",
   "sessionLogSave": "Save log",
   "sessionLogSaved": "Log saved: {name}",

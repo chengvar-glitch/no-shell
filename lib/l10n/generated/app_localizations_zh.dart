@@ -985,7 +985,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sessionLog => '会话日志';
 
   @override
-  String get sessionLogHint => '记录终端上出现过的全部输出。输密码时服务器不回显，因此密码不会进入日志。';
+  String get sessionLogHint =>
+      '终端画面（含回滚）的纯文本快照，配色与控制序列不会出现。被 clear 或全屏程序覆盖掉的内容不在此列；输密码时服务器不回显，密码也不会进入日志。';
 
   @override
   String get sessionLogEmpty => '还没有内容——会话运行后输出会出现在这里。';
