@@ -18,6 +18,7 @@ NoShell — a cross-platform SSH connection manager with terminal, SFTP file bro
 ## Features
 
 - **SSH terminal** — a fully interactive terminal built on dartssh2 + xterm: xterm-256color, adaptive resize, 50,000 lines of scrollback, password / keyboard-interactive / private-key authentication
+- **Several sessions per host** — open more than one session on the same server; each authenticates on its own and reconnects with its own backoff. The status pill shows how many are open and opens a switcher for switching or closing a single one, while ⊕ or ⌘T opens another; the terminal, SFTP and port forwards follow the current session
 - **Session log** — copy the terminal contents or save them as a plain-text `.log`; the snapshot comes from the rendered buffer (scrollback included), so color escapes, redrawn progress bars and passwords the server never echoes stay out of the file
 - **SFTP file browser** — directory navigation, upload / download with progress and cancel, rename, delete, create folder; reuses the authenticated SSH connection instead of opening a new one
 - **Port forwarding** — per-host local (-L), remote (-R) and dynamic SOCKS5 (-D) rules, started or stopped from the host's Forwarding tab and optionally auto-started on connect; every tunnel reuses the host's authenticated SSH connection and dies with it
