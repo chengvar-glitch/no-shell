@@ -17,7 +17,8 @@ NoShell — a cross-platform SSH connection manager with terminal, SFTP file bro
 
 ## Features
 
-- **SSH terminal** — a fully interactive terminal built on dartssh2 + xterm: xterm-256color, adaptive resize, password / keyboard-interactive / private-key authentication
+- **SSH terminal** — a fully interactive terminal built on dartssh2 + xterm: xterm-256color, adaptive resize, 50,000 lines of scrollback, password / keyboard-interactive / private-key authentication
+- **Session log** — copy the terminal contents or save them as a plain-text `.log`; the snapshot comes from the rendered buffer (scrollback included), so color escapes, redrawn progress bars and passwords the server never echoes stay out of the file
 - **SFTP file browser** — directory navigation, upload / download with progress and cancel, rename, delete, create folder; reuses the authenticated SSH connection instead of opening a new one
 - **Port forwarding** — per-host local (-L), remote (-R) and dynamic SOCKS5 (-D) rules, started or stopped from the host's Forwarding tab and optionally auto-started on connect; every tunnel reuses the host's authenticated SSH connection and dies with it
 - **Jump hosts (ProxyJump)** — pick any saved host as a jump host, chain several, and the jump host is authenticated and host-key verified on its own; the terminal, SFTP and port forwards all ride the same chain
@@ -56,7 +57,7 @@ NoShell — a cross-platform SSH connection manager with terminal, SFTP file bro
 | Linux | ✅ Supported |
 | Android | ✅ Supported |
 | iOS | ✅ Supported |
-| Web | ⚠️ UI works; SSH connections are not supported (no raw TCP in browsers) |
+| Web | ⚠️ UI works; SSH connections are not supported (no raw TCP in browsers); no release artifact is published for it |
 
 Wide desktop screens (≥640px) get a two-pane layout; narrow screens automatically switch to a mobile bottom-navigation shell. Both share the same data and session layers.
 
@@ -66,13 +67,12 @@ Grab the artifact for your platform from [Releases](https://github.com/chengvar-
 
 | Platform | Artifact |
 | --- | --- |
-| Windows | Portable zip + MSIX installer (with a one-off self-signed `.cer` — import it into "Trusted Root Certification Authorities" before installing the MSIX) |
+| Windows | Portable zip |
 | macOS | arm64 zip (Apple Silicon) |
 | Linux | deb + rpm (installs to `/opt/noshell`, includes a desktop entry; GPG-signed, see below) |
 | Android | APK |
-| Web | Static site zip |
 
-The Linux deb and rpm are GPG-signed. Same idea as the Windows certificate: CI generates a one-off key per release — the private key is destroyed with the build runner, and the public key is published as `NoShell-<tag>-linux-signing.asc` alongside that release. To verify (replace `<tag>` with the actual version, and use the public key attached to the same release):
+The Linux deb and rpm are GPG-signed. CI generates a one-off key per release — the private key is destroyed with the build runner, and the public key is published as `NoShell-<tag>-linux-signing.asc` alongside that release. To verify (replace `<tag>` with the actual version, and use the public key attached to the same release):
 
 ```bash
 # deb: detached signature
@@ -119,7 +119,7 @@ python tool/dev_sftp_server.py /tmp/demo-root 2222
 flutter test integration_test/screenshots_test.dart -d macos
 ```
 
-> The macOS app is sandboxed, so relative paths resolve inside the app container (`~/Library/Containers/com.noshell/Data/`); copy the files back into the repo afterwards.
+> PNGs are written to `docs/screenshots` relative to the app's working directory; set `SSH_SHOTS_DIR` to an absolute path to send them somewhere else.
 
 ## Architecture overview
 

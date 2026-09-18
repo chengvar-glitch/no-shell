@@ -17,7 +17,8 @@
 
 ## 功能特性
 
-- **SSH 终端** — 基于 dartssh2 + xterm 的完整交互终端：xterm-256color、自适应尺寸、密码 / keyboard-interactive / 私钥认证
+- **SSH 终端** — 基于 dartssh2 + xterm 的完整交互终端：xterm-256color、自适应尺寸、5 万行滚动回看、密码 / keyboard-interactive / 私钥认证
+- **会话日志** — 终端画面（含回滚）的纯文本快照，可复制或另存为 `.log`；快照取自渲染后的缓冲区，配色转义、进度条重画与服务器不回显的密码都不会落进文件
 - **SFTP 文件管理** — 目录导航、上传 / 下载（带进度与取消）、重命名、删除、新建目录；复用已认证的 SSH 连接，不重复建连、不重复认证
 - **端口转发** — 每台主机可配本地（-L）/ 远程（-R）/ 动态 SOCKS5（-D）转发规则，在主机详情的「转发」页启停，也可在连接后自动启动；所有隧道复用该主机已认证的 SSH 连接，会话断开即随之失效
 - **跳板机（ProxyJump）** — 从已保存的主机里选跳板机，支持多级串联；每一跳各自认证、各自校验主机指纹，终端、SFTP 与端口转发都走同一条链路
@@ -56,7 +57,7 @@
 | Linux | ✅ 支持 |
 | Android | ✅ 支持 |
 | iOS | ✅ 支持 |
-| Web | ⚠️ 界面可用，SSH 连接不支持（浏览器无原始 TCP） |
+| Web | ⚠️ 界面可用，SSH 连接不支持（浏览器无原始 TCP）；不随 Release 发布 |
 
 桌面宽屏（≥640px）为左右分栏布局，窄屏自动切换为移动端底部导航骨架，两端共用同一套数据层与会话层。
 
@@ -66,13 +67,12 @@
 
 | 平台 | 产物 |
 | --- | --- |
-| Windows | 免安装 zip + MSIX 安装包（附一次性自签证书 `.cer`，安装 MSIX 前需先导入「受信任的根证书颁发机构」） |
+| Windows | 免安装 zip |
 | macOS | arm64 zip（Apple Silicon） |
 | Linux | deb + rpm（安装到 `/opt/noshell`，含桌面入口；带 GPG 签名，验证方式见下） |
 | Android | APK |
-| Web | 静态站点 zip |
 
-Linux 的 deb / rpm 均带 GPG 签名。与 Windows 证书同一思路，CI 在每次发布时现生成一次性密钥：私钥随构建环境销毁，公钥即该次 Release 附带的 `NoShell-<tag>-linux-signing.asc`。验证（把 `<tag>` 换成实际版本，公钥用同一 Release 附带的那份）：
+Linux 的 deb / rpm 均带 GPG 签名。CI 在每次发布时现生成一次性密钥：私钥随构建环境销毁，公钥即该次 Release 附带的 `NoShell-<tag>-linux-signing.asc`。验证（把 `<tag>` 换成实际版本，公钥用同一 Release 附带的那份）：
 
 ```bash
 # deb：分离签名
@@ -127,7 +127,7 @@ python tool/dev_sftp_server.py /tmp/demo-root 2222
 flutter test integration_test/screenshots_test.dart -d macos
 ```
 
-> macOS 应用受 App Sandbox 约束，相对路径会落入应用容器（`~/Library/Containers/com.noshell/Data/`），生成后从该目录拷回仓库即可。
+> PNG 写入应用工作目录下的 `docs/screenshots`；想让它们落到别处，用 `SSH_SHOTS_DIR` 指定绝对路径。
 
 ## 架构速览
 
