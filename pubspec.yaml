@@ -37,6 +37,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
   msix: ^3.18.0
+  flutter_native_splash: ^2.4.8
 
 msix_config:
   display_name: NoShell
@@ -82,6 +83,30 @@ flutter_launcher_icons:
     image_path: icon/png/icon-1024.png
     background_color: "#101725"
     theme_color: "#101725"
+
+# 原生开屏（Flutter 首帧之前的系统画面）：flutter_native_splash 从 icon/png/
+# 现成 PNG 生成两端资源。改了图标：重跑 render.py 后执行
+# `dart run flutter_native_splash:create`。背景色取 AppPalette.pageLight /
+# pageDark，与首帧底色一致，开屏到界面不闪色。
+flutter_native_splash:
+  # 只做移动端；web / 桌面保持系统默认
+  android: true
+  ios: true
+  web: false
+  color: "#F6F7F9"
+  color_dark: "#0F1114"
+  # 圆角底板完整图标：浅色下是深色圆角板；深色下底板融入背景、只剩 N.
+  # iOS 按源图 1/4 宽居中显示（1024 → 256pt），@2x/@3x 各自精确配像素。
+  image: icon/png/icon-1024.png
+  image_dark: icon/png/icon-1024.png
+  android_12:
+    color: "#F6F7F9"
+    color_dark: "#0F1114"
+    # 12+ 系统对开屏图标做圆形裁切：用透明底安全区前景 + 品牌色圆底
+    image: icon/png/android-foreground-1024.png
+    image_dark: icon/png/android-foreground-1024.png
+    icon_background_color: "#101725"
+    icon_background_color_dark: "#101725"
 
 flutter:
   uses-material-design: true
