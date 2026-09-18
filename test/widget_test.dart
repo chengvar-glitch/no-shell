@@ -30,6 +30,10 @@ void main() {
     await tester.pump();
   }
 
+  // 主题按亮度全局缓存，而 ThemeData 里含平台相关的 visualDensity 等取值：
+  // 不清理的话，先跑的用例会把结果固化给后面的用例（几何断言随顺序漂移）。
+  setUp(AppTheme.resetCache);
+
   RenderBox sidebarSlot(WidgetTester tester) => tester.renderObject<RenderBox>(
     find.byKey(const ValueKey('sidebar-slot')),
   );
@@ -330,10 +334,9 @@ void main() {
       await tester.tap(find.byIcon(Icons.menu_open));
       await tester.pumpAndSettle();
 
-      // 只断言不随主题密度漂移的几何：本文件里更早的用例以默认平台（Android）
-      // 先建过缓存主题（main.dart 的 static final ThemeData），visualDensity
-      // / 触达目标尺寸已被固化，按钮渲染高度会随先到平台变化；
+      // 只断言不随主题密度漂移的几何：按钮的渲染高度受 visualDensity 影响，
       // 而定位由外层 Padding 决定，恒为 left 96、top 中心线 27 - 半高 13。
+      // （主题缓存每个用例前都清过，见 main() 里的 setUp。）
       // find.ancestor 由近及远排列，最后一个才是我们加的定位 Padding。
       final padding = tester.widget<Padding>(
         find

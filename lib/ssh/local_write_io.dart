@@ -24,7 +24,11 @@ Future<void> deleteLocalFile(String path) async {
 
 /// 写入中的临时路径：新建文件都先落在这里，成功后再改名到目标。
 /// 与目标同目录，改名才是同卷操作（跨卷 rename 会失败）。
-String localTemporaryPath(String path) => '$path.part';
+///
+/// 后缀与远端那份（[SftpTransferQueue] 的 `.noshell-part`）保持一致：
+/// 失败与取消都会清掉它，但进程被强杀时可能留下一个半成品，
+/// 带上应用名才看得出是谁留下的、也才敢在别处认领。
+String localTemporaryPath(String path) => '$path.noshell-part';
 
 /// 把写完的临时文件改名到目标路径，实现「要么是旧文件、要么是新文件」。
 ///

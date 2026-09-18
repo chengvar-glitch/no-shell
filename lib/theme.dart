@@ -129,6 +129,12 @@ abstract final class AppTheme {
   /// 而中文字形只有系统字体覆盖得全；需要统一的等宽字形的是终端，不是界面。
   static final _cache = <Brightness, ThemeData>{};
 
+  /// 清掉缓存。只给测试用：`ThemeData` 里含平台相关的 visualDensity 等取值，
+  /// 同一进程里先建的用例会把结果固化给后面的用例，几何断言因此会随
+  /// 用例顺序漂移（见 test/widget_test.dart 的说明）。
+  @visibleForTesting
+  static void resetCache() => _cache.clear();
+
   static ThemeData _build(Brightness brightness) =>
       _cache.putIfAbsent(brightness, () => _create(brightness));
 

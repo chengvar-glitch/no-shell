@@ -73,10 +73,11 @@
   - 界面字体固定跟随系统，不提供自定义入口（中文字形只有系统字体覆盖得全，界面字体属于原生观感的一部分）
 - SFTP 层：
   - SFTP 通道复用会话已认证的 SSH 连接（`SshTransport.openSftp`），不另建 TCP、不重复认证
+  - 失败 / 取消只清临时文件，绝不删目标；但进程被强杀时可能留下 `<文件>.noshell-part`（远端那份用户看不见，要手动清）
   - `lib/` 内禁止直接 `import 'dart:io'`；本地文件能力一律走 `ssh/local_write.dart` 的条件导出，web 由桩实现兜底
   - 传输进度只通知 `SftpTransfer` 自身，面板按行订阅；队列结构变化才通知整块面板
   - 删除主机时凭据与指纹一并清理，且**不 await**：钥匙串 / 存储层卡住不能把删除本身拖住（只影响下次连接的判定）。代价是「撤销删除」恢复的主机没有指纹，下次连接按首次记录处理——这是刻意取的舍
-  - 上传 / 下载一律**先写临时文件、成功后再改名到目标**（远端 `.noshell-part`，本地 `.part`）：直接往目标上写（远端是 `truncate`）一旦中途失败或取消，用户原有的同名文件就没了；失败与取消只清临时文件，绝不删目标
+  - 上传 / 下载一律**先写临时文件、成功后再改名到目标**（远端与本地同名，都是 `.noshell-part`；本地后缀与远端一致，残留才看得出是谁留下的）：直接往目标上写（远端是 `truncate`）一旦中途失败或取消，用户原有的同名文件就没了；失败与取消只清临时文件，绝不删目标
   - `SftpTransferQueue.dispose()` 只清自己的记录，不打断在跑的传输：`_drain` 与下载循环在 `await` 之后都必须复查 `_disposed` 再改状态或通知，否则会对已 dispose 的 `SftpTransfer` 调 `notifyListeners()`（debug 下直接抛 `used after being disposed`）
   - `_mutate` 的 `isMutating` 必须保持到**刷新结束**才放开：刷新在大目录 / 慢链路上要几百毫秒，提前放开等于允许第二个结构性操作挤进刷新窗口；忙时抛 `SftpErrorKind.busy`，不静默 return（那会让调用方谎报成功）
   - 下载落点数量必须与目标一一对应才开工：网关换了实现（移动端 SAF 选择器）可能少回落点，直接下标取用会在循环中途 RangeError，而前面的任务已经入队
@@ -94,7 +95,7 @@
   - 菜单标签不含「备份 / 加密」字样是刻意的：这是应用的主机迁移入口，不是可选项。不要因为内部实现叫 backup 就把菜单文案改回去
   - 标记符 `no-shell-hosts` 是格式的一部分，改动等于让已导出的备份全部失效；它的作用是分开「空备份」与「解出来不是备份」
   - KDF 用 scrypt（N=32768 / r=8 / p=1，约 32 MiB、测试机上约 0.35 秒），不是把 PBKDF2 轮数往上堆：备份明文里是 SSH 密码，派生必须内存硬才有意义，而 PBKDF2 到六十万轮要 2.5 秒、低端设备更久
-  - **不要给 KDF 加 isolate**：widget 测试跑在 fake-async 区域里，`Isolate.run` 的 Future 由真实事件循环完成，fake-async 看不见它，`pumpAndSettle` 会一直等到超时（已验证，代价是十分钟挂死）。scrypt 参数已低到同步可接受
+  - **派生按参数决定要不要 isolate**（见 `HostBackupParams.useIsolate`）：生产参数（N=32768）丢进 `Isolate.run`，0.35 秒的纯 CPU 计算不能冻住界面；测试注入的低参数（N=1024）必须同步算——widget 测试跑在 fake-async 区域里，`Isolate.run` 的 Future 由真实事件循环完成，fake-async 看不见它，`pumpAndSettle` 会一直等到超时（已验证，代价是十分钟挂死）。两条路径的阈值就是 `isolateThreshold`，改参数时注意别把测试拽进 isolate
   - 明文的载体是 `encodeHostsText` 的输出，所以新增主机字段只需改文本格式一处，导入导出同时受益
   - 信封里只放解密必需的参数（`kdf` 及其参数 / `cipher` / `salt` / `nonce`），不写版本号：本项目仍在开发阶段，格式不背历史包袱，只写也只读当前这一种（没有旧 KDF 回退分支）
   - KDF 参数的上下限是防呆：改过的文件不该让 scrypt 吃掉几十 GB 内存

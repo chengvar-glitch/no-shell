@@ -181,9 +181,12 @@ class NoShellApp extends StatefulWidget {
 }
 
 class _NoShellAppState extends State<NoShellApp> with WindowListener {
-  // ThemeData 构建开销不小，AppTheme 内部已按亮度缓存。
-  static final _lightTheme = AppTheme.light();
-  static final _darkTheme = AppTheme.dark();
+  // ThemeData 构建开销不小，AppTheme 内部已按亮度缓存，所以这里即使每个
+  // 实例各取一次也只在首次真正构建。刻意不做 static：组件测试里一个进程会
+  // 挂载多个 App，static 会把第一个用例的平台相关取值（visualDensity 等）
+  // 固化给后面的用例，几何断言于是随用例顺序漂移。
+  late final ThemeData _lightTheme = AppTheme.light();
+  late final ThemeData _darkTheme = AppTheme.dark();
 
   late final ServerStore _store = widget.store ?? ServerStore();
   late final CredentialStore _credentials =

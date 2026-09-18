@@ -10,13 +10,11 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/models.dart';
-import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_agent.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
-import 'package:xterm/core.dart';
 
-import 'support/forward_fakes.dart';
+import 'support/transport_fakes.dart';
 
 /// 构造 wire 格式公钥 blob：`string 算法名, ...`（后续字段随算法而异，
 /// 这里只造测试够用的最小结构）。
@@ -249,6 +247,11 @@ void main() {
   });
 
   test('真实 Unix 套接字全链路：列出密钥并签名', () async {
+    // Windows 没有 Unix 套接字（InternetAddressType.unix 不支持），
+    // 这条只在 macOS / Linux 上有意义；CI 与开发机都在类 Unix 上，
+    // 但不加这道守卫的话在 Windows 上会直接挂。
+    if (Platform.isWindows) return;
+
     final dir = await Directory.systemTemp.createTemp('noshell-agent-test');
     addTearDown(() => dir.delete(recursive: true));
     final path = '${dir.path}/agent.sock';
@@ -305,7 +308,9 @@ void main() {
         authMethod: AuthMethod.agent,
       ),
       credentials: const SshCredentials(useAgent: true),
-      transport: _UnavailableAgentTransport(),
+      transport: FakeTransport(
+        error: const SshAgentUnavailableException('no agent in test'),
+      ),
     );
     addTearDown(session.dispose);
     await session.start();
@@ -344,21 +349,4 @@ final class _TestReader {
     _offset += 4;
     return value;
   }
-}
-
-final class _UnavailableAgentTransport with NoForwardingTransport {
-  @override
-  Future<void> attach(
-    Terminal terminal, {
-    required void Function() onConnected,
-    required void Function() onClosed,
-  }) async {
-    throw const SshAgentUnavailableException('no agent in test');
-  }
-
-  @override
-  Future<SftpFileSystem> openSftp() async => throw UnimplementedError();
-
-  @override
-  void dispose() {}
 }

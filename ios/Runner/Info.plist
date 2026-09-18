@@ -27,6 +27,13 @@
 	</array>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<!-- 声明支持的语言：不写这一项时 App Store 的语言列表与 iOS 设置里的
+	     「按 App 设置语言」只会显示英文（界面本身跟随系统语言，不受影响）。 -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>zh</string>
+	</array>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>

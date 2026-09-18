@@ -1,46 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/ssh/session_log.dart';
-import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
 import 'package:xterm/core.dart';
 
-import 'support/forward_fakes.dart';
-
-/// 输出先写进终端、再由远端关闭的假传输。
-final class _EchoTransport with NoForwardingTransport {
-  _EchoTransport(this.lines);
-
-  final List<String> lines;
-
-  /// 传输层把终端的 onOutput 接到这里，模拟「发给远端」。
-  void Function(String)? onAttachOutput;
-
-  bool disposed = false;
-
-  @override
-  Future<void> attach(
-    Terminal terminal, {
-    required void Function() onConnected,
-    required void Function() onClosed,
-  }) async {
-    await Future<void>.delayed(Duration.zero);
-    final sink = onAttachOutput;
-    if (sink != null) terminal.onOutput = sink;
-    for (final line in lines) {
-      terminal.write(line);
-    }
-    onConnected();
-  }
-
-  @override
-  Future<SftpFileSystem> openSftp() async =>
-      throw const SftpException(SftpErrorKind.unsupported, 'fake');
-
-  @override
-  void dispose() => disposed = true;
-}
+import 'support/transport_fakes.dart';
 
 SshServer _server() => SshServer(
   id: 'srv-log',
@@ -121,7 +86,7 @@ void main() {
       final session = TerminalSession(
         server: _server(),
         credentials: const SshCredentials(password: 'pw'),
-        transport: _EchoTransport(['hello\n', 'world\n']),
+        transport: FakeTransport(lines: ['hello\n', 'world\n']),
       );
       addTearDown(session.dispose);
       await session.start();
@@ -132,9 +97,9 @@ void main() {
       final session = TerminalSession(
         server: _server(),
         credentials: const SshCredentials(password: 'pw'),
-        transport: _EchoTransport([
-          '\x1b]0;logged:~\x07\x1b[?2004h\x1b[32mready\x1b[0m\r\n',
-        ]),
+        transport: FakeTransport(
+          lines: ['\x1b]0;logged:~\x07\x1b[?2004h\x1b[32mready\x1b[0m\r\n'],
+        ),
       );
       addTearDown(session.dispose);
       await session.start();
@@ -142,7 +107,7 @@ void main() {
     });
 
     test('会话终止后日志保留，可供事后查看', () async {
-      final transport = _EchoTransport(['last words\n']);
+      final transport = FakeTransport(lines: ['last words\n']);
       final session = TerminalSession(
         server: _server(),
         credentials: const SshCredentials(password: 'pw'),
@@ -156,8 +121,7 @@ void main() {
     });
 
     test('sendText 经终端 onOutput 发往远端，未连接时静默丢弃', () async {
-      final sent = <String>[];
-      final transport = _EchoTransport(const [])..onAttachOutput = sent.add;
+      final transport = FakeTransport(lines: const [])..captureOutput = true;
       final session = TerminalSession(
         server: _server(),
         credentials: const SshCredentials(password: 'pw'),
@@ -166,10 +130,10 @@ void main() {
       addTearDown(session.dispose);
       // 未连接：onOutput 还没被传输层接上，发送是空操作。
       session.sendText('early\r');
-      expect(sent, isEmpty);
+      expect(transport.sent, isEmpty);
       await session.start();
       session.sendText('ls -la\r');
-      expect(sent, ['ls -la\r']);
+      expect(transport.sent, ['ls -la\r']);
     });
   });
 }

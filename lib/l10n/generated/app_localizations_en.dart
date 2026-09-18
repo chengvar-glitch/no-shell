@@ -145,12 +145,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get about => 'About';
 
   @override
-  String get switchToDark => 'Switch to dark';
-
-  @override
-  String get switchToLight => 'Switch to light';
-
-  @override
   String get selectHostToStart => 'Select a host to get started';
 
   @override
@@ -168,9 +162,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get moreActions => 'More actions';
-
-  @override
-  String get deleteHost => 'Delete host';
 
   @override
   String get hostAddress => 'Host address';
@@ -461,9 +452,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get presetDefaultDark => 'Default dark';
 
   @override
-  String get settingsSubtitle => 'Theme, terminal and language';
-
-  @override
   String get terminalPreview => 'Preview';
 
   @override
@@ -527,12 +515,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sftpSortModified => 'Modified';
-
-  @override
-  String get sftpSortAscending => 'Ascending';
-
-  @override
-  String get sftpSortDescending => 'Descending';
 
   @override
   String get sftpCopyPath => 'Copy path';
@@ -657,9 +639,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sftpDone => 'Done';
-
-  @override
-  String get sftpFailed => 'Failed';
 
   @override
   String sftpRemaining(String time) {
@@ -903,12 +882,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only this rule is removed; other running forwards are untouched.';
 
   @override
-  String get portForwardStart => 'Start';
-
-  @override
-  String get portForwardStop => 'Stop';
-
-  @override
   String get portForwardStatusStarting => 'Starting';
 
   @override
@@ -965,13 +938,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get portForwardErrorOther => 'The forward was not started';
-
-  @override
-  String get portForwardRuleIncomplete =>
-      'This rule is incomplete — fill in the addresses and ports';
-
-  @override
-  String get portForwardMode => 'Type';
 
   @override
   String get portForwardModeLocal => 'Local (-L)';

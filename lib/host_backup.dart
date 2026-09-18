@@ -16,7 +16,8 @@
 /// 2.5 秒——低端设备更久，界面会明显卡住。scrypt 取 N=32768/r=8/p=1
 /// （32 MiB）只要约 0.35 秒，抗爆破强度反而不低于六十万轮 PBKDF2。
 ///
-/// 派生刻意**不开 isolate**：scrypt 参数低到同步可接受；而 widget 测试跑在
+/// 派生按参数决定要不要 isolate：生产参数（N=32768）放在 `Isolate.run` 里跑，
+/// 0.35 秒的纯 CPU 计算不能冻住界面；测试注入的低参数同步算——widget 测试跑在
 /// fake-async 区域里，`Isolate.run` 的 Future 由真实事件循环完成，fake-async
 /// 看不见它，`pumpAndSettle` 会一直等到超时（已验证过）。
 ///
@@ -85,8 +86,9 @@ const _saltLength = 16;
 const _nonceLength = 12;
 const _macBits = 128;
 
-/// 下限保持在一万：更早的备份是五万轮，仍要解得开。
-/// scrypt 的 N 必须是 2 的幂；上限防呆，不让改过的文件吃掉几十 GB 内存。
+/// 上下限都是防呆：不下限到更低，是免得改过的文件用可忽略的代价被爆破；
+/// 上限不让一个改过的文件吃掉 1 GiB 内存（N=2^20 配 r=8 就是 1 GiB、512 倍
+/// 于标准参数的计算量）。scrypt 的 N 必须是 2 的幂。
 const _minScryptN = 1024;
 const _maxScryptN = 1 << 20;
 

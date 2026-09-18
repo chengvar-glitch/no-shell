@@ -321,7 +321,7 @@ final class FakeLocalFileGateway implements LocalFileGateway {
   }
 
   @override
-  String temporaryPath(String path) => '$path.part';
+  String temporaryPath(String path) => '$path.noshell-part';
 
   @override
   Future<void> promote(String temporaryPath, String targetPath) async {
