@@ -136,6 +136,37 @@
   "privateKeyHint": "-----BEGIN OPENSSH PRIVATE KEY-----",
   "pickKeyFile": "Choose key file",
   "pickKeyFileFailedMsg": "Could not read the selected key file.",
+  "rememberedCredentials": "Remembered credentials",
+  "credentialRememberedKind": "Remembered: {kind}",
+  "@credentialRememberedKind": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "noRememberedCredential": "No credentials remembered",
+  "credentialRememberOnSave": "Will remember: {kind}",
+  "@credentialRememberOnSave": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "credentialClearOnSave": "Credentials will be cleared on save",
+  "replaceCredential": "Replace…",
+  "rememberCredential": "Remember…",
+  "clearStoredCredential": "Clear",
+  "credentialsDialogTitle": "Credentials for \"{name}\"",
+  "@credentialsDialogTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "credentialsDialogHint": "Stored securely once saved and used automatically on the next connection.",
   "fieldPassphrase": "Key passphrase (optional)",
   "credentialsRequired": "Please enter a password or paste a key",
   "connectingTo": "Connecting to {account}…",

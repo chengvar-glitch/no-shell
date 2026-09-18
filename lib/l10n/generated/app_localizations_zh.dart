@@ -245,6 +245,42 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pickKeyFileFailedMsg => '无法读取所选的密钥文件。';
 
   @override
+  String get rememberedCredentials => '记住的凭据';
+
+  @override
+  String credentialRememberedKind(String kind) {
+    return '已记住：$kind';
+  }
+
+  @override
+  String get noRememberedCredential => '未记住凭据';
+
+  @override
+  String credentialRememberOnSave(String kind) {
+    return '保存后记住：$kind';
+  }
+
+  @override
+  String get credentialClearOnSave => '保存后清除记住的凭据';
+
+  @override
+  String get replaceCredential => '更换…';
+
+  @override
+  String get rememberCredential => '记住…';
+
+  @override
+  String get clearStoredCredential => '清除';
+
+  @override
+  String credentialsDialogTitle(String name) {
+    return '「$name」的凭据';
+  }
+
+  @override
+  String get credentialsDialogHint => '保存后加密存储，下次连接自动使用。';
+
+  @override
   String get fieldPassphrase => '私钥口令（可选）';
 
   @override

@@ -251,6 +251,43 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pickKeyFileFailedMsg => 'Could not read the selected key file.';
 
   @override
+  String get rememberedCredentials => 'Remembered credentials';
+
+  @override
+  String credentialRememberedKind(String kind) {
+    return 'Remembered: $kind';
+  }
+
+  @override
+  String get noRememberedCredential => 'No credentials remembered';
+
+  @override
+  String credentialRememberOnSave(String kind) {
+    return 'Will remember: $kind';
+  }
+
+  @override
+  String get credentialClearOnSave => 'Credentials will be cleared on save';
+
+  @override
+  String get replaceCredential => 'Replace…';
+
+  @override
+  String get rememberCredential => 'Remember…';
+
+  @override
+  String get clearStoredCredential => 'Clear';
+
+  @override
+  String credentialsDialogTitle(String name) {
+    return 'Credentials for \"$name\"';
+  }
+
+  @override
+  String get credentialsDialogHint =>
+      'Stored securely once saved and used automatically on the next connection.';
+
+  @override
   String get fieldPassphrase => 'Key passphrase (optional)';
 
   @override

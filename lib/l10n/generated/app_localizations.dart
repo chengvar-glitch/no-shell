@@ -518,6 +518,66 @@ abstract class AppLocalizations {
   /// **'Could not read the selected key file.'**
   String get pickKeyFileFailedMsg;
 
+  /// No description provided for @rememberedCredentials.
+  ///
+  /// In en, this message translates to:
+  /// **'Remembered credentials'**
+  String get rememberedCredentials;
+
+  /// No description provided for @credentialRememberedKind.
+  ///
+  /// In en, this message translates to:
+  /// **'Remembered: {kind}'**
+  String credentialRememberedKind(String kind);
+
+  /// No description provided for @noRememberedCredential.
+  ///
+  /// In en, this message translates to:
+  /// **'No credentials remembered'**
+  String get noRememberedCredential;
+
+  /// No description provided for @credentialRememberOnSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Will remember: {kind}'**
+  String credentialRememberOnSave(String kind);
+
+  /// No description provided for @credentialClearOnSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Credentials will be cleared on save'**
+  String get credentialClearOnSave;
+
+  /// No description provided for @replaceCredential.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace…'**
+  String get replaceCredential;
+
+  /// No description provided for @rememberCredential.
+  ///
+  /// In en, this message translates to:
+  /// **'Remember…'**
+  String get rememberCredential;
+
+  /// No description provided for @clearStoredCredential.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get clearStoredCredential;
+
+  /// No description provided for @credentialsDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Credentials for \"{name}\"'**
+  String credentialsDialogTitle(String name);
+
+  /// No description provided for @credentialsDialogHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Stored securely once saved and used automatically on the next connection.'**
+  String get credentialsDialogHint;
+
   /// No description provided for @fieldPassphrase.
   ///
   /// In en, this message translates to:

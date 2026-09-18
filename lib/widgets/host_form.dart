@@ -6,6 +6,8 @@
 /// 两种（一端从零构造再 `copyWith(clearJumpServer:)`，一端直接传）。
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../host_portable.dart';
@@ -13,6 +15,9 @@ import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../ssh/connect_flow.dart';
 import '../ssh/credential_store.dart';
+// 与 ssh/credentials_dialog 相互引用是刻意的：弹窗共用这里的三段选择器，
+// 这里的「更换记住的凭据」复用弹窗，不再另写一份认证输入。
+import '../ssh/credentials_dialog.dart';
 import '../ssh/ssh_agent.dart';
 import '../ssh/ssh_credentials.dart';
 import '../theme.dart';
@@ -57,26 +62,39 @@ enum HostFormDensity {
   TextStyle? get fieldStyle =>
       fieldFontSize == null ? null : TextStyle(fontSize: fieldFontSize);
 
-  TextStyle? get metadataStyle => metadataFontSize == null
-      ? null
-      : TextStyle(fontSize: metadataFontSize);
+  TextStyle? get metadataStyle =>
+      metadataFontSize == null ? null : TextStyle(fontSize: metadataFontSize);
 }
 
 /// 主机表单的状态与保存逻辑。外壳持有它，在 [State.dispose] 里调 [dispose]。
 class HostFormController {
-  HostFormController({SshServer? initial, String? initialGroup})
-    : initial = initial,
-      group = initial?.group ?? initialGroup,
-      auth = initial?.authMethod ?? AuthMethod.privateKey,
-      jumpServerId = initial?.jumpServerId,
-      name = TextEditingController(text: initial?.name),
-      host = TextEditingController(text: initial?.host),
-      port = TextEditingController(text: (initial?.port ?? 22).toString()),
-      username = TextEditingController(text: initial?.username),
-      notes = TextEditingController(text: initial?.notes);
+  HostFormController({
+    SshServer? initial,
+    String? initialGroup,
+    this.credentials,
+    this.onChanged,
+  }) : initial = initial,
+       group = initial?.group ?? initialGroup,
+       auth = initial?.authMethod ?? AuthMethod.privateKey,
+       jumpServerId = initial?.jumpServerId,
+       name = TextEditingController(text: initial?.name),
+       host = TextEditingController(text: initial?.host),
+       port = TextEditingController(text: (initial?.port ?? 22).toString()),
+       username = TextEditingController(text: initial?.username),
+       notes = TextEditingController(text: initial?.notes) {
+    unawaited(_loadStoredCredential());
+  }
 
   /// 传入则为编辑，否则为新建。
   final SshServer? initial;
+
+  /// 安全存储。编辑表单用它读出已记住的凭据、保存时落盘更换 / 清除；
+  /// null（测试或没接存储的外壳）时凭据段整体不可见、保存不做凭据副作用。
+  final CredentialStore? credentials;
+
+  /// 凭据异步读取完成、待定状态变化后通知外壳重建——与
+  /// [HostFormFields.onChanged] 是同一个回调，由外壳 setState。
+  final VoidCallback? onChanged;
 
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
   final TextEditingController metadata = TextEditingController();
@@ -97,19 +115,67 @@ class HostFormController {
   /// 粘贴的元数据里带的密码，保存时写进安全存储。
   String? password;
 
+  /// 已记住的凭据（安全存储异步读出，完成前为 null）。
+  SshCredentials? storedCredential;
+
+  /// 「更换凭据」弹窗提交的新凭据；点保存才落盘，取消表单即丢弃。
+  SshCredentials? credentialReplacement;
+
+  /// 点了「清除」；点保存才删除，再点「更换」会被覆盖。
+  bool credentialCleared = false;
+
+  bool _disposed = false;
+
   bool get isEditing => initial != null;
 
+  bool get credentialsSupported => credentials?.supported ?? false;
+
   void dispose() {
-    for (final controller in [
-      metadata,
-      name,
-      host,
-      port,
-      username,
-      notes,
-    ]) {
+    _disposed = true;
+    for (final controller in [metadata, name, host, port, username, notes]) {
       controller.dispose();
     }
+  }
+
+  /// 读出已记住的凭据供状态行展示（只在编辑已有主机时有意义）。
+  /// 完成时机不可控（钥匙串可能慢），回调前都查 [_disposed]。
+  Future<void> _loadStoredCredential() async {
+    final store = credentials;
+    final id = initial?.id;
+    if (store == null || !store.supported || id == null) return;
+    final saved = await store.read(id);
+    if (_disposed) return;
+    storedCredential = saved;
+    onChanged?.call();
+  }
+
+  /// 弹出凭据弹窗（lockRemember：这次输入就是要记住的内容）让用户更换。
+  /// 提交结果先挂在 [credentialReplacement] 上，保存时才落盘——与表单其余
+  /// 字段同一套「取消不生效」的语义。
+  Future<void> replaceCredential(BuildContext context) async {
+    final store = credentials;
+    final host = initial;
+    if (store == null || !store.supported || host == null) return;
+    final l10n = AppLocalizations.of(context);
+    final submission = await showCredentialsDialog(
+      context,
+      host,
+      initial: credentialReplacement ?? storedCredential,
+      lockRemember: true,
+      title: l10n.credentialsDialogTitle(host.name),
+      confirmLabel: l10n.save,
+    );
+    if (submission == null || _disposed) return;
+    credentialReplacement = submission.credentials;
+    credentialCleared = false;
+    onChanged?.call();
+  }
+
+  /// 点「清除」：挂起删除，保存时生效。
+  void clearCredential() {
+    credentialReplacement = null;
+    credentialCleared = true;
+    onChanged?.call();
   }
 
   /// 把粘贴的元数据填进表单：只覆盖识别到的字段，用户仍可继续手动改。
@@ -132,34 +198,15 @@ class HostFormController {
   ///
   /// 跳板机直接按 [jumpServerId] 构造（不从零拼再补）：取消跳板机就是传 null，
   /// 两端由此得到同一份语义。
-  Future<SshServer?> build({
-    required BuildContext context,
-    required CredentialStore credentials,
-  }) async {
+  Future<SshServer?> build({required BuildContext context}) async {
     if (!(formKey.currentState?.validate() ?? false)) return null;
-    final l10n = AppLocalizations.of(context);
     final id = initial?.id ?? 'srv-${DateTime.now().microsecondsSinceEpoch}';
-    final pasted = password;
-    if (pasted != null &&
-        auth == AuthMethod.password &&
-        credentials.supported) {
-      final saved = await credentials.write(
-        id,
-        SshCredentials(password: pasted),
-      );
-      if (!saved && context.mounted) {
-        showToast(context, l10n.credentialsSaveFailedMsg);
-      }
-    } else if (auth != AuthMethod.password &&
-        initial?.authMethod == AuthMethod.password) {
-      // 改成密钥 / agent 认证后旧密码没人再用，但导出备份时会把它一起打包走。
-      await dropStoredCredential(credentials, id);
-    }
+    await _persistCredentialChange(context, id);
     if (!context.mounted) return null;
     return SshServer(
       id: id,
       // 分组下拉里只有已建好的分组，没动过就是默认分组。
-      group: group ?? l10n.defaultGroupName,
+      group: group ?? AppLocalizations.of(context).defaultGroupName,
       name: name.text.trim(),
       host: host.text.trim(),
       username: username.text.trim(),
@@ -173,6 +220,47 @@ class HostFormController {
       // 漏掉这一行等于每次保存都把该主机的规则清空。
       forwards: initial?.forwards ?? const [],
     );
+  }
+
+  /// 保存时的凭据落盘。优先级：显式更换 > 显式清除 > 粘贴元数据带的密码 >
+  /// 认证方式改离密码时丢弃旧密码（改完后旧密码没人再认，留在存储里只会
+  /// 在导出备份时被打包带走）。写入失败必须提示（同连接流程），绝不静默。
+  Future<void> _persistCredentialChange(BuildContext context, String id) async {
+    final store = credentials;
+    final replacement = credentialReplacement;
+    if (replacement != null) {
+      if (store == null || !store.supported) return;
+      final saved = await store.write(id, replacement);
+      if (!saved && context.mounted) {
+        showToast(
+          context,
+          AppLocalizations.of(context).credentialsSaveFailedMsg,
+        );
+      }
+      return;
+    }
+    if (credentialCleared) {
+      if (store == null) return;
+      await dropStoredCredential(store, id);
+      return;
+    }
+    final pasted = password;
+    if (pasted != null && auth == AuthMethod.password) {
+      if (store == null || !store.supported) return;
+      final saved = await store.write(id, SshCredentials(password: pasted));
+      if (!saved && context.mounted) {
+        showToast(
+          context,
+          AppLocalizations.of(context).credentialsSaveFailedMsg,
+        );
+      }
+      return;
+    }
+    if (auth != AuthMethod.password &&
+        initial?.authMethod == AuthMethod.password &&
+        store != null) {
+      await dropStoredCredential(store, id);
+    }
   }
 }
 
@@ -386,6 +474,20 @@ class HostFormFields extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: theme.secondaryText),
           ),
         ],
+        // 紧挨认证方式：这里管理的就是连接时自动用的那一份。只给编辑态、
+        // 且本平台支持安全存储；新建主机的凭据照旧在首次连接时录入。
+        if (controller.isEditing && controller.credentialsSupported) ...[
+          SizedBox(height: spacing),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              l10n.rememberedCredentials,
+              style: TextStyle(fontSize: 12, color: theme.secondaryText),
+            ),
+          ),
+          const SizedBox(height: 6),
+          _RememberedCredentialRow(controller: controller),
+        ],
         SizedBox(height: spacing),
         TextFormField(
           controller: controller.notes,
@@ -400,3 +502,55 @@ class HostFormFields extends StatelessWidget {
     );
   }
 }
+
+/// 「记住的凭据」段的一行：当前状态 + 更换 / 清除。更换复用凭据弹窗
+/// （lockRemember），结果先挂在 controller 的待定状态上，点保存才落盘；
+/// 与表单其余字段同一套「取消不生效」的语义。
+class _RememberedCredentialRow extends StatelessWidget {
+  const _RememberedCredentialRow({required this.controller});
+
+  final HostFormController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final replacement = controller.credentialReplacement;
+    final stored = controller.storedCredential;
+    final status = controller.credentialCleared
+        ? l10n.credentialClearOnSave
+        : replacement != null
+        ? l10n.credentialRememberOnSave(_kindLabel(l10n, replacement))
+        : stored != null
+        ? l10n.credentialRememberedKind(_kindLabel(l10n, stored))
+        : l10n.noRememberedCredential;
+    return Row(
+      children: [
+        Expanded(child: Text(status, style: const TextStyle(fontSize: 12.5))),
+        TextButton(
+          onPressed: () => controller.replaceCredential(context),
+          child: Text(
+            replacement == null && stored == null
+                ? l10n.rememberCredential
+                : l10n.replaceCredential,
+          ),
+        ),
+        if (replacement != null || stored != null)
+          TextButton(
+            onPressed: controller.clearCredential,
+            child: Text(l10n.clearStoredCredential),
+          ),
+      ],
+    );
+  }
+}
+
+/// 已存凭据在界面上的类别名，与认证方式三段选择器共用一套文案。
+String _kindLabel(AppLocalizations l10n, SshCredentials credential) =>
+    authMethodLabel(
+      l10n,
+      credential.useAgent
+          ? AuthMethod.agent
+          : credential.privateKey != null
+          ? AuthMethod.privateKey
+          : AuthMethod.password,
+    );

@@ -33,6 +33,10 @@ class _ServerEditPageState extends State<ServerEditPage> {
   late final _form = HostFormController(
     initial: widget.initial,
     initialGroup: widget.initialGroup,
+    credentials: widget.credentials,
+    onChanged: () {
+      if (mounted) setState(() {});
+    },
   );
 
   @override
@@ -42,10 +46,7 @@ class _ServerEditPageState extends State<ServerEditPage> {
   }
 
   Future<void> _save() async {
-    final saved = await _form.build(
-      context: context,
-      credentials: widget.credentials,
-    );
+    final saved = await _form.build(context: context);
     if (saved == null || !mounted) return;
     widget.store.upsert(saved);
     Navigator.of(context).pop();

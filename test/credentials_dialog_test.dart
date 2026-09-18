@@ -25,6 +25,9 @@ Future<_Harness> _pumpDialog(
   SshCredentials? initial,
   bool allowRemember = false,
   bool rememberInitially = false,
+  String? title,
+  String? confirmLabel,
+  bool lockRemember = false,
 }) async {
   final harness = _Harness();
   await tester.pumpWidget(
@@ -43,6 +46,9 @@ Future<_Harness> _pumpDialog(
                   initial: initial,
                   allowRemember: allowRemember,
                   rememberInitially: rememberInitially,
+                  title: title,
+                  confirmLabel: confirmLabel,
+                  lockRemember: lockRemember,
                 );
               },
               child: const Text('open'),
@@ -230,5 +236,26 @@ void main() {
 
     expect(find.text('无法读取所选的密钥文件。'), findsOneWidget);
     expect(find.widgetWithText(TextFormField, '---PASTED---'), findsOneWidget);
+  });
+
+  testWidgets('lockRemember：无「记住凭据」开关，标题与确认键可定制，恒为 remember', (tester) async {
+    // 编辑表单的「更换记住的凭据」复用本弹窗：语义是「这次输入就是要记住的」。
+    final harness = await _pumpDialog(
+      tester,
+      allowRemember: true,
+      lockRemember: true,
+      title: '「test-host」的凭据',
+      confirmLabel: '保存',
+    );
+
+    expect(find.text('「test-host」的凭据'), findsOneWidget);
+    expect(find.text('记住凭据'), findsNothing);
+
+    await tester.enterText(find.byType(TextFormField).first, 'new-secret');
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+
+    expect(harness.captured?.credentials.password, 'new-secret');
+    expect(harness.captured?.remember, isTrue);
   });
 }

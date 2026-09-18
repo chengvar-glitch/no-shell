@@ -54,6 +54,10 @@ final class CredentialsSubmission {
 /// CredentialStore 决定是否展示「记住凭据」开关。
 /// [viaJumpHost] 为 true 时多给一行说明：这次输的是跳板机的凭据，
 /// 用户看到的标题仍是那台跳板机的名字，不至于以为输错了主机。
+///
+/// 编辑表单的「更换记住的凭据」也复用这个弹窗（[lockRemember] 模式）：
+/// 那里的语义是「这次输入就是要记住的内容」，不再给「记住凭据」开关，
+/// 提交恒为 remember=true，标题与确认文案由调用方给定。
 Future<CredentialsSubmission?> showCredentialsDialog(
   BuildContext context,
   SshServer server, {
@@ -61,6 +65,9 @@ Future<CredentialsSubmission?> showCredentialsDialog(
   bool allowRemember = false,
   bool rememberInitially = false,
   bool viaJumpHost = false,
+  String? title,
+  String? confirmLabel,
+  bool lockRemember = false,
 }) {
   return showDialog<CredentialsSubmission>(
     context: context,
@@ -70,6 +77,9 @@ Future<CredentialsSubmission?> showCredentialsDialog(
       allowRemember: allowRemember,
       rememberInitially: rememberInitially,
       viaJumpHost: viaJumpHost,
+      title: title,
+      confirmLabel: confirmLabel,
+      lockRemember: lockRemember,
     ),
   );
 }
@@ -81,6 +91,9 @@ final class _CredentialsDialog extends StatefulWidget {
     required this.allowRemember,
     required this.rememberInitially,
     required this.viaJumpHost,
+    this.title,
+    this.confirmLabel,
+    required this.lockRemember,
   });
 
   final SshServer server;
@@ -88,6 +101,9 @@ final class _CredentialsDialog extends StatefulWidget {
   final bool allowRemember;
   final bool rememberInitially;
   final bool viaJumpHost;
+  final String? title;
+  final String? confirmLabel;
+  final bool lockRemember;
 
   @override
   State<_CredentialsDialog> createState() => _CredentialsDialogState();
@@ -147,7 +163,7 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
           // 本机 agent 要。
           AuthMethod.agent => const SshCredentials(useAgent: true),
         },
-        remember: widget.allowRemember && _remember,
+        remember: widget.lockRemember || (widget.allowRemember && _remember),
       ),
     );
   }
@@ -183,7 +199,7 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return AlertDialog(
-      title: Text(l10n.connectAuthTitle(widget.server.name)),
+      title: Text(widget.title ?? l10n.connectAuthTitle(widget.server.name)),
       content: Form(
         key: _formKey,
         child: Column(
@@ -191,7 +207,9 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              l10n.authMemoryHint,
+              widget.lockRemember
+                  ? l10n.credentialsDialogHint
+                  : l10n.authMemoryHint,
               style: TextStyle(fontSize: 12, color: theme.secondaryText),
             ),
             if (widget.viaJumpHost) ...[
@@ -333,7 +351,7 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
                 onFieldSubmitted: (_) => _submit(),
               ),
             ],
-            if (widget.allowRemember) ...[
+            if (widget.allowRemember && !widget.lockRemember) ...[
               const SizedBox(height: 4),
               CheckboxListTile(
                 value: _remember,
@@ -356,7 +374,10 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(l10n.cancel),
         ),
-        FilledButton(onPressed: _submit, child: Text(l10n.connect)),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(widget.confirmLabel ?? l10n.connect),
+        ),
       ],
     );
   }

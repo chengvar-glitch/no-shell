@@ -377,6 +377,10 @@ class _ServerDialogState extends State<_ServerDialog> {
   late final _form = HostFormController(
     initial: widget.initial,
     initialGroup: widget.initialGroup,
+    credentials: widget.credentials,
+    onChanged: () {
+      if (mounted) setState(() {});
+    },
   );
 
   @override
@@ -386,10 +390,7 @@ class _ServerDialogState extends State<_ServerDialog> {
   }
 
   Future<void> _submit() async {
-    final saved = await _form.build(
-      context: context,
-      credentials: widget.credentials,
-    );
+    final saved = await _form.build(context: context);
     if (saved == null || !mounted) return;
     Navigator.of(context).pop(saved);
   }

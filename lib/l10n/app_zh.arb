@@ -77,6 +77,37 @@
   "privateKeyHint": "-----BEGIN OPENSSH PRIVATE KEY-----",
   "pickKeyFile": "选择密钥文件",
   "pickKeyFileFailedMsg": "无法读取所选的密钥文件。",
+  "rememberedCredentials": "记住的凭据",
+  "credentialRememberedKind": "已记住：{kind}",
+  "@credentialRememberedKind": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "noRememberedCredential": "未记住凭据",
+  "credentialRememberOnSave": "保存后记住：{kind}",
+  "@credentialRememberOnSave": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "credentialClearOnSave": "保存后清除记住的凭据",
+  "replaceCredential": "更换…",
+  "rememberCredential": "记住…",
+  "clearStoredCredential": "清除",
+  "credentialsDialogTitle": "「{name}」的凭据",
+  "@credentialsDialogTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "credentialsDialogHint": "保存后加密存储，下次连接自动使用。",
   "fieldPassphrase": "私钥口令（可选）",
   "credentialsRequired": "请输入密码或粘贴私钥",
   "connectingTo": "正在连接 {account} …",
