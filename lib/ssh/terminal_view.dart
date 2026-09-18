@@ -365,12 +365,28 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 清除指纹后重连。指纹对不上的是跳板机上那一跳时，清的必须是那一跳的
   /// 记录（[HostKeyChangedException] 自带 host / port），否则记录原封不动、
   /// 用户点几次都还是同一个错。
+  ///
+  /// 清之前先确认一次：这个按钮就摆在「疑似中间人」那段文案下面，一键点掉
+  /// 等于把「警告 → 信任新密钥」压缩成一次点击，而新密钥此后就是可信记录。
+  /// 文案里点明「下次连接直接信任对方出示的密钥」，把带外核对这件事说清楚。
   Future<void> _forgetHostKeyAndRetry() async {
+    final l10n = AppLocalizations.of(context);
     final changed = widget.session.hostKeyChanged;
+    final host = changed?.host ?? widget.session.server.host;
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.hostKeyForgetConfirmTitle,
+      body: l10n.hostKeyForgetConfirmBody(host),
+      confirmLabel: l10n.hostKeyForgetConfirmAction,
+    );
+    if (!confirmed || !mounted) return;
     await widget.session.hostKeys?.delete(
-      changed?.host ?? widget.session.server.host,
+      host,
       changed?.port ?? widget.session.server.port,
     );
+    // 删除是异步的：这期间会话可能已经被换掉或关掉，别去重连一条用户
+    // 已经不看了的会话。
+    if (!mounted) return;
     widget.onRetry?.call();
   }
 }

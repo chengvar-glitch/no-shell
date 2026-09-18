@@ -286,6 +286,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get hostKeyForgetAndRetry => '清除记录的指纹并重连';
 
   @override
+  String get hostKeyForgetConfirmTitle => '清除这台主机的指纹？';
+
+  @override
+  String hostKeyForgetConfirmBody(String host) {
+    return '清除后，下次连接会直接信任 $host 出示的密钥。只有在你已经从别的途径核对过新指纹时才该这么做——指纹不一致也可能意味着有人正在中间截获这条连接。';
+  }
+
+  @override
+  String get hostKeyForgetConfirmAction => '清除并重连';
+
+  @override
   String get reconnect => '重连';
 
   @override
@@ -962,6 +973,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get portForwardAddressRequired => '请填写地址';
+
+  @override
+  String get portForwardExposeWarning =>
+      '监听地址不是回环地址：同一网络里的任何人都能连上这条隧道（动态转发等于开了一个不需要认证的代理）。';
+
+  @override
+  String get portForwardExposeTitle => '这条转发会对整个网络开放';
+
+  @override
+  String portForwardExposeBody(String host) {
+    return '监听地址 $host 不是本机回环地址，同一网络里的任何人都能连上它。确定保存吗？';
+  }
+
+  @override
+  String get portForwardExposeConfirm => '仍然保存';
 
   @override
   String get jumpHost => '跳板机';

@@ -155,6 +155,16 @@
   "webUnsupportedMsg": "SSH connections are not supported on web yet",
   "hostKeyChangedMsg": "Host key verification failed — the server's fingerprint no longer matches the one recorded at first connection, so the connection was refused. If the server was rebuilt on purpose, forget the recorded fingerprint and reconnect; otherwise beware of a man-in-the-middle attack.",
   "hostKeyForgetAndRetry": "Forget fingerprint and reconnect",
+  "hostKeyForgetConfirmTitle": "Forget this host key?",
+  "hostKeyForgetConfirmBody": "After forgetting, the next connection will trust whatever key {host} presents. Only do this if you have verified the new fingerprint out of band — a mismatched fingerprint can also mean someone is intercepting this connection.",
+  "@hostKeyForgetConfirmBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostKeyForgetConfirmAction": "Forget and reconnect",
   "reconnect": "Reconnect",
   "fieldName": "Name",
   "nameHint": "e.g. web-prod-01",
@@ -544,6 +554,17 @@
   "portForwardAutoStart": "Start automatically on connect",
   "portForwardAutoStartHint": "Auto start needs saved credentials; otherwise you will be asked for them on connect.",
   "portForwardAddressRequired": "Please enter an address",
+  "portForwardExposeWarning": "The listen address is not a loopback address: anyone on the same network can reach this tunnel (for dynamic forwarding that means an unauthenticated proxy).",
+  "portForwardExposeTitle": "This forward will be exposed to the network",
+  "portForwardExposeBody": "Listen address {host} is not a loopback address — anyone on the same network can connect to it. Save anyway?",
+  "@portForwardExposeBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardExposeConfirm": "Save anyway",
   "jumpHost": "Jump host",
   "jumpHostNone": "None",
   "jumpHostHint": "Log in to it first, then reach this host through it",

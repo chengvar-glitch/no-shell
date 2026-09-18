@@ -590,6 +590,24 @@ abstract class AppLocalizations {
   /// **'Forget fingerprint and reconnect'**
   String get hostKeyForgetAndRetry;
 
+  /// No description provided for @hostKeyForgetConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget this host key?'**
+  String get hostKeyForgetConfirmTitle;
+
+  /// No description provided for @hostKeyForgetConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'After forgetting, the next connection will trust whatever key {host} presents. Only do this if you have verified the new fingerprint out of band — a mismatched fingerprint can also mean someone is intercepting this connection.'**
+  String hostKeyForgetConfirmBody(String host);
+
+  /// No description provided for @hostKeyForgetConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget and reconnect'**
+  String get hostKeyForgetConfirmAction;
+
   /// No description provided for @reconnect.
   ///
   /// In en, this message translates to:
@@ -1717,6 +1735,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Please enter an address'**
   String get portForwardAddressRequired;
+
+  /// No description provided for @portForwardExposeWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'The listen address is not a loopback address: anyone on the same network can reach this tunnel (for dynamic forwarding that means an unauthenticated proxy).'**
+  String get portForwardExposeWarning;
+
+  /// No description provided for @portForwardExposeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This forward will be exposed to the network'**
+  String get portForwardExposeTitle;
+
+  /// No description provided for @portForwardExposeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen address {host} is not a loopback address — anyone on the same network can connect to it. Save anyway?'**
+  String portForwardExposeBody(String host);
+
+  /// No description provided for @portForwardExposeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Save anyway'**
+  String get portForwardExposeConfirm;
 
   /// No description provided for @jumpHost.
   ///

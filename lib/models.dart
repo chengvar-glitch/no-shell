@@ -31,6 +31,24 @@ enum PortForwardMode {
   dynamic,
 }
 
+/// 监听地址是否是回环：只有本机能连上。
+///
+/// 不是回环（`0.0.0.0`、局域网地址、公网地址）意味着同一网络里的任何人都能
+/// 连上这条隧道，而 `-D` 在那种情况下就是一个**不需要认证**的 SOCKS5 代理。
+/// 界面据此在保存前提示用户，别让一次手滑把本机服务暴露出去。
+///
+/// 判定只认字面量，不做 DNS 解析：解析结果随网络环境变化，界面上的提示
+/// 必须与用户填的内容一一对应，也不能因为一次解析把别的地址放进来。
+bool isLoopbackHost(String host) {
+  final value = host.trim().toLowerCase();
+  if (value == 'localhost') return true;
+  // IPv6 回环可以写成全零省略形式，也可能带方括号或 IPv4 映射前缀。
+  final bare = value.replaceAll(RegExp(r'^\[|\]$'), '');
+  if (bare == '::1' || bare == '0:0:0:0:0:0:0:1') return true;
+  if (bare == '::ffff:127.0.0.1') return true;
+  return RegExp(r'^127(\.\d{1,3}){3}$').hasMatch(bare);
+}
+
 /// 一条端口转发规则：挂在某台主机上，随该主机的会话启停。
 ///
 /// 规则本身是可以为空的目标地址等留白，运行前的校验交给 [isRunnable]；

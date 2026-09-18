@@ -295,6 +295,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hostKeyForgetAndRetry => 'Forget fingerprint and reconnect';
 
   @override
+  String get hostKeyForgetConfirmTitle => 'Forget this host key?';
+
+  @override
+  String hostKeyForgetConfirmBody(String host) {
+    return 'After forgetting, the next connection will trust whatever key $host presents. Only do this if you have verified the new fingerprint out of band — a mismatched fingerprint can also mean someone is intercepting this connection.';
+  }
+
+  @override
+  String get hostKeyForgetConfirmAction => 'Forget and reconnect';
+
+  @override
   String get reconnect => 'Reconnect';
 
   @override
@@ -1004,6 +1015,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get portForwardAddressRequired => 'Please enter an address';
+
+  @override
+  String get portForwardExposeWarning =>
+      'The listen address is not a loopback address: anyone on the same network can reach this tunnel (for dynamic forwarding that means an unauthenticated proxy).';
+
+  @override
+  String get portForwardExposeTitle =>
+      'This forward will be exposed to the network';
+
+  @override
+  String portForwardExposeBody(String host) {
+    return 'Listen address $host is not a loopback address — anyone on the same network can connect to it. Save anyway?';
+  }
+
+  @override
+  String get portForwardExposeConfirm => 'Save anyway';
 
   @override
   String get jumpHost => 'Jump host';
