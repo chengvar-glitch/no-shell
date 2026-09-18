@@ -12,6 +12,7 @@ import 'package:no_shell/store.dart';
 import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/server_detail.dart';
 import 'package:no_shell/widgets/sftp_browser.dart';
+import 'package:no_shell/widgets/status_badges.dart';
 import 'package:xterm/core.dart';
 
 import 'support/credential_store_fake.dart';
@@ -161,11 +162,18 @@ void main() {
       same(second),
     );
 
-    // 点胶囊弹出会话菜单（此时不再直接进日志）。
-    await tester.tap(find.byTooltip('会话'));
+    // 点胶囊弹出会话菜单（此时不再直接进日志）；菜单锚在胶囊**下方**，
+    // 不能盖住刚点的那颗胶囊。
+    final pillRect = tester.getRect(find.byType(StatusPill));
+    await tester.tap(find.byTooltip('切换会话'));
     await tester.pumpAndSettle();
     expect(find.text('会话 1'), findsOneWidget);
     expect(find.text('会话 2'), findsOneWidget);
+    final firstRow = tester.getRect(find.text('会话 1'));
+    expect(firstRow.top, greaterThan(pillRect.bottom));
+    expect(firstRow.top - pillRect.bottom, lessThan(24));
+    expect(firstRow.left, greaterThan(pillRect.left));
+    expect(tester.getSize(find.byType(StatusPill)).height, 24);
 
     await tester.tap(find.text('会话 1'));
     await tester.pumpAndSettle();
@@ -194,7 +202,7 @@ void main() {
     first.terminal.setTitle('root@web1: /var/log');
     await _settle(tester);
 
-    await tester.tap(find.byTooltip('会话'));
+    await tester.tap(find.byTooltip('切换会话'));
     await tester.pumpAndSettle();
     expect(find.text('root@web1: /var/log'), findsOneWidget);
 

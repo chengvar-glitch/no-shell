@@ -173,7 +173,7 @@ abstract class AppLocalizations {
   /// No description provided for @sessionMenu.
   ///
   /// In en, this message translates to:
-  /// **'Sessions'**
+  /// **'Switch session'**
   String get sessionMenu;
 
   /// No description provided for @statusWithCount.

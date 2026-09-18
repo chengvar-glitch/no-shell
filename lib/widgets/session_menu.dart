@@ -29,10 +29,20 @@ Future<void> showSessionMenu(
   final l10n = AppLocalizations.of(context);
   final box = anchor.currentContext?.findRenderObject() as RenderBox?;
   final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
+  // 锚在「胶囊左下角再往下 4pt」的零尺寸点上：showMenu 直接把锚点当成菜单
+  // 左上角（_PopupMenuRouteLayout 取的就是 position.top/left），拿整块胶囊
+  // rect 当锚会把胶囊、⊕ 一起压在菜单底下——点开反而看不见自己点了什么。
+  // 侧边栏的 ⋯ 菜单用的也是这套零尺寸锚法。下方放不下时 Flutter 自己会往上翻。
+  final anchorOrigin = box?.localToGlobal(Offset.zero);
   final position = RelativeRect.fromRect(
-    box == null
+    box == null || anchorOrigin == null
         ? const Rect.fromLTWH(0, 0, 1, 1)
-        : box.localToGlobal(Offset.zero) & box.size,
+        : Rect.fromLTWH(
+            anchorOrigin.dx,
+            anchorOrigin.dy + box.size.height + 4,
+            0,
+            0,
+          ),
     Offset.zero & overlay.size,
   );
   final current = sessions.activeOf(server.id);
@@ -43,7 +53,8 @@ Future<void> showSessionMenu(
       for (final session in sessions.sessionsOf(server.id))
         PopupMenuItem<Object>(
           value: session,
-          height: 40,
+          // 与侧边栏菜单同高（36）：本项目的菜单行只有这一档密度。
+          height: 36,
           padding: EdgeInsets.zero,
           child: _SessionRow(
             session: session,
@@ -54,12 +65,15 @@ Future<void> showSessionMenu(
       const PopupMenuDivider(),
       PopupMenuItem<Object>(
         value: SessionMenuAction.newSession,
-        height: 38,
+        height: 36,
+        // 与会话行同样零内边距：两边的文字才会落在同一列（36pt）。
+        padding: EdgeInsets.zero,
         child: _MenuAction(icon: Icons.add_rounded, label: l10n.newSession),
       ),
       PopupMenuItem<Object>(
         value: SessionMenuAction.log,
-        height: 38,
+        height: 36,
+        padding: EdgeInsets.zero,
         child: _MenuAction(
           icon: Icons.receipt_long_outlined,
           label: l10n.sessionLog,
@@ -109,47 +123,58 @@ class _SessionRow extends StatelessWidget {
     // 标题随远端输出实时变（cd 一下就该跟着改），只重建这一行。
     return ValueListenableBuilder<String>(
       valueListenable: session.title,
-      builder: (context, title, _) => Row(
-        children: [
-          // 当前会话：左侧一道 2px 竖条。不加底色块——菜单本来就窄，
-          // 一块底色会把整行压得比其它行重。
-          Container(
-            width: 2,
-            height: 22,
-            color: selected ? theme.colorScheme.primary : Colors.transparent,
-          ),
-          const SizedBox(width: 10),
-          StatusDot(status: serverStatusOf(session.phase), size: 7),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              title.isEmpty ? l10n.sessionN(ordinal) : title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: theme.colorScheme.onSurface.withValues(
-                  alpha: selected ? 1 : 0.86,
+      builder: (context, title, _) => Padding(
+        // 整行内容从菜单左缘内缩 8pt：当前会话那道具竖条因此不会贴在菜单
+        // 圆角上被切掉，文字列也正好落在动作项那一列（都是 36pt）。
+        padding: const EdgeInsets.only(left: 8),
+        child: Row(
+          children: [
+            // 当前会话：左侧一道 2pt 竖条。不加底色块——菜单本来就窄，
+            // 一块底色会把整行压得比其它行重。
+            Container(
+              width: 2,
+              height: 18,
+              decoration: BoxDecoration(
+                color: selected
+                    ? theme.colorScheme.primary
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+            const SizedBox(width: 10),
+            StatusDot(status: serverStatusOf(session.phase), size: 7),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                title.isEmpty ? l10n.sessionN(ordinal) : title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: theme.colorScheme.onSurface.withValues(
+                    alpha: selected ? 1 : 0.86,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 4),
-          IconButton(
-            tooltip: l10n.closeSession,
-            icon: Icon(
-              Icons.close_rounded,
-              size: 14,
-              color: theme.secondaryText,
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: l10n.closeSession,
+              icon: Icon(
+                Icons.close_rounded,
+                size: 14,
+                color: theme.secondaryText,
+              ),
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 26, height: 26),
+              onPressed: () =>
+                  Navigator.of(context).pop(_CloseRequest(session)),
             ),
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 26, height: 26),
-            onPressed: () => Navigator.of(context).pop(_CloseRequest(session)),
-          ),
-          const SizedBox(width: 6),
-        ],
+            const SizedBox(width: 6),
+          ],
+        ),
       ),
     );
   }

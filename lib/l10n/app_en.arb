@@ -19,7 +19,7 @@
     }
   },
   "closeSession": "Close session",
-  "sessionMenu": "Sessions",
+  "sessionMenu": "Switch session",
   "statusWithCount": "{status} · {count}",
   "@statusWithCount": {
     "placeholders": {

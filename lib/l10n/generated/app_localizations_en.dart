@@ -48,7 +48,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeSession => 'Close session';
 
   @override
-  String get sessionMenu => 'Sessions';
+  String get sessionMenu => 'Switch session';
 
   @override
   String statusWithCount(String status, int count) {

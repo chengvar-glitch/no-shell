@@ -48,7 +48,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get closeSession => '关闭会话';
 
   @override
-  String get sessionMenu => '会话';
+  String get sessionMenu => '切换会话';
 
   @override
   String statusWithCount(String status, int count) {

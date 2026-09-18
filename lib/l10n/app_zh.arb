@@ -12,7 +12,7 @@
   "newSession": "新建会话",
   "sessionN": "会话 {n}",
   "closeSession": "关闭会话",
-  "sessionMenu": "会话",
+  "sessionMenu": "切换会话",
   "statusWithCount": "{status} · {count}",
   "newConnection": "新建连接",
   "editConnection": "编辑连接",
