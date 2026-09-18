@@ -128,6 +128,15 @@ final class DartSsh2Transport implements SshTransport {
           _hostKeyMismatch ??
           SSHHostkeyError('Hostkey verification failed');
     } on Object {
+      // 指纹校验失败时 dartssh2 会先关掉传输，`shell()` 拿到的其实是
+      // SSHAuthAbortError('Connection closed before authentication')，原始的
+      // SSHHostkeyError 埋在它的 reason 里（见 dartssh2 的 _handleTransportClosed）。
+      // 这里以自己记下的判定为准：校验回调返回 false 时必定写过这两个字段之一，
+      // 否则指纹不符会被当成「认证失败」，用户既看不到指纹、也没有处置入口。
+      if (_hostKeyUnavailable != null || _hostKeyMismatch != null) {
+        _closeQuietly();
+        throw _hostKeyError(_server);
+      }
       _closeQuietly();
       rethrow;
     }

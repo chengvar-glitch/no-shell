@@ -230,7 +230,14 @@ final class TerminalSession extends ChangeNotifier {
     // 跳板机链路上的失败按真正的原因归类：链路配置本身不成立时才走
     // jumpChain，否则「跳板机认证失败」应当照样给用户「重新输密码」的路。
     if (error is JumpChainException) return TerminalErrorKind.jumpChain;
-    final cause = unwrapHopError(error);
+    var cause = unwrapHopError(error);
+    // dartssh2 在主机密钥校验失败时会先关掉传输，认证随之以
+    // SSHAuthAbortError('Connection closed before authentication') 收场，
+    // 真正的原因挂在它的 reason 上。不剥这一层，指纹不符就会被归成
+    // 「认证失败」——用户拿不到指纹，也没有「清除指纹并重连」这条路。
+    while (cause is SSHAuthAbortError && cause.reason != null) {
+      cause = cause.reason!;
+    }
     if (cause is SSHAuthFailError || cause is SSHAuthAbortError) {
       return TerminalErrorKind.auth;
     }
