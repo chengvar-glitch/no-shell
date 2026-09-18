@@ -52,7 +52,7 @@ Future<void> dropStoredCredential(
 }
 
 /// 统一的连接 / 断开入口，桌面端与移动端共用：
-/// 已有活跃会话 → 直接断开；
+/// 该主机还有活跃会话 → 断开它的**全部**会话（多开时一次收干净）；
 /// 有跳板机 → 先逐跳取凭据（没存过的先静默试本机 agent，再不行当场弹窗），
 /// 再连目标主机；
 /// 已存凭据 → 免弹窗直连，认证失败自动回退到预填弹窗；
@@ -65,9 +65,8 @@ Future<void> toggleSession(
   required CredentialStore credentials,
   ServerStore? store,
 }) async {
-  final existing = sessions.byServerId(server.id);
-  if (existing?.isActive ?? false) {
-    sessions.close(server.id);
+  if (sessions.sessionsOf(server.id).any((session) => session.isActive)) {
+    sessions.closeAll(server.id);
     return;
   }
 
@@ -93,18 +92,15 @@ Future<void> toggleSession(
   final saved = await credentials.read(server.id);
   if (!context.mounted) return;
 
-  // 上一次直连已因认证失败告终：不再用旧凭据撞墙，直接弹预填弹窗。
-  final authFailedBefore =
-      existing != null &&
-      existing.phase == TerminalPhase.failed &&
-      existing.errorKind == TerminalErrorKind.auth;
+  // 这台主机的某条会话刚因认证失败告终：不再用旧凭据撞墙，直接弹预填弹窗。
+  final authFailedBefore = sessions.hasAuthFailure(server.id);
 
   if (saved != null && !authFailedBefore) {
     final session = sessions.open(server, saved, jumps: jumps);
     if (await _failsWithAuth(session) &&
         context.mounted &&
         // 等待失败期间会话可能已被替换 / 移除，此时不再弹窗。
-        identical(sessions.byServerId(server.id), session)) {
+        identical(sessions.activeOf(server.id), session)) {
       await _promptAndConnect(
         context,
         sessions: sessions,
@@ -183,11 +179,8 @@ Future<SshCredentials?> _hopCredentials(
 }) async {
   final saved = await credentials.read(server.id);
   if (!context.mounted) return null;
-  final previous = sessions.byServerId(server.id);
-  final authFailedBefore =
-      previous != null &&
-      previous.phase == TerminalPhase.failed &&
-      previous.errorKind == TerminalErrorKind.auth;
+  // 这一跳刚因认证失败告终：不再静默复用旧凭据 / agent 的钥匙。
+  final authFailedBefore = sessions.hasAuthFailure(server.id);
   if (saved != null && !authFailedBefore) return saved;
 
   // 无感 agent：这一跳没存过凭据时，先静默试本机 agent 的钥匙（逐跳都有份）；
@@ -262,11 +255,140 @@ Future<AgentProbeOutcome> tryAgentConnect(
     case TerminalPhase.connecting:
       break;
   }
-  // 认证被拒或连接中断：探测到此为止，收掉会话回常规流程。
-  if (identical(sessions.byServerId(server.id), session)) {
-    sessions.close(server.id);
+  // 认证被拒或连接中断：探测到此为止，收掉探测会话回常规流程。
+  if (identical(sessions.activeOf(server.id), session)) {
+    sessions.closeSession(session);
   }
   return AgentProbeOutcome.fallback;
+}
+
+/// 在同一台主机上**再开一条会话**（同一台服务器多开会话）。
+/// 桌面端的「新建会话」入口与 ⌘T 走它；该主机还没有会话时它等价于连接。
+///
+/// 凭据优先级：① 现有会话手头的凭据——用户没勾「记住凭据」时密码只在内存
+/// 里，再开一条不该重新问一遍 ② 安全存储里的存档凭据 ③ 本机 agent 的钥匙
+/// （无感，本机没 agent 就跳过）④ 凭据弹窗。只有认证被拒才回退到弹窗；
+/// 网络 / 指纹 / 跳板链路这类与凭据无关的失败保留错误现场，不拿密码框掩盖。
+Future<void> newSessionFlow(
+  BuildContext context, {
+  required SessionManager sessions,
+  required SshServer server,
+  required CredentialStore credentials,
+  ServerStore? store,
+}) async {
+  final List<SshHop>? resolvedJumps;
+  try {
+    resolvedJumps = await _resolveJumps(
+      context,
+      sessions: sessions,
+      credentials: credentials,
+      server: server,
+      store: store,
+    );
+  } on JumpChainException catch (error) {
+    if (!context.mounted) return;
+    _showJumpChainError(context, error);
+    return;
+  }
+  if (resolvedJumps == null || !context.mounted) return;
+  final jumps = resolvedJumps;
+
+  // 存档凭据照旧读出来（弹窗要预填它），但下面会不会拿它去静默撞墙，
+  // 取决于这台主机是不是刚撞过认证失败。
+  final saved = await credentials.read(server.id);
+  if (!context.mounted) return;
+  final authFailedBefore = sessions.hasAuthFailure(server.id);
+  final sibling = authFailedBefore
+      ? null
+      : sessions.activeOf(server.id)?.credentials;
+
+  final candidates = <({SshCredentials credentials, bool remembered})>[
+    // 现有会话手头的凭据：没落过盘，弹窗回退时也就不预勾「记住凭据」。
+    if (sibling != null) (credentials: sibling, remembered: false),
+    if (saved != null && !authFailedBefore)
+      (credentials: saved, remembered: true),
+  ];
+
+  for (final candidate in candidates) {
+    final outcome = await _tryNewSession(
+      sessions,
+      server,
+      candidate.credentials,
+      jumps,
+    );
+    if (outcome == _AttemptOutcome.connected) return;
+    if (outcome == _AttemptOutcome.keepError) return;
+    if (!context.mounted) return;
+    await _promptAndConnect(
+      context,
+      sessions: sessions,
+      server: server,
+      credentials: credentials,
+      jumps: jumps,
+      initial: candidate.credentials,
+      rememberInitially: candidate.remembered,
+      spawnNew: true,
+    );
+    return;
+  }
+
+  if (!authFailedBefore && await sessions.agentKeysProbe()) {
+    if (!context.mounted) return;
+    final outcome = await _tryNewSession(
+      sessions,
+      server,
+      const SshCredentials(useAgent: true),
+      jumps,
+    );
+    if (outcome != _AttemptOutcome.fallback) return;
+    if (!context.mounted) return;
+  }
+
+  if (!context.mounted) return;
+  await _promptAndConnect(
+    context,
+    sessions: sessions,
+    server: server,
+    credentials: credentials,
+    jumps: jumps,
+    // 上一次就栽在认证上：把存档的那份预填出来让人改，但不再拿它静默重试。
+    initial: authFailedBefore ? saved : null,
+    rememberInitially: saved != null,
+    spawnNew: true,
+  );
+}
+
+/// 一次「再开一条会话」的尝试的三种结局。
+enum _AttemptOutcome {
+  /// 连上了：会话留在管理器里，流程到此为止。
+  connected,
+
+  /// 与凭据无关的失败（网络 / 指纹 / 链路）：会话留着展示真实错误。
+  keepError,
+
+  /// 凭据不被接受：探测出来的这条会话已收掉，调用方回退到凭据弹窗。
+  fallback,
+}
+
+/// 用一份凭据试着新开一条会话。
+///
+/// 失败与凭据无关时保留这条会话（用户看得到真实原因）；认证被拒则把它收掉——
+/// 菜单里不该留下一条用户没要过、也没法用的失败会话。
+Future<_AttemptOutcome> _tryNewSession(
+  SessionManager sessions,
+  SshServer server,
+  SshCredentials credentials,
+  List<SshHop> jumps,
+) async {
+  final session = sessions.openNew(server, credentials, jumps: jumps);
+  final (phase, kind) = await _awaitTerminal(session);
+  if (phase == TerminalPhase.connected) return _AttemptOutcome.connected;
+  if (phase == TerminalPhase.failed &&
+      (kind == TerminalErrorKind.auth || kind == TerminalErrorKind.agent)) {
+    sessions.closeSession(session);
+    return _AttemptOutcome.fallback;
+  }
+  return _AttemptOutcome.keepError;
 }
 
 Future<void> _promptAndConnect(
@@ -277,6 +399,7 @@ Future<void> _promptAndConnect(
   required List<SshHop> jumps,
   required SshCredentials? initial,
   required bool rememberInitially,
+  bool spawnNew = false,
 }) async {
   final submission = await showCredentialsDialog(
     context,
@@ -300,7 +423,12 @@ Future<void> _promptAndConnect(
     }
   }
   if (!context.mounted) return;
-  sessions.open(server, submission.credentials, jumps: jumps);
+  // spawnNew：这是「再开一条会话」，不是让主机连上——已经在跑的会话不许被顶掉。
+  if (spawnNew) {
+    sessions.openNew(server, submission.credentials, jumps: jumps);
+  } else {
+    sessions.open(server, submission.credentials, jumps: jumps);
+  }
 }
 
 /// 跳板机链路不成立时的提示：指名道姓说清是哪台、哪一类问题。

@@ -64,6 +64,7 @@ final class TerminalSession extends ChangeNotifier {
              jumps: jumps,
            ) {
     forwards = PortForwardManager(_transport, gateway: tunnelGateway);
+    terminal.onTitleChange = _onTitleChanged;
   }
 
   final SshServer server;
@@ -95,6 +96,18 @@ final class TerminalSession extends ChangeNotifier {
   /// 会话日志：终端画面与回滚的纯文本快照（见 [SessionLog]）。
   /// 惰性构造，无状态——每次读取都现从缓冲区取一份。
   late final SessionLog sessionLog = SessionLog(terminal);
+
+  /// 远端通过 OSC 0 / 2 设置的窗口标题（shell 与 tmux 常发
+  /// `user@host: ~/dir` 这种串）。xterm 只提供回调、自己不存字段，
+  /// 这里存一份：同一台主机多开会话时，界面靠它区分哪条是哪条。
+  /// 远端没设过标题时是空串，界面退回「会话 N」。
+  final ValueNotifier<String> title = ValueNotifier<String>('');
+
+  void _onTitleChanged(String value) {
+    final title = value.trim();
+    if (this.title.value == title) return;
+    this.title.value = title;
+  }
 
   /// 把 [text] 当作本机键入发给远端（命令片段的执行路径）。
   /// 传输层尚未接好（未连接）时是空操作。
@@ -255,7 +268,11 @@ final class TerminalSession extends ChangeNotifier {
     _sftp?.dispose();
     _sftp = null;
     forwards.dispose();
+    // 先摘掉标题回调再拆传输 / 通知器：传输关闭时可能还有一笔迟到的输出
+    // 落进缓冲区（内含 OSC 标题），那时往已 dispose 的通知器里写值会断言失败。
+    terminal.onTitleChange = null;
     _transport.dispose();
+    title.dispose();
     super.dispose();
   }
 }

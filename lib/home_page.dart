@@ -63,6 +63,19 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  /// ⌘1…⌘9 用到的数字键（终端字号缩放用的是无修饰键的 0，不冲突）。
+  static const List<LogicalKeyboardKey> _sessionDigitKeys = [
+    LogicalKeyboardKey.digit1,
+    LogicalKeyboardKey.digit2,
+    LogicalKeyboardKey.digit3,
+    LogicalKeyboardKey.digit4,
+    LogicalKeyboardKey.digit5,
+    LogicalKeyboardKey.digit6,
+    LogicalKeyboardKey.digit7,
+    LogicalKeyboardKey.digit8,
+    LogicalKeyboardKey.digit9,
+  ];
+
   bool _sidebarCollapsed = false;
   String? _selectedId;
 
@@ -122,6 +135,30 @@ class _HomePageState extends State<HomePage> {
     store: widget.store,
   );
 
+  /// 在同一台主机上再开一条会话（⊕ / ⌘T / 侧边栏右键菜单同一入口）。
+  Future<void> _newSession(SshServer server) => newSessionFlow(
+    context,
+    sessions: widget.sessions,
+    server: server,
+    credentials: widget.credentials,
+    store: widget.store,
+  );
+
+  /// ⌘T / Ctrl+T：给当前选中的主机再开一条会话。
+  void _newSessionShortcut() {
+    final server = _selected;
+    if (server == null) return;
+    unawaited(_newSession(server));
+  }
+
+  /// ⌘1…⌘9：把当前会话切到该主机的第 N 条；没有那一条就什么也不做。
+  void _activateSession(int ordinal) {
+    final server = _selected;
+    if (server == null) return;
+    final session = widget.sessions.byOrdinal(server.id, ordinal);
+    if (session != null) widget.sessions.activate(session);
+  }
+
   Future<void> _importHosts() => importHostsFlow(
     context,
     store: widget.store,
@@ -144,8 +181,8 @@ class _HomePageState extends State<HomePage> {
       confirmLabel: l10n.delete,
     );
     if (!confirmed || !mounted) return;
-    // 先结束该主机的会话，避免悬挂连接。
-    widget.sessions.close(server.id);
+    // 先结束该主机的会话（可能是多开的几条），避免悬挂连接。
+    widget.sessions.closeAll(server.id);
     // 凭据与指纹的清理不 await：钥匙串 / 存储层卡住时不能把删除本身
     // 拖住（用户点了删除就必须删掉）。它只影响下次连接的判定。
     unawaited(
@@ -202,6 +239,18 @@ class _HomePageState extends State<HomePage> {
             _toggleSidebar,
         const SingleActivator(LogicalKeyboardKey.keyB, control: true):
             _toggleSidebar,
+        // 多开会话的两个键位：⌘T 再来一条，⌘1…⌘9 直达第 N 条。
+        // 终端自己的快捷键（字号缩放）用的是无修饰键，不会撞上。
+        const SingleActivator(LogicalKeyboardKey.keyT, meta: true):
+            _newSessionShortcut,
+        const SingleActivator(LogicalKeyboardKey.keyT, control: true):
+            _newSessionShortcut,
+        for (var i = 0; i < _sessionDigitKeys.length; i++) ...{
+          SingleActivator(_sessionDigitKeys[i], meta: true): () =>
+              _activateSession(i + 1),
+          SingleActivator(_sessionDigitKeys[i], control: true): () =>
+              _activateSession(i + 1),
+        },
       },
       child: Focus(
         autofocus: true,
@@ -210,6 +259,7 @@ class _HomePageState extends State<HomePage> {
             collapsed: collapsed,
             sidebar: Sidebar(
               store: widget.store,
+              sessions: widget.sessions,
               selectedId: _selectedId,
               onSelect: (server) => setState(() => _selectedId = server.id),
               onCreate: () => _editOrCreate(),
@@ -217,6 +267,7 @@ class _HomePageState extends State<HomePage> {
               onEdit: (server) => _editOrCreate(server),
               onDelete: _deleteServer,
               onToggleConnect: _toggleConnect,
+              onCreateSession: _newSession,
               onToggleSidebar: _toggleSidebar,
               onOpenSettings: _openSettings,
               onImportHosts: _importHosts,
@@ -228,6 +279,7 @@ class _HomePageState extends State<HomePage> {
               server: _selected,
               store: widget.store,
               sessions: widget.sessions,
+              credentials: widget.credentials,
               onConnect: _toggleConnect,
               onCreate: () => _editOrCreate(),
               sidebarCollapsed: collapsed,

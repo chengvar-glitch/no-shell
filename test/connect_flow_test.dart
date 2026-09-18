@@ -92,14 +92,29 @@ Future<_Harness> _pump(
       home: Builder(
         builder: (context) => Scaffold(
           body: Center(
-            child: FilledButton(
-              onPressed: () => toggleSession(
-                context,
-                sessions: sessions,
-                server: server,
-                credentials: harness.credentials,
-              ),
-              child: const Text('go'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton(
+                  onPressed: () => toggleSession(
+                    context,
+                    sessions: sessions,
+                    server: server,
+                    credentials: harness.credentials,
+                  ),
+                  child: const Text('go'),
+                ),
+                // 多开一条会话：与桌面端 ⊕ / ⌘T 同一个入口。
+                FilledButton(
+                  onPressed: () => newSessionFlow(
+                    context,
+                    sessions: sessions,
+                    server: server,
+                    credentials: harness.credentials,
+                  ),
+                  child: const Text('new'),
+                ),
+              ],
             ),
           ),
         ),
@@ -123,10 +138,7 @@ void main() {
     await tester.tap(find.text('go'));
     await tester.pumpAndSettle();
 
-    expect(
-      harness.sessions.byServerId('srv-1')?.phase,
-      TerminalPhase.connected,
-    );
+    expect(harness.sessions.activeOf('srv-1')?.phase, TerminalPhase.connected);
     expect(_dialogTitle, findsNothing);
   });
 
@@ -158,10 +170,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(credentials['srv-1']?.password, 'right');
-    expect(
-      harness.sessions.byServerId('srv-1')?.phase,
-      TerminalPhase.connected,
-    );
+    expect(harness.sessions.activeOf('srv-1')?.phase, TerminalPhase.connected);
     expect(harness.transports, isEmpty);
   });
 
@@ -185,10 +194,7 @@ void main() {
 
     expect(harness.credentials.writeCount, 1);
     expect(harness.credentials['srv-1']?.password, 'pw');
-    expect(
-      harness.sessions.byServerId('srv-1')?.phase,
-      TerminalPhase.connected,
-    );
+    expect(harness.sessions.activeOf('srv-1')?.phase, TerminalPhase.connected);
   });
 
   testWidgets('上次认证失败后不再直连旧凭据；取消记住则清除存档', (tester) async {
@@ -206,7 +212,7 @@ void main() {
     // 先用旧凭据制造一次失败会话（消耗第 1 个传输）。
     harness.sessions.open(_server(), const SshCredentials(password: 'old'));
     await tester.pumpAndSettle();
-    expect(harness.sessions.byServerId('srv-1')?.phase, TerminalPhase.failed);
+    expect(harness.sessions.activeOf('srv-1')?.phase, TerminalPhase.failed);
 
     await tester.tap(find.text('go'));
     await tester.pumpAndSettle();
@@ -222,10 +228,7 @@ void main() {
 
     expect(harness.credentials.deleteCount, 1);
     expect(harness.credentials['srv-1'], isNull);
-    expect(
-      harness.sessions.byServerId('srv-1')?.phase,
-      TerminalPhase.connected,
-    );
+    expect(harness.sessions.activeOf('srv-1')?.phase, TerminalPhase.connected);
   });
 
   testWidgets('活跃会话再次点连接即断开', (tester) async {
@@ -238,11 +241,11 @@ void main() {
 
     await tester.tap(find.text('go'));
     await tester.pumpAndSettle();
-    expect(harness.sessions.byServerId('srv-1')?.isActive, isTrue);
+    expect(harness.sessions.activeOf('srv-1')?.isActive, isTrue);
 
     await tester.tap(find.text('go'));
     await tester.pumpAndSettle();
-    expect(harness.sessions.byServerId('srv-1'), isNull);
+    expect(harness.sessions.activeOf('srv-1'), isNull);
   });
 
   testWidgets('凭据保存失败给出提示，连接照常进行', (tester) async {
@@ -263,10 +266,7 @@ void main() {
 
     // 底层写失败不再静默：明确告知没存上，同时连接本身成功。
     expect(find.textContaining('凭据保存失败'), findsOneWidget);
-    expect(
-      harness.sessions.byServerId('srv-1')?.phase,
-      TerminalPhase.connected,
-    );
+    expect(harness.sessions.activeOf('srv-1')?.phase, TerminalPhase.connected);
   });
 
   testWidgets('无存档凭据时静默试 agent，成功则免弹窗直连', (tester) async {
@@ -280,7 +280,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 会话用 agent 凭据直连上了，凭据框全程没出现。
-    final session = harness.sessions.byServerId('srv-1');
+    final session = harness.sessions.activeOf('srv-1');
     expect(session?.phase, TerminalPhase.connected);
     expect(session?.credentials.useAgent, isTrue);
     expect(_dialogTitle, findsNothing);
@@ -303,17 +303,14 @@ void main() {
     await tester.pumpAndSettle();
 
     // 探测会话已收掉，不留失败现场；弹窗照常出现。
-    expect(harness.sessions.byServerId('srv-1'), isNull);
+    expect(harness.sessions.activeOf('srv-1'), isNull);
     expect(_dialogTitle, findsOneWidget);
 
     await tester.enterText(find.byType(TextFormField).first, 'pw');
     await tester.tap(find.text('连接'));
     await tester.pumpAndSettle();
 
-    expect(
-      harness.sessions.byServerId('srv-1')?.phase,
-      TerminalPhase.connected,
-    );
+    expect(harness.sessions.activeOf('srv-1')?.phase, TerminalPhase.connected);
     expect(harness.transports, isEmpty);
   });
 
@@ -328,8 +325,98 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_dialogTitle, findsNothing);
-    final session = harness.sessions.byServerId('srv-1');
+    final session = harness.sessions.activeOf('srv-1');
     expect(session?.phase, TerminalPhase.failed);
     expect(session?.errorKind, TerminalErrorKind.network);
+  });
+
+  testWidgets('再开一条会话复用现有会话手头的内存凭据，不弹框也不落盘', (tester) async {
+    final harness = await _pump(
+      tester,
+      transports: [_FakeTransport(), _FakeTransport()],
+    );
+
+    // 第一条：没有存档凭据 → 弹窗，输密码但**不勾**「记住凭据」。
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'mem');
+    await tester.tap(find.text('连接'));
+    await tester.pumpAndSettle();
+    expect(harness.sessions.activeOf('srv-1')?.phase, TerminalPhase.connected);
+
+    // 第二条：内存里那份密码直接拿来用，凭据框不出现，也不写安全存储。
+    await tester.tap(find.text('new'));
+    await tester.pumpAndSettle();
+
+    expect(_dialogTitle, findsNothing);
+    expect(harness.sessions.sessionCount, 2);
+    expect(harness.credentials.writeCount, 0);
+    final second = harness.sessions.activeOf('srv-1')!;
+    expect(second.phase, TerminalPhase.connected);
+    expect(second.credentials.password, 'mem');
+    expect(harness.sessions.ordinalOf(second), 2);
+    expect(harness.transports, isEmpty);
+  });
+
+  testWidgets('认证失败后新开会话不再静默复用旧凭据，直接弹预填弹框', (tester) async {
+    final credentials = FakeCredentialStore()
+      ..write('srv-1', const SshCredentials(password: 'old'));
+    final harness = await _pump(
+      tester,
+      transports: [
+        // 第 1 个：用存档里的旧密码直连，认证被拒。
+        _FakeTransport(error: SSHAuthFailError('Permission denied')),
+        // 第 2 个：弹窗提交后的那条新会话。
+        _FakeTransport(),
+      ],
+      credentials: credentials,
+    );
+
+    harness.sessions.open(_server(), const SshCredentials(password: 'old'));
+    await tester.pumpAndSettle();
+    expect(harness.sessions.hasAuthFailure('srv-1'), isTrue);
+
+    await tester.tap(find.text('new'));
+    await tester.pumpAndSettle();
+
+    // 没拿旧密码再撞一次墙（剩下的传输没被消耗），旧密码只作为预填出现。
+    expect(_dialogTitle, findsOneWidget);
+    expect(find.text('old'), findsOneWidget);
+    expect(harness.transports, hasLength(1));
+
+    await tester.enterText(find.byType(TextFormField).first, 'right');
+    await tester.tap(find.text('连接'));
+    await tester.pumpAndSettle();
+
+    // 失败的那条留着（可以在会话菜单里重试或关掉），新的一条连上。
+    expect(harness.sessions.sessionCount, 2);
+    final active = harness.sessions.activeOf('srv-1')!;
+    expect(active.phase, TerminalPhase.connected);
+    expect(active.credentials.password, 'right');
+  });
+
+  testWidgets('两条活跃会话时点断开：一次关掉该主机的全部会话', (tester) async {
+    final firstTransport = _FakeTransport();
+    final secondTransport = _FakeTransport();
+    final harness = await _pump(
+      tester,
+      transports: [firstTransport, secondTransport],
+      credentials: FakeCredentialStore()
+        ..write('srv-1', const SshCredentials(password: 'saved')),
+    );
+
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('new'));
+    await tester.pumpAndSettle();
+    expect(harness.sessions.sessionCount, 2);
+
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+
+    expect(harness.sessions.sessionCount, 0);
+    expect(harness.sessions.activeOf('srv-1'), isNull);
+    expect(firstTransport.disposed, isTrue);
+    expect(secondTransport.disposed, isTrue);
   });
 }

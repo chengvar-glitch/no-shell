@@ -163,8 +163,8 @@ class _ServersTabState extends State<ServersTab> {
     );
     if (!confirmed) return;
     if (!mounted) return;
-    // 先结束该主机的会话，避免悬挂连接。
-    widget.sessions.close(server.id);
+    // 先结束该主机的会话（可能是多开的几条），避免悬挂连接。
+    widget.sessions.closeAll(server.id);
     // 清理不 await：存储层卡住不能拖住删除本身（见 dropHostSecrets）。
     unawaited(
       dropHostSecrets(

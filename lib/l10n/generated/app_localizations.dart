@@ -140,11 +140,47 @@ abstract class AppLocalizations {
   /// **'Disconnect'**
   String get disconnect;
 
+  /// No description provided for @disconnectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect all'**
+  String get disconnectAll;
+
   /// No description provided for @connectNow.
   ///
   /// In en, this message translates to:
   /// **'Connect now'**
   String get connectNow;
+
+  /// No description provided for @newSession.
+  ///
+  /// In en, this message translates to:
+  /// **'New session'**
+  String get newSession;
+
+  /// No description provided for @sessionN.
+  ///
+  /// In en, this message translates to:
+  /// **'Session {n}'**
+  String sessionN(int n);
+
+  /// No description provided for @closeSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Close session'**
+  String get closeSession;
+
+  /// No description provided for @sessionMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch session'**
+  String get sessionMenu;
+
+  /// No description provided for @statusWithCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{status} · {count}'**
+  String statusWithCount(String status, int count);
 
   /// No description provided for @newConnection.
   ///

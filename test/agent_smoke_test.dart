@@ -90,10 +90,10 @@ void main() {
     expect(
       outcome,
       AgentProbeOutcome.connected,
-      reason: '无感连接失败：${sessions.byServerId(server.id)?.error}',
+      reason: '无感连接失败：${sessions.activeOf(server.id)?.error}',
     );
 
-    final session = sessions.byServerId(server.id);
+    final session = sessions.activeOf(server.id);
     expect(session?.phase, TerminalPhase.connected);
     expect(session?.credentials.useAgent, isTrue);
     // ignore: avoid_print

@@ -35,7 +35,7 @@ final class TerminalTab extends StatelessWidget {
                       trailing: IconButton(
                         tooltip: AppLocalizations.of(context).disconnect,
                         icon: const Icon(Icons.link_off_rounded, size: 19),
-                        onPressed: () => sessions.close(session.server.id),
+                        onPressed: () => sessions.closeSession(session),
                       ),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(

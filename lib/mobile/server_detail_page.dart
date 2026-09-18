@@ -52,8 +52,8 @@ class ServerDetailPage extends StatelessWidget {
     );
     if (!confirmed) return;
     if (!context.mounted) return;
-    // 先结束该主机的会话，避免悬挂连接；已存凭据一并清理。
-    sessions.close(server.id);
+    // 先结束该主机的会话（可能是多开的几条），避免悬挂连接；已存凭据一并清理。
+    sessions.closeAll(server.id);
     await credentials.delete(server.id);
     if (!context.mounted) return;
     store.remove(server.id);
@@ -78,7 +78,7 @@ class ServerDetailPage extends StatelessWidget {
             ),
           );
         }
-        final session = sessions.byServerId(server.id);
+        final session = sessions.activeOf(server.id);
         final hasActive = session?.isActive ?? false;
         return Scaffold(
           appBar: AppBar(
@@ -148,7 +148,7 @@ class ServerDetailPage extends StatelessWidget {
                           idleHint: l10n.sessionMobileHint,
                           onRetry: session == null
                               ? null
-                              : () => sessions.retry(server.id),
+                              : () => sessions.retry(session),
                         ),
                       ),
                       _KeepAlive(
@@ -157,7 +157,7 @@ class ServerDetailPage extends StatelessWidget {
                           idleHint: l10n.sftpSessionMobileHint,
                           onRetry: session == null
                               ? null
-                              : () => sessions.retry(server.id),
+                              : () => sessions.retry(session),
                         ),
                       ),
                       _KeepAlive(

@@ -111,11 +111,11 @@ void main() {
         ], autoReconnect: false);
         sessions.open(_server(), _credentials);
         _settle(async);
-        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.connected);
+        expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.connected);
 
         transport.closeFromRemote();
-        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.closed);
-        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.closed);
+        expect(sessions.reconnectPlanOf(current(sessions)), isNull);
         async.elapse(const Duration(minutes: 10));
         expect(sessions.sessionCount, 1);
       });
@@ -131,28 +131,28 @@ void main() {
         ]);
         sessions.open(_server(), _credentials);
         _settle(async);
-        final original = sessions.byServerId('srv-01')!;
+        final original = sessions.activeOf('srv-01')!;
         expect(original.phase, TerminalPhase.connected);
 
         first.closeFromRemote();
-        final plan = sessions.reconnectPlanOf('srv-01');
+        final plan = sessions.reconnectPlanOf(current(sessions));
         expect(plan, isNotNull);
         expect(plan!.attempt, 1);
         expect(plan.delay, const Duration(seconds: 2));
 
         // 退避期内保持断开，主机状态是 idle。
         async.elapse(const Duration(seconds: 1));
-        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.closed);
+        expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.closed);
         expect(statusOf(sessions), ServerStatus.idle);
 
         async.elapse(const Duration(seconds: 1));
         _settle(async);
-        final session = sessions.byServerId('srv-01')!;
+        final session = sessions.activeOf('srv-01')!;
         expect(session.phase, TerminalPhase.connected);
         // 旧会话已被替换回收，新会话用的是第二台假传输。
         expect(identical(original, session), isFalse);
         expect(identical(session.terminal, second.attachedTerminal), isTrue);
-        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        expect(sessions.reconnectPlanOf(current(sessions)), isNull);
         expect(statusOf(sessions), ServerStatus.connected);
       });
     });
@@ -170,25 +170,25 @@ void main() {
         _settle(async);
 
         first.closeFromRemote();
-        expect(sessions.reconnectPlanOf('srv-01')!.attempt, 1);
+        expect(sessions.reconnectPlanOf(current(sessions))!.attempt, 1);
 
         async.elapse(const Duration(seconds: 2));
         _settle(async);
-        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.failed);
+        expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.failed);
         expect(statusOf(sessions), ServerStatus.error);
-        final plan = sessions.reconnectPlanOf('srv-01')!;
+        final plan = sessions.reconnectPlanOf(current(sessions))!;
         expect(plan.attempt, 2);
         expect(plan.delay, const Duration(seconds: 4));
 
         async.elapse(const Duration(seconds: 4));
         _settle(async);
-        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.failed);
-        expect(sessions.reconnectPlanOf('srv-01')!.attempt, 3);
+        expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.failed);
+        expect(sessions.reconnectPlanOf(current(sessions))!.attempt, 3);
 
         async.elapse(const Duration(seconds: 8));
         _settle(async);
-        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.connected);
-        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.connected);
+        expect(sessions.reconnectPlanOf(current(sessions)), isNull);
       });
     });
 
@@ -203,15 +203,15 @@ void main() {
         _settle(async);
 
         first.closeFromRemote();
-        expect(sessions.reconnectPlanOf('srv-01'), isNotNull);
+        expect(sessions.reconnectPlanOf(current(sessions)), isNotNull);
 
         async.elapse(const Duration(seconds: 2));
         _settle(async);
-        final session = sessions.byServerId('srv-01')!;
+        final session = sessions.activeOf('srv-01')!;
         expect(session.phase, TerminalPhase.failed);
         expect(session.errorKind, TerminalErrorKind.auth);
         // 重试多少次都一样的失败，不该在后台无限循环。
-        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        expect(sessions.reconnectPlanOf(current(sessions)), isNull);
         async.elapse(const Duration(minutes: 5));
         expect(sessions.sessionCount, 1);
       });
@@ -225,10 +225,10 @@ void main() {
         _settle(async);
 
         transport.closeFromRemote();
-        expect(sessions.reconnectPlanOf('srv-01'), isNotNull);
+        expect(sessions.reconnectPlanOf(current(sessions)), isNotNull);
 
-        sessions.close('srv-01');
-        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        sessions.closeAll('srv-01');
+        expect(sessions.reconnectPlanOf(current(sessions)), isNull);
         async.elapse(const Duration(minutes: 10));
         expect(sessions.sessionCount, 0);
       });
@@ -246,10 +246,10 @@ void main() {
         _settle(async);
 
         first.closeFromRemote();
-        sessions.retry('srv-01');
-        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        sessions.retry(current(sessions)!);
+        expect(sessions.reconnectPlanOf(current(sessions)), isNull);
         _settle(async);
-        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.connected);
+        expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.connected);
         async.elapse(const Duration(minutes: 10));
         expect(sessions.sessionCount, 1);
       });
@@ -263,9 +263,9 @@ void main() {
         _settle(async);
 
         transport.closeFromRemote();
-        sessions.cancelAutoReconnect('srv-01');
-        expect(sessions.reconnectPlanOf('srv-01'), isNull);
-        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.closed);
+        sessions.cancelAutoReconnect(current(sessions)!);
+        expect(sessions.reconnectPlanOf(current(sessions)), isNull);
+        expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.closed);
         async.elapse(const Duration(minutes: 10));
         expect(sessions.sessionCount, 1);
       });
@@ -278,14 +278,123 @@ void main() {
         ]);
         sessions.open(_server(), _credentials);
         _settle(async);
-        expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.failed);
-        expect(sessions.reconnectPlanOf('srv-01'), isNull);
+        expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.failed);
+        expect(sessions.reconnectPlanOf(current(sessions)), isNull);
         async.elapse(const Duration(minutes: 10));
         expect(sessions.sessionCount, 1);
       });
     });
+
+    test('两条会话各自退避：掉线的那条重连，另一条不被替换', () {
+      fakeAsync((async) {
+        final first = _FakeTransport();
+        final second = _FakeTransport();
+        final sessions = _manager(ServerStore(seed: [_server()]), [
+          first,
+          second,
+          _FakeTransport(), // 第一条重连时换上的新传输
+        ]);
+        final server = _server();
+        sessions.open(server, _credentials);
+        _settle(async);
+        final one = sessions.activeOf('srv-01')!;
+        sessions.openNew(server, _credentials);
+        _settle(async);
+        final two = sessions.activeOf('srv-01')!;
+        expect(sessions.sessionCount, 2);
+
+        // 第一条掉线：只有它排退避，当前会话仍是第二条。
+        first.closeFromRemote();
+        expect(one.phase, TerminalPhase.closed);
+        expect(sessions.reconnectPlanOf(one)!.attempt, 1);
+        expect(sessions.reconnectPlanOf(two), isNull);
+        expect(identical(sessions.activeOf('srv-01'), two), isTrue);
+
+        async.elapse(const Duration(seconds: 2));
+        _settle(async);
+
+        // 就地重开第一条：编号仍是 1，第二条对象与连接都没被动过。
+        final reopened = sessions.sessionsOf('srv-01').first;
+        expect(identical(reopened, one), isFalse);
+        expect(reopened.phase, TerminalPhase.connected);
+        expect(sessions.ordinalOf(reopened), 1);
+        expect(sessions.ordinalOf(two), 2);
+        expect(two.phase, TerminalPhase.connected);
+        expect(identical(sessions.activeOf('srv-01'), two), isTrue);
+        expect(sessions.reconnectPlanOf(reopened), isNull);
+      });
+    });
+
+    test('retry 只重开被点的那一条：编号与当前身份都保持', () {
+      fakeAsync((async) {
+        final first = _FakeTransport();
+        final second = _FakeTransport();
+        final sessions = _manager(ServerStore(seed: [_server()]), [
+          first,
+          second,
+          _FakeTransport(), // retry 换上的新传输
+        ]);
+        final server = _server();
+        sessions.open(server, _credentials);
+        _settle(async);
+        final one = sessions.activeOf('srv-01')!;
+        sessions.openNew(server, _credentials);
+        _settle(async);
+        final two = sessions.activeOf('srv-01')!;
+
+        // 当前这条断了：手动重连接管，退避计划作废。
+        second.closeFromRemote();
+        expect(two.phase, TerminalPhase.closed);
+        final fresh = sessions.retry(two)!;
+        _settle(async);
+
+        expect(fresh.phase, TerminalPhase.connected);
+        expect(sessions.ordinalOf(fresh), 2);
+        expect(identical(sessions.activeOf('srv-01'), fresh), isTrue);
+        // 另一条会话对象原封不动，连接也还在。
+        expect(identical(sessions.sessionsOf('srv-01').first, one), isTrue);
+        expect(one.phase, TerminalPhase.connected);
+        expect(sessions.sessionCount, 2);
+      });
+    });
+
+    test('关掉一条会话不影响同主机另一条排着的退避', () {
+      fakeAsync((async) {
+        final first = _FakeTransport();
+        final second = _FakeTransport();
+        final sessions = _manager(ServerStore(seed: [_server()]), [
+          first,
+          second,
+          _FakeTransport(),
+        ]);
+        final server = _server();
+        sessions.open(server, _credentials);
+        _settle(async);
+        final one = sessions.activeOf('srv-01')!;
+        sessions.openNew(server, _credentials);
+        _settle(async);
+        final two = sessions.activeOf('srv-01')!;
+
+        first.closeFromRemote();
+        expect(sessions.reconnectPlanOf(one)!.attempt, 1);
+
+        // 关掉另一条（当前会话）：退避计划属于掉线的那一条，不该被带走。
+        sessions.closeSession(two);
+        expect(sessions.sessionCount, 1);
+        expect(sessions.reconnectPlanOf(one), isNotNull);
+
+        async.elapse(const Duration(seconds: 2));
+        _settle(async);
+        expect(sessions.sessionCount, 1);
+        expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.connected);
+      });
+    });
   });
 }
+
+/// 该主机的当前会话；重连会换掉会话对象、但当前身份跟着走，所以每次现取。
+TerminalSession? current(SessionManager sessions) =>
+    sessions.activeOf('srv-01');
 
 /// 从会话管理器里读该主机的展示状态。
 ServerStatus statusOf(SessionManager sessions) =>

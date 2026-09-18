@@ -143,7 +143,7 @@ void main() {
     final harness = await _pump(tester, forwards: [_localRule], connect: true);
 
     expect(
-      harness.sessions.byServerId('srv-1')!.phase,
+      harness.sessions.activeOf('srv-1')!.phase,
       TerminalPhase.connected,
       reason: '会话应当已经连上',
     );
@@ -154,7 +154,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final status = harness.sessions
-        .byServerId('srv-1')!
+        .activeOf('srv-1')!
         .forwards
         .statusOf('fwd-local');
     expect(status.phase, PortForwardPhase.running);
