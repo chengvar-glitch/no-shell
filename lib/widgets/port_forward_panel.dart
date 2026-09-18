@@ -590,9 +590,7 @@ class _ForwardRuleDialogState extends State<_ForwardRuleDialog> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final remote = int.tryParse(_remotePort.text.trim()) ?? 0;
     final rule = PortForwardRule(
-      id:
-          widget.existing?.id ??
-          'fwd-${DateTime.now().microsecondsSinceEpoch}',
+      id: widget.existing?.id ?? 'fwd-${DateTime.now().microsecondsSinceEpoch}',
       mode: _mode,
       localHost: _localHost.text.trim(),
       localPort: int.tryParse(_localPort.text.trim()) ?? 0,

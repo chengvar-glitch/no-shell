@@ -161,18 +161,19 @@ void main() {
     await tester.pumpAndSettle();
 
     // 只改个名字就保存：其余字段（跳板机、转发规则）必须原样留下。
-    await tester.enterText(find.widgetWithText(TextFormField, 'target-01'), 'target-02');
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'target-01'),
+      'target-02',
+    );
     await tester.tap(find.widgetWithText(FilledButton, '保存'));
     await tester.pumpAndSettle();
 
     final saved = store.byId('srv-target');
     expect(saved?.name, 'target-02');
     expect(saved?.jumpServerId, jumpId, reason: '编辑不该丢掉跳板机');
-    expect(
-      saved?.forwards.map((rule) => rule.id),
-      ['fwd-1'],
-      reason: '编辑不该清空端口转发规则',
-    );
+    expect(saved?.forwards.map((rule) => rule.id), [
+      'fwd-1',
+    ], reason: '编辑不该清空端口转发规则');
   });
 
   testWidgets('新建连接弹窗粘贴元数据后保存，密码写入凭据存储', (tester) async {

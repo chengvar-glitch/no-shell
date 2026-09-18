@@ -94,6 +94,16 @@ async def main() -> None:
         def validate_password(self, username: str, password: str) -> bool:
             return username == 'smoke' and password == 'smoke'
 
+        def connection_requested(
+            self, dest_host, dest_port, orig_host, orig_port
+        ):
+            # 转发冒烟（test/forward_smoke_test.dart）要把本机当目标，因此要放行
+            # direct-tcpip；asyncssh 默认一律拒绝。只放行回环目标：这个一次性
+            # 服务端不该同时是一个「可以当任意跳板」的口子。
+            if dest_host in ('127.0.0.1', '::1', 'localhost'):
+                return True
+            return False
+
     async with asyncssh.listen(
         '127.0.0.1',
         port,

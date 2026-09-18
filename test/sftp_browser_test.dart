@@ -554,7 +554,9 @@ void main() {
       await pumpEventQueue();
 
       expect(transfer.state, SftpTransferState.canceled);
-      expect(gateway.discarded, ['/tmp/raw.bin.noshell-part'], reason: '半成品是临时文件');
+      expect(gateway.discarded, [
+        '/tmp/raw.bin.noshell-part',
+      ], reason: '半成品是临时文件');
       expect(gateway.written['/tmp/raw.bin'], [
         1,
         2,

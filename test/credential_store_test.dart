@@ -11,7 +11,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/ssh/credential_store.dart';
-import 'package:no_shell/ssh/credential_store_io.dart' show SecureCredentialStore;
+import 'package:no_shell/ssh/credential_store_io.dart'
+    show SecureCredentialStore;
 import 'package:no_shell/ssh/ssh_credentials.dart';
 
 /// 底层一律抛错：模拟钥匙串 / libsecret 不可用。
@@ -47,9 +48,8 @@ final class _ThrowingPlatform extends FlutterSecureStoragePlatform {
   }) async => throw PlatformException(code: 'unavailable');
 
   @override
-  Future<void> deleteAll({
-    required Map<String, String> options,
-  }) async => throw PlatformException(code: 'unavailable');
+  Future<void> deleteAll({required Map<String, String> options}) async =>
+      throw PlatformException(code: 'unavailable');
 }
 
 /// 内存实现：验证真实存储这一层的编解码往返。
@@ -87,9 +87,8 @@ final class _MemoryPlatform extends FlutterSecureStoragePlatform {
   }) async => Map.of(values);
 
   @override
-  Future<void> deleteAll({
-    required Map<String, String> options,
-  }) async => values.clear();
+  Future<void> deleteAll({required Map<String, String> options}) async =>
+      values.clear();
 }
 
 void main() {

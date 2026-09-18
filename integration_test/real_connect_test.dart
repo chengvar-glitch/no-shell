@@ -37,7 +37,9 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  testWidgets('模拟器内连接真实服务器', timeout: const Timeout(Duration(minutes: 3)), (tester) async {
+  testWidgets('模拟器内连接真实服务器', timeout: const Timeout(Duration(minutes: 3)), (
+    tester,
+  ) async {
     // 模拟器进程不继承宿主环境变量，define 优先；macOS 直跑可退回环境变量。
     String pick({required String define, required String envKey}) =>
         define.isNotEmpty ? define : Platform.environment[envKey] ?? '';

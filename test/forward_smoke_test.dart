@@ -10,7 +10,15 @@
 ///   flutter test test/forward_smoke_test.dart
 /// ```
 ///
-/// 可选：NOSHELL_SMOKE_USER（默认 root）、NOSHELL_SMOKE_PORT（默认 22）。
+/// 可选：NOSHELL_SMOKE_USER（默认 root）、NOSHELL_SMOKE_PORT（默认 22）、
+/// NOSHELL_SMOKE_JUMP_PORT（经跳板机连到的目标端口，默认 22）。
+///
+/// 想不起真机也能验：`tool/dev_sftp_server.py` 起来的本地一次性服务端已放行
+/// 回环 direct-tcpip，把两个端口都指向它即可跑通本地 / 远程 / 动态转发与跳板链路：
+/// ```
+/// NOSHELL_SMOKE_HOST=127.0.0.1 NOSHELL_SMOKE_PORT=2299 NOSHELL_SMOKE_JUMP_PORT=2299 \
+///   NOSHELL_SMOKE_USER=smoke NOSHELL_SMOKE_PASSWORD=smoke flutter test test/forward_smoke_test.dart
+/// ```
 /// 凭据只经环境变量传入，不写入仓库。
 library;
 
@@ -29,6 +37,11 @@ final _host = _env['NOSHELL_SMOKE_HOST'];
 final _password = _env['NOSHELL_SMOKE_PASSWORD'];
 final _user = _env['NOSHELL_SMOKE_USER'] ?? 'root';
 final _port = int.tryParse(_env['NOSHELL_SMOKE_PORT'] ?? '') ?? 22;
+
+/// 经跳板机连到的目标端口：默认 22（真机上跑着 sshd）。
+/// 用本地一次性服务端验证整条链路时指向它自己监听的端口。
+final _throughJumpPort =
+    int.tryParse(_env['NOSHELL_SMOKE_JUMP_PORT'] ?? '') ?? 22;
 
 /// 没给主机就整组跳过：这是需要真机的冒烟，不是单元测试。
 final _skip = _host == null || _password == null
@@ -274,7 +287,7 @@ void main() {
         id: 'smoke-via-jump',
         name: 'smoke-via-jump',
         host: '127.0.0.1',
-        port: 22,
+        port: _throughJumpPort,
         jump: jump.id,
       );
       final chain = resolveJumpChain(

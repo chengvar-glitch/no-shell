@@ -177,8 +177,7 @@ final class _LogBody extends StatelessWidget {
         // 逐行懒构建：几万行回滚也只排版视口内的那几十行。
         child: ListView.builder(
           itemCount: lines.length,
-          itemBuilder: (context, index) =>
-              Text(lines[index], style: logStyle),
+          itemBuilder: (context, index) => Text(lines[index], style: logStyle),
         ),
       ),
     );
