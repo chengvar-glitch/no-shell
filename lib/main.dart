@@ -48,7 +48,7 @@ Future<void> main() async {
 }
 
 /// 把随包内置字体的 OFL 文本注册进许可清单：SIL OFL 要求分发字体时随附许可，
-/// 注册后「关于 → 查看许可」（showAboutDialog 自带入口）里就能看到。
+/// 注册后「关于 → 查看许可」（showAppAboutDialog 自带入口）里就能看到。
 /// 读不到 asset 时静默跳过——许可展示失败不该拦下启动。
 void _registerBundledFontLicenses() {
   for (final entry in kBundledFontLicenses.entries) {

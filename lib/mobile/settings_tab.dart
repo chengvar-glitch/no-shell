@@ -4,6 +4,7 @@ import '../app_locale.dart';
 import '../app_version.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../theme.dart';
+import '../widgets/about_dialog.dart';
 import '../widgets/app_icon_mark.dart';
 import '../widgets/settings_controls.dart';
 
@@ -178,7 +179,7 @@ class SettingsTab extends StatelessWidget {
                 icon: Icons.info_outline,
                 title: l10n.about,
                 subtitle: '${l10n.appName} v$appVersion',
-                onTap: () => showAboutDialog(
+                onTap: () => showAppAboutDialog(
                   context: context,
                   applicationName: l10n.appName,
                   applicationVersion: appVersion,

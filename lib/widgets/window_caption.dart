@@ -34,6 +34,18 @@ const double kMacOSTrafficLightsIndent = 96.0;
 /// 侧边栏动作行（54）与详情头部行（54）都以它为中心。
 const double kMacOSTrafficLightsCenterY = 27.0;
 
+/// macOS 上 [AppBar] 让开红绿灯所需的 leading 槽位宽度。
+///
+/// 槽位里的按钮居中，槽位取「默认宽度 + 2×缩进」正好让按钮中心右移一个
+/// 缩进：默认槽位 56 与 [kToolbarHeight] 同值（Flutter 内部的 `_kLeadingWidth`），
+/// 加宽到 248 后返回键落在 104~144，接在红绿灯右缘（约 82）之后的内容列上。
+/// 标题不必跟着动——macOS 上 Flutter 默认把标题居中（actions 少于两个的
+/// AppBar），与槽位宽度无关。
+///
+/// 目前只有「关于 → 查看许可」那条路由需要它（见 `showAppAboutDialog`）。
+const double kMacOSTrafficLightsLeadingWidth =
+    kToolbarHeight + 2 * kMacOSTrafficLightsIndent;
+
 /// 无论左侧内容多宽都要留出的拖拽区宽度：窗口得拖得动。
 const double _minDragWidth = 48.0;
 

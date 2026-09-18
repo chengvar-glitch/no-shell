@@ -5,6 +5,7 @@ import '../app_version.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../settings.dart';
 import '../theme.dart';
+import 'about_dialog.dart';
 import 'app_icon_mark.dart';
 import 'settings_controls.dart';
 
@@ -317,7 +318,7 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
   }
 
   void _showAbout(BuildContext context) {
-    showAboutDialog(
+    showAppAboutDialog(
       context: context,
       applicationName: AppLocalizations.of(context).appName,
       applicationVersion: appVersion,
