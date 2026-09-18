@@ -99,6 +99,78 @@ void main() {
     expect(find.text('已删除 web-prod-01'), findsOneWidget);
   });
 
+  testWidgets('编辑主机：跳板机与端口转发规则都不会被顺手抹掉', (tester) async {
+    // 桌面端编辑弹窗是「从零构造 SshServer」（见 home_page._editOrCreate）：
+    // 弹窗里没显式带上的字段会静默丢空。移动端编辑页早有这条用例，桌面端
+    // 才是主战场，这里补上——漏 forwards 等于每编辑一次清空这台主机的转发。
+    const jumpId = 'srv-jump';
+    const target = SshServer(
+      id: 'srv-target',
+      group: '生产',
+      name: 'target-01',
+      host: '10.0.1.11',
+      username: 'deploy',
+      jumpServerId: jumpId,
+      forwards: [
+        PortForwardRule(
+          id: 'fwd-1',
+          mode: PortForwardMode.local,
+          localPort: 8080,
+          remoteHost: '127.0.0.1',
+          remotePort: 80,
+        ),
+      ],
+    );
+    const jump = SshServer(
+      id: jumpId,
+      group: '生产',
+      name: 'jump-01',
+      host: '10.0.1.12',
+      username: 'ops',
+    );
+    // store 由 NoShellApp 接管生命周期，这里不自行 dispose。
+    final store = ServerStore(seed: const [jump, target]);
+    tester.platformDispatcher.localesTestValue = const [Locale('zh')];
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    await tester.pumpWidget(
+      NoShellApp(
+        store: store,
+        credentials: FakeCredentialStore(),
+        agentKeysProbe: () async => false,
+      ),
+    );
+    await tester.pump();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(
+        find.descendant(
+          of: find.byType(Sidebar),
+          matching: find.text('target-01'),
+        ),
+      ),
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('编辑'));
+    await tester.pumpAndSettle();
+
+    // 只改个名字就保存：其余字段（跳板机、转发规则）必须原样留下。
+    await tester.enterText(find.widgetWithText(TextFormField, 'target-01'), 'target-02');
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+
+    final saved = store.byId('srv-target');
+    expect(saved?.name, 'target-02');
+    expect(saved?.jumpServerId, jumpId, reason: '编辑不该丢掉跳板机');
+    expect(
+      saved?.forwards.map((rule) => rule.id),
+      ['fwd-1'],
+      reason: '编辑不该清空端口转发规则',
+    );
+  });
+
   testWidgets('新建连接弹窗粘贴元数据后保存，密码写入凭据存储', (tester) async {
     final store = ServerStore(seed: const []);
     final credentials = FakeCredentialStore();

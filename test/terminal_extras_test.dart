@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/l10n/generated/app_localizations.dart';
 import 'package:no_shell/models.dart';
@@ -6,6 +10,7 @@ import 'package:no_shell/settings.dart';
 import 'package:no_shell/snippets.dart';
 import 'package:no_shell/ssh/auto_reconnect.dart';
 import 'package:no_shell/ssh/session_manager.dart';
+import 'package:no_shell/ssh/local_files.dart';
 import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
@@ -17,6 +22,7 @@ import 'package:xterm/core.dart';
 
 import 'support/credential_store_fake.dart';
 import 'support/forward_fakes.dart';
+import 'support/sftp_fakes.dart';
 
 const _server = SshServer(
   id: 'srv-ui',
@@ -60,6 +66,20 @@ final class _ConnectedTransport with NoForwardingTransport {
   void dispose() {}
 }
 
+String _clipboardText = '';
+
+/// 剪贴板是平台通道：测试环境没有实现，不装假通道的话调用会静默失败。
+void _installClipboardMock() {
+  _clipboardText = '';
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          _clipboardText = call.arguments['text'] as String? ?? '';
+        }
+        return null;
+      });
+}
+
 Widget _host(Widget child, {SnippetStore? snippets}) {
   final style = ValueNotifier(const TerminalStylePrefs());
   return MaterialApp(
@@ -93,6 +113,8 @@ Future<TerminalSession> _connectedSession(_ConnectedTransport transport) async {
 }
 
 void main() {
+  setUp(_installClipboardMock);
+
   group('SshTerminalView 会话工具条', () {
     testWidgets('展示片段入口，空态可打开可关闭', (tester) async {
       final transport = _ConnectedTransport();
@@ -182,6 +204,7 @@ void main() {
       ServerStore store,
       _ConnectedTransport transport, {
       required bool connect,
+      LocalFileGateway? localFiles,
     }) {
       final manager = SessionManager(
         store: store,
@@ -189,6 +212,7 @@ void main() {
           server: server,
           credentials: credentials,
           transport: transport,
+          localFiles: localFiles ?? const NativeLocalFileGateway(),
         ),
       );
       if (connect) manager.open(_server, const SshCredentials(password: 'pw'));
@@ -231,6 +255,97 @@ void main() {
         find.widgetWithText(OutlinedButton, '保存日志'),
       );
       expect(save.onPressed, isNull);
+    });
+
+    /// 打开日志弹窗，返回注入的假网关。
+    Future<FakeLocalFileGateway> openLog(
+      WidgetTester tester, {
+      String banner = 'banner\n',
+    }) async {
+      final gateway = FakeLocalFileGateway();
+      final store = ServerStore(seed: [_server]);
+      addTearDown(store.dispose);
+      final manager = managerWith(
+        store,
+        _ConnectedTransport(banner: banner),
+        connect: true,
+        localFiles: gateway,
+      );
+      addTearDown(manager.dispose);
+
+      await tester.pumpWidget(_host(panel(store, manager)));
+      await tester.pump();
+      await tester.tap(find.byTooltip('会话日志'));
+      await tester.pumpAndSettle();
+      return gateway;
+    }
+
+    testWidgets('保存日志：写进落点、内容与画面一致，且按 0600 落盘', (tester) async {
+      final gateway = await openLog(tester);
+      gateway.exportDestination = const LocalDestination(
+        path: '/tmp/session.log',
+        name: 'session.log',
+      );
+
+      await tester.tap(find.widgetWithText(OutlinedButton, '保存日志'));
+      await tester.pumpAndSettle();
+
+      expect(utf8.decode(gateway.bytesOf('/tmp/session.log')), 'banner');
+      // 日志可能含敏感输出（cat 过的配置文件等），落盘要收权限。
+      expect(gateway.ownerOnlyWrites, ['/tmp/session.log']);
+      expect(find.text('日志已保存：session.log'), findsOneWidget);
+    });
+
+    testWidgets('保存日志：用户取消落点则什么都不发生', (tester) async {
+      final gateway = await openLog(tester);
+      gateway.exportDestination = null;
+
+      await tester.tap(find.widgetWithText(OutlinedButton, '保存日志'));
+      await tester.pumpAndSettle();
+
+      expect(gateway.written, isEmpty);
+      expect(gateway.discarded, isEmpty);
+      expect(find.textContaining('日志已保存'), findsNothing);
+    });
+
+    testWidgets('保存日志：落盘失败时清掉半成品并提示', (tester) async {
+      final gateway = await openLog(tester);
+      gateway.exportDestination = const LocalDestination(
+        path: '/tmp/session.log',
+        name: 'session.log',
+      );
+      gateway.writeError = const FileSystemException('disk full');
+
+      await tester.tap(find.widgetWithText(OutlinedButton, '保存日志'));
+      await tester.pumpAndSettle();
+
+      expect(gateway.discarded, ['/tmp/session.log'], reason: '失败要清掉残档');
+      expect(find.text('日志保存失败，请重试。'), findsOneWidget);
+    });
+
+    testWidgets('保存日志：移动端落点写完交给分享面板', (tester) async {
+      final gateway = await openLog(tester);
+      gateway.exportDestination = const LocalDestination(
+        path: '/tmp/session.log',
+        name: 'session.log',
+        share: true,
+      );
+
+      await tester.tap(find.widgetWithText(OutlinedButton, '保存日志'));
+      await tester.pumpAndSettle();
+
+      expect(gateway.shared, ['/tmp/session.log']);
+    });
+
+    testWidgets('复制日志：整段快照进剪贴板并提示', (tester) async {
+      final gateway = await openLog(tester, banner: 'banner\nsecond\n');
+      expect(gateway.written, isEmpty);
+
+      await tester.tap(find.widgetWithText(TextButton, '复制'));
+      await tester.pumpAndSettle();
+
+      expect(_clipboardText, 'banner\nsecond');
+      expect(find.text('日志已复制到剪贴板'), findsOneWidget);
     });
 
     testWidgets('没有会话时状态胶囊不可点', (tester) async {
