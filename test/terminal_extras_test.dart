@@ -15,6 +15,7 @@ import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/server_detail.dart';
 import 'package:xterm/core.dart';
 
+import 'support/credential_store_fake.dart';
 import 'support/forward_fakes.dart';
 
 const _server = SshServer(
@@ -172,6 +173,7 @@ void main() {
           server: _server,
           store: store,
           sessions: manager,
+          credentials: FakeCredentialStore(),
           onConnect: (_) {},
           onCreate: () {},
         );

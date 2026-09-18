@@ -24,7 +24,7 @@ final class SessionPage extends StatelessWidget {
     return ListenableBuilder(
       listenable: sessions,
       builder: (context, _) {
-        final session = sessions.byServerId(serverId);
+        final session = sessions.activeOf(serverId);
         return Scaffold(
           appBar: AppBar(
             title: Row(
@@ -54,7 +54,7 @@ final class SessionPage extends StatelessWidget {
                 IconButton(
                   tooltip: l10n.disconnect,
                   icon: const Icon(Icons.link_off_rounded),
-                  onPressed: () => sessions.close(serverId),
+                  onPressed: () => sessions.closeAll(serverId),
                 ),
             ],
           ),
@@ -63,10 +63,10 @@ final class SessionPage extends StatelessWidget {
                 ? Center(child: Text(l10n.sessionClosedMsg))
                 : SshTerminalView(
                     session: session,
-                    onRetry: () => sessions.retry(serverId),
-                    reconnectPlan: sessions.reconnectPlanOf(serverId),
+                    onRetry: () => sessions.retry(session),
+                    reconnectPlan: sessions.reconnectPlanOf(session),
                     onStopAutoReconnect: () =>
-                        sessions.cancelAutoReconnect(serverId),
+                        sessions.cancelAutoReconnect(session),
                   ),
           ),
         );

@@ -49,8 +49,17 @@ Future<bool> _defaultAgentKeysProbe() async {
   }
 }
 
-/// 活跃 SSH 会话注册表（服务器 id → 会话），
-/// 并把会话阶段同步为 [ServerStore] 中对应主机的展示状态。
+/// 活跃 SSH 会话注册表，并把会话阶段同步为 [ServerStore] 中对应主机的展示状态。
+///
+/// **一台主机可以挂多条会话**（同一台服务器多开终端）：每条会话是各自独立的
+/// 连接与认证，各自带自己的终端缓冲区、SFTP 通道与转发运行时。界面绑定的是
+/// 该主机的**当前会话**（[activeOf]），主机行上的状态是全部会话的聚合
+/// （[ServerStatus.connected] 优先，其次 connecting / error / idle）。
+///
+/// 会话以**对象身份**定位（[TerminalSession] 没有 `==` 重载，天生按引用相等），
+/// 展示编号由本类维护：一台主机内单调递增、**永不复用**，重连 / [retry] 也不
+/// 改变编号，因此 [byOrdinal] 是一条会话的稳定地址（全屏终端页路由用它，
+/// 重连换了对象也还能找回来）。
 final class SessionManager extends ChangeNotifier {
   SessionManager({
     required this.store,
@@ -127,94 +136,271 @@ final class SessionManager extends ChangeNotifier {
   }
 
   final TerminalSessionFactory _sessionFactory;
-  final Map<String, TerminalSession> _sessions = {};
 
-  /// 待执行的自动重连计划（主机 id → 尝试号与计时器）。
+  /// 主机 id → 会话列表（创建顺序，也就是界面上会话菜单的顺序）。
+  /// 主机没有会话时整个条目被移除，[sessions] 的顺序因此是「主机首次出现的
+  /// 顺序 + 主机内创建顺序」。
+  final Map<String, List<TerminalSession>> _byServer = {};
+
+  /// 主机 id → 当前会话（界面绑定的那一条）。列表非空时它必然有值。
+  final Map<String, TerminalSession> _active = {};
+
+  /// 会话 → 展示编号（从 1 起）。以对象身份为键。
+  final Map<TerminalSession, int> _ordinals = {};
+
+  /// 主机 id → 下一个要分配的编号；只增不减，编号因此永不复用。
+  final Map<String, int> _nextOrdinal = {};
+
+  /// 阶段监听器登记表：关闭会话时先摘掉监听再 terminate，
+  /// 免得「用户点关闭」这条路径上被 terminate 的阶段回调多通知一次。
+  final Map<TerminalSession, VoidCallback> _phaseListeners = {};
+
+  /// 待执行的自动重连计划（会话 → 尝试号与计时器）。
   /// 有条目即代表「这条会话是断线自动重连流程的一部分」。
-  final Map<String, _PendingReconnect> _reconnects = {};
+  final Map<TerminalSession, _PendingReconnect> _reconnects = {};
 
-  List<TerminalSession> get sessions => List.unmodifiable(_sessions.values);
+  /// 全部会话：按主机首次出现顺序、主机内按创建顺序。
+  List<TerminalSession> get sessions =>
+      List.unmodifiable([for (final list in _byServer.values) ...list]);
 
-  int get sessionCount => _sessions.length;
+  int get sessionCount => _ordinals.length;
 
-  TerminalSession? byServerId(String? id) => id == null ? null : _sessions[id];
+  /// 某台主机的会话（创建顺序）。
+  List<TerminalSession> sessionsOf(String? serverId) {
+    final list = serverId == null ? null : _byServer[serverId];
+    return list == null ? const [] : List.unmodifiable(list);
+  }
+
+  int sessionCountOf(String? serverId) =>
+      serverId == null ? 0 : (_byServer[serverId]?.length ?? 0);
+
+  /// 某台主机的**当前会话**：终端 / SFTP / 转发 / 会话日志都绑定它。
+  /// 可能是失败的或已结束的会话——是否活跃看 [TerminalSession.isActive]。
+  TerminalSession? activeOf(String? serverId) =>
+      serverId == null ? null : _active[serverId];
+
+  /// 按编号取会话。编号在一台主机内唯一且不复用，重连 / [retry] 也不变，
+  /// 因此它是一条会话的稳定地址。
+  TerminalSession? byOrdinal(String serverId, int ordinal) {
+    for (final session in _byServer[serverId] ?? const <TerminalSession>[]) {
+      if (_ordinals[session] == ordinal) return session;
+    }
+    return null;
+  }
+
+  /// 会话的展示编号（从 1 起）；不是本管理器登记的会话返回 0。
+  int ordinalOf(TerminalSession session) => _ordinals[session] ?? 0;
+
+  /// 该主机是否存在认证失败现场。连接流程据此不再静默复用存档凭据，
+  /// 而是直接把预填的凭据框交给用户。
+  bool hasAuthFailure(String serverId) =>
+      (_byServer[serverId] ?? const <TerminalSession>[]).any(
+        (session) =>
+            session.phase == TerminalPhase.failed &&
+            session.errorKind == TerminalErrorKind.auth,
+      );
+
+  /// 把某台主机的当前会话切到 [session]；不是它登记的会话时不作声。
+  void activate(TerminalSession session) {
+    final serverId = session.server.id;
+    if (!(_byServer[serverId]?.contains(session) ?? false)) return;
+    if (identical(_active[serverId], session)) return;
+    _active[serverId] = session;
+    notifyListeners();
+  }
 
   /// 该主机挂着的自动重连计划；没有则为 null。
   /// 界面据此展示「将在 N 秒后重连（第 X 次）」。
-  ReconnectPlan? reconnectPlanOf(String? id) {
-    final pending = id == null ? null : _reconnects[id];
+  ReconnectPlan? reconnectPlanOf(TerminalSession? session) {
+    final pending = session == null ? null : _reconnects[session];
     if (pending == null) return null;
     return ReconnectPlan(attempt: pending.attempt, delay: pending.delay);
   }
 
-  /// 停止该主机的自动重连：已断开的会话与错误现场原样保留，交给用户处置。
-  void cancelAutoReconnect(String serverId) {
-    if (_reconnects.remove(serverId) == null) return;
+  /// 停止该会话的自动重连：已断开的会话与错误现场原样保留，交给用户处置。
+  void cancelAutoReconnect(TerminalSession session) {
+    if (_reconnects.remove(session) == null) return;
     notifyListeners();
   }
 
-  /// 建立会话并开始连接；同主机已有活跃会话时直接复用。
+  /// 建立会话并开始连接；该主机已有活跃会话时直接复用（连接按钮的语义）。
+  /// 当前会话已是终态（失败 / 已结束）时就地重开它，编号与位置都不变。
   /// [jumps] 为跳板机链路（由外到内），随会话一起记住，重连时原样复用。
   TerminalSession open(
     SshServer server,
     SshCredentials credentials, {
     List<SshHop> jumps = const [],
   }) {
-    // 用户亲自发起的连接：挂着的自动重连就此作废，控制权移交。
-    _reconnects.remove(server.id)?.cancel();
-    final existing = _sessions[server.id];
-    if (existing != null && existing.isActive) return existing;
-    existing?.dispose();
-    return _spawn(server, credentials, jumps);
+    final current = _active[server.id];
+    if (current == null) return _spawn(server, credentials, jumps);
+    // 用户亲自发起的连接：这条会话挂着的自动重连就此作废，控制权移交。
+    // 只作废它自己的计划——同主机其它会话的重连是它们自己的事。
+    _cancelReconnectOf(current);
+    if (current.isActive) return current;
+    return _respawn(current, server, credentials, jumps);
   }
 
-  /// 断开并移除会话，主机回到未连接状态。
-  void close(String serverId) {
-    _reconnects.remove(serverId)?.cancel();
-    final session = _sessions.remove(serverId);
-    if (session == null) return;
-    final wasActive = session.isActive;
-    session.terminate();
-    session.dispose();
-    store.markIdle(serverId);
-    // 活跃会话在 terminate 时已经过监听同步并通知过一次，无需重复通知。
-    if (wasActive) return;
+  /// 在同一台主机上**再开一条会话**（多开终端）：总是新建，成为当前会话，
+  /// 并分配一个新编号。不碰同主机其它会话的自动重连计划。
+  TerminalSession openNew(
+    SshServer server,
+    SshCredentials credentials, {
+    List<SshHop> jumps = const [],
+  }) => _spawn(server, credentials, jumps);
+
+  /// 断开并移除某一条会话；它是当前会话时，当前身份交给相邻的一条
+  /// （同下标优先，否则前一条）。主机没有会话了便回到未连接状态。
+  void closeSession(TerminalSession session) {
+    final serverId = session.server.id;
+    final list = _byServer[serverId];
+    final index = list?.indexOf(session) ?? -1;
+    if (list == null || index == -1) return;
+    list.removeAt(index);
+    _discard(session);
+    _ordinals.remove(session);
+    _cancelReconnectOf(session);
+    if (identical(_active[serverId], session)) {
+      // 关掉的是当前会话：交给相邻的一条（同下标优先，否则前一条）；
+      // 一条都不剩就把当前身份一并抹掉。
+      if (list.isEmpty) {
+        _active.remove(serverId);
+      } else {
+        _active[serverId] = list[index < list.length ? index : list.length - 1];
+      }
+    }
+    _prune(serverId);
+    _syncStore(serverId);
     notifyListeners();
   }
 
-  /// 复用原凭据重连（失败或已结束的会话）；跳板机链路也照旧。
-  void retry(String serverId) {
-    // 手动重连同样是用户接管，退避计划作废（含计时器）。
-    _reconnects.remove(serverId)?.cancel();
-    final previous = _sessions[serverId];
-    if (previous == null || previous.isActive) return;
-    final server = store.byId(serverId) ?? previous.server;
-    _sessions.remove(serverId);
-    previous.dispose();
-    _spawn(server, previous.credentials, previous.jumps);
+  /// 断开并移除该主机的全部会话（「断开连接 / 断开全部」与删除主机）。
+  void closeAll(String serverId) {
+    final list = _byServer.remove(serverId);
+    _active.remove(serverId);
+    _nextOrdinal.remove(serverId);
+    if (list == null || list.isEmpty) return;
+    for (final session in list) {
+      _discard(session);
+      _ordinals.remove(session);
+      _cancelReconnectOf(session);
+    }
+    store.markIdle(serverId);
+    notifyListeners();
   }
 
-  /// 实际创建并登记会话；[open] / [retry] / 自动重连共用，
-  /// 只有前两者该先清退避计划。
+  /// 复用原凭据与跳板链路重连某条会话；编号、列表位置与当前身份都保持。
+  /// 不是本管理器登记的会话、或它还是活跃的，都返回 null。
+  TerminalSession? retry(TerminalSession session) {
+    final serverId = session.server.id;
+    if (!(_byServer[serverId]?.contains(session) ?? false)) return null;
+    _cancelReconnectOf(session);
+    if (session.isActive) return null;
+    final server = store.byId(serverId) ?? session.server;
+    return _respawn(session, server, session.credentials, session.jumps);
+  }
+
+  /// 该主机的聚合状态：连上一条就算连上，正在连的优先于失败的。
+  ServerStatus _aggregateOf(String serverId) {
+    final list = _byServer[serverId] ?? const <TerminalSession>[];
+    if (list.any((session) => session.phase == TerminalPhase.connected)) {
+      return ServerStatus.connected;
+    }
+    if (list.any((session) => session.phase == TerminalPhase.connecting)) {
+      return ServerStatus.connecting;
+    }
+    if (list.any((session) => session.phase == TerminalPhase.failed)) {
+      return ServerStatus.error;
+    }
+    return ServerStatus.idle;
+  }
+
+  /// 新建一条会话并登记：分配编号、成为当前会话、开始连接。
   TerminalSession _spawn(
     SshServer server,
     SshCredentials credentials,
     List<SshHop> jumps,
   ) {
-    final session = _sessionFactory(server, credentials, jumps);
-    // 阶段未变化的重复通知直接丢弃，减少下游列表 / 详情页无谓重建。
-    var syncedPhase = session.phase;
-    session.addListener(() {
-      if (session.phase == syncedPhase) return;
-      syncedPhase = session.phase;
-      _syncStore(session);
-      _onPhase(session);
-    });
-    _sessions[server.id] = session;
+    final session = _create(server, credentials, jumps);
+    final list = _byServer.putIfAbsent(server.id, () => []);
+    list.add(session);
+    final ordinal = (_nextOrdinal[server.id] ?? 0) + 1;
+    _nextOrdinal[server.id] = ordinal;
+    _ordinals[session] = ordinal;
+    _active[server.id] = session;
     store.markConnecting(server.id);
     notifyListeners();
     unawaited(session.start());
     return session;
+  }
+
+  /// 用新传输就地重开一条会话：编号、在列表中的位置、当前身份全部沿用，
+  /// 因此界面上不会「换了个会话」。[reconnect] 非空时在 start 之前就把退避
+  /// 计划挂到新会话上——新会话同步进入终态时，阶段回调能接着这个条目计数。
+  TerminalSession _respawn(
+    TerminalSession previous,
+    SshServer server,
+    SshCredentials credentials,
+    List<SshHop> jumps, {
+    _PendingReconnect? reconnect,
+  }) {
+    final serverId = server.id;
+    final list = _byServer[serverId];
+    final index = list?.indexOf(previous) ?? -1;
+    // 已经不在注册表里（会话被关掉 / 主机被删）：按新建处理，别复活它。
+    if (list == null || index == -1) return _spawn(server, credentials, jumps);
+    final ordinal = _ordinals[previous] ?? 0;
+    final wasActive = identical(_active[serverId], previous);
+    _discard(previous);
+    _ordinals.remove(previous);
+    final session = _create(server, credentials, jumps);
+    list[index] = session;
+    if (ordinal != 0) _ordinals[session] = ordinal;
+    if (wasActive) _active[serverId] = session;
+    if (reconnect != null) _reconnects[session] = reconnect;
+    store.markConnecting(serverId);
+    notifyListeners();
+    unawaited(session.start());
+    return session;
+  }
+
+  /// 建会话对象并挂上阶段监听。阶段未变化的重复通知直接丢弃，
+  /// 减少下游列表 / 详情页无谓重建。
+  TerminalSession _create(
+    SshServer server,
+    SshCredentials credentials,
+    List<SshHop> jumps,
+  ) {
+    final session = _sessionFactory(server, credentials, jumps);
+    var syncedPhase = session.phase;
+    void listener() {
+      if (session.phase == syncedPhase) return;
+      syncedPhase = session.phase;
+      _syncStore(session.server.id);
+      notifyListeners();
+      _onPhase(session);
+    }
+
+    _phaseListeners[session] = listener;
+    session.addListener(listener);
+    return session;
+  }
+
+  /// 摘掉阶段监听并结束一条会话。先摘监听：调用方（关闭 / 就地重开）随后
+  /// 自己发通知，不能让 terminate 的阶段回调再插一次。
+  void _discard(TerminalSession session) {
+    final listener = _phaseListeners.remove(session);
+    if (listener != null) session.removeListener(listener);
+    session
+      ..terminate()
+      ..dispose();
+  }
+
+  /// 主机没有会话了就清掉它的簿记（编号计数一并抹掉：重新连上就是新的一轮）。
+  void _prune(String serverId) {
+    if (_byServer[serverId]?.isNotEmpty ?? false) return;
+    _byServer.remove(serverId);
+    _active.remove(serverId);
+    _nextOrdinal.remove(serverId);
   }
 
   /// 会话进入新阶段后维护自动重连的状态机。
@@ -222,7 +408,7 @@ final class SessionManager extends ChangeNotifier {
     switch (session.phase) {
       case TerminalPhase.connected:
         // 重连成功：计数与计划一并清掉。
-        if (_reconnects.remove(session.server.id) != null) notifyListeners();
+        if (_reconnects.remove(session) != null) notifyListeners();
       case TerminalPhase.closed:
         _scheduleAfterDrop(session);
       case TerminalPhase.failed:
@@ -235,23 +421,20 @@ final class SessionManager extends ChangeNotifier {
   /// 会话意外断开（connected → closed）：排下一次退避重连。
   void _scheduleAfterDrop(TerminalSession session) {
     if (!autoReconnect) return;
-    // 还在注册表里的会话才是意外断开；用户主动 close() 时已先移除。
-    if (!identical(_sessions[session.server.id], session)) return;
-    _schedule(
-      session.server.id,
-      (_reconnects[session.server.id]?.attempt ?? 0) + 1,
-    );
+    // 还在注册表里的会话才是意外断开；用户主动关闭时已先移除。
+    if (!(_byServer[session.server.id]?.contains(session) ?? false)) return;
+    _schedule(session, (_reconnects[session]?.attempt ?? 0) + 1);
   }
 
   /// 自动重连的一次尝试失败：暂时性错误接着退避，其余（认证 / 指纹 /
   /// 链路配置）重试也不会好，停下来把错误现场交还用户。
   void _afterFailedAttempt(TerminalSession session) {
-    final pending = _reconnects[session.server.id];
+    final pending = _reconnects[session];
     if (pending == null) return;
     if (_isTransient(session.errorKind)) {
-      _schedule(session.server.id, pending.attempt + 1);
+      _schedule(session, pending.attempt + 1);
     } else {
-      _reconnects.remove(session.server.id);
+      _reconnects.remove(session);
       notifyListeners();
     }
   }
@@ -261,11 +444,11 @@ final class SessionManager extends ChangeNotifier {
   static bool _isTransient(TerminalErrorKind kind) =>
       kind == TerminalErrorKind.network || kind == TerminalErrorKind.other;
 
-  void _schedule(String serverId, int attempt) {
+  void _schedule(TerminalSession session, int attempt) {
     final delay = backoff.delayFor(attempt);
-    _reconnects.remove(serverId)?.cancel();
-    final timer = Timer(delay, () => _fireReconnect(serverId, attempt));
-    _reconnects[serverId] = _PendingReconnect(
+    _reconnects.remove(session)?.cancel();
+    final timer = Timer(delay, () => _fireReconnect(session, attempt));
+    _reconnects[session] = _PendingReconnect(
       attempt: attempt,
       delay: delay,
       timer: timer,
@@ -275,38 +458,45 @@ final class SessionManager extends ChangeNotifier {
   }
 
   /// 退避到期，发起第 [attempt] 次重连：换新传输、复用原凭据与跳板链路。
-  void _fireReconnect(String serverId, int attempt) {
-    final pending = _reconnects[serverId];
+  void _fireReconnect(TerminalSession session, int attempt) {
+    final pending = _reconnects[session];
     if (pending == null || pending.attempt != attempt) return;
-    final session = _sessions[serverId];
-    if (session == null || session.isActive) {
-      _reconnects.remove(serverId);
+    if (session.isActive ||
+        !(_byServer[session.server.id]?.contains(session) ?? false)) {
+      _reconnects.remove(session);
       return;
     }
-    final server = store.byId(serverId) ?? session.server;
-    _sessions.remove(serverId);
-    session.dispose();
-    // 先把这次尝试的号带过去再 spawn：新会话若同步就进入终态，
-    // 阶段回调能接着这个条目清计划或续退避，不会漏掉计数。
-    _reconnects[serverId] = _PendingReconnect(
-      attempt: attempt,
-      delay: backoff.delayFor(attempt),
+    final server = store.byId(session.server.id) ?? session.server;
+    // 计划先摘下来再交给新会话：_respawn 会在 start 之前把它挂回去，
+    // 新会话若同步进入终态，阶段回调能接着这个计数走，不会漏掉尝试号。
+    _reconnects.remove(session);
+    _respawn(
+      session,
+      server,
+      session.credentials,
+      session.jumps,
+      reconnect: _PendingReconnect(
+        attempt: attempt,
+        delay: backoff.delayFor(attempt),
+      ),
     );
-    _spawn(server, session.credentials, session.jumps);
   }
 
-  void _syncStore(TerminalSession session) {
-    switch (session.phase) {
-      case TerminalPhase.connecting:
-        store.markConnecting(session.server.id);
-      case TerminalPhase.connected:
-        store.markConnected(session.server.id);
-      case TerminalPhase.failed:
-        store.markError(session.server.id);
-      case TerminalPhase.closed:
-        store.markIdle(session.server.id);
+  void _cancelReconnectOf(TerminalSession session) {
+    _reconnects.remove(session)?.cancel();
+  }
+
+  void _syncStore(String serverId) {
+    switch (_aggregateOf(serverId)) {
+      case ServerStatus.connecting:
+        store.markConnecting(serverId);
+      case ServerStatus.connected:
+        store.markConnected(serverId);
+      case ServerStatus.error:
+        store.markError(serverId);
+      case ServerStatus.idle:
+        store.markIdle(serverId);
     }
-    notifyListeners();
   }
 
   @override
@@ -315,12 +505,15 @@ final class SessionManager extends ChangeNotifier {
       pending.cancel();
     }
     _reconnects.clear();
-    for (final session in _sessions.values) {
-      session
-        ..terminate()
-        ..dispose();
+    for (final list in _byServer.values) {
+      for (final session in list) {
+        _discard(session);
+      }
     }
-    _sessions.clear();
+    _byServer.clear();
+    _active.clear();
+    _ordinals.clear();
+    _nextOrdinal.clear();
     super.dispose();
   }
 }

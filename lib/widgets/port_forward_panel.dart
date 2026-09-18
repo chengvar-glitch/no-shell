@@ -56,7 +56,7 @@ class PortForwardPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = sessions.byServerId(server.id);
+    final session = sessions.activeOf(server.id);
     final manager = session?.forwards;
     // 三方都要订阅：规则来自 store，会话有无来自 sessions，启停状态来自会话的
     // 转发管理器。合并成一个 Listenable 交给同一个 builder，避免嵌套重建。

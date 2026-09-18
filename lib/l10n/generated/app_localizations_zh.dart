@@ -31,7 +31,29 @@ class AppLocalizationsZh extends AppLocalizations {
   String get disconnect => '断开连接';
 
   @override
+  String get disconnectAll => '断开全部';
+
+  @override
   String get connectNow => '立即连接';
+
+  @override
+  String get newSession => '新建会话';
+
+  @override
+  String sessionN(int n) {
+    return '会话 $n';
+  }
+
+  @override
+  String get closeSession => '关闭会话';
+
+  @override
+  String get sessionMenu => '会话';
+
+  @override
+  String statusWithCount(String status, int count) {
+    return '$status · $count';
+  }
 
   @override
   String get newConnection => '新建连接';

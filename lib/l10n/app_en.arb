@@ -7,7 +7,30 @@
   "edit": "Edit",
   "connect": "Connect",
   "disconnect": "Disconnect",
+  "disconnectAll": "Disconnect all",
   "connectNow": "Connect now",
+  "newSession": "New session",
+  "sessionN": "Session {n}",
+  "@sessionN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "closeSession": "Close session",
+  "sessionMenu": "Sessions",
+  "statusWithCount": "{status} · {count}",
+  "@statusWithCount": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "newConnection": "New connection",
   "editConnection": "Edit connection",
   "defaultGroupName": "Default group",

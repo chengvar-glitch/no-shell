@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_locale.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
+import '../ssh/session_manager.dart';
 import '../store.dart';
 import '../theme.dart';
 import 'group_controls.dart';
@@ -17,6 +18,7 @@ class Sidebar extends StatefulWidget {
   const Sidebar({
     super.key,
     required this.store,
+    required this.sessions,
     required this.selectedId,
     required this.onSelect,
     required this.onCreate,
@@ -24,6 +26,7 @@ class Sidebar extends StatefulWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onToggleConnect,
+    required this.onCreateSession,
     required this.onToggleSidebar,
     required this.onOpenSettings,
     required this.onImportHosts,
@@ -31,6 +34,10 @@ class Sidebar extends StatefulWidget {
   });
 
   final ServerStore store;
+
+  /// 会话注册表：只用来判断某台主机还有没有会话（「新建会话」菜单项的
+  /// 显示条件）。主机行本身不展示会话数——那点像素留给详情面板的胶囊。
+  final SessionManager sessions;
   final String? selectedId;
   final ValueChanged<SshServer> onSelect;
   final VoidCallback onCreate;
@@ -38,6 +45,7 @@ class Sidebar extends StatefulWidget {
   final ValueChanged<SshServer> onEdit;
   final ValueChanged<SshServer> onDelete;
   final ValueChanged<SshServer> onToggleConnect;
+  final ValueChanged<SshServer> onCreateSession;
   final VoidCallback onToggleSidebar;
   final VoidCallback onOpenSettings;
   final VoidCallback onImportHosts;
@@ -73,6 +81,9 @@ class _SidebarState extends State<Sidebar> {
     final l10n = AppLocalizations.of(context);
     final overlay =
         Overlay.of(context).context.findRenderObject()! as RenderBox;
+    // 这台主机还挂着会话时，右键菜单里多一项「新建会话」（多开终端）：
+    // 右键菜单不占常驻像素，是详情面板那枚 ⊕ 之外的第二个入口。
+    final hasSession = widget.sessions.sessionCountOf(server.id) > 0;
     final action = await showMenu<String>(
       context: context,
       position: RelativeRect.fromRect(
@@ -101,6 +112,18 @@ class _SidebarState extends State<Sidebar> {
             ],
           ),
         ),
+        if (hasSession)
+          PopupMenuItem(
+            value: 'new-session',
+            height: 36,
+            child: Row(
+              children: [
+                const Icon(Icons.add_rounded, size: 16),
+                const SizedBox(width: 8),
+                Text(l10n.newSession, style: const TextStyle(fontSize: 13)),
+              ],
+            ),
+          ),
         PopupMenuItem(
           value: 'edit',
           height: 36,
@@ -148,6 +171,8 @@ class _SidebarState extends State<Sidebar> {
     switch (action) {
       case 'connect':
         widget.onToggleConnect(server);
+      case 'new-session':
+        widget.onCreateSession(server);
       case 'edit':
         widget.onEdit(server);
       case 'move':

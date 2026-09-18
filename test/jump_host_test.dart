@@ -220,7 +220,7 @@ void main() {
 
       expect(find.text('连接「target」'), findsNothing);
       expect(
-        harness.sessions.byServerId('target')?.phase,
+        harness.sessions.activeOf('target')?.phase,
         TerminalPhase.connected,
       );
       final jumps = harness.jumps.single;
@@ -279,7 +279,7 @@ void main() {
       expect(credentials['jump'], isNull);
       expect(harness.jumps.single.single.credentials.password, 'jump-pw');
       expect(
-        harness.sessions.byServerId('target')?.phase,
+        harness.sessions.activeOf('target')?.phase,
         TerminalPhase.connected,
       );
     });
@@ -351,7 +351,7 @@ void main() {
       expect(find.text('连接「jump-host」'), findsNothing);
       expect(harness.jumps.single.single.credentials.useAgent, isTrue);
       expect(
-        harness.sessions.byServerId('target')?.phase,
+        harness.sessions.activeOf('target')?.phase,
         TerminalPhase.connected,
       );
     });

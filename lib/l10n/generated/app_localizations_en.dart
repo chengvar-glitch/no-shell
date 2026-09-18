@@ -31,7 +31,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get disconnect => 'Disconnect';
 
   @override
+  String get disconnectAll => 'Disconnect all';
+
+  @override
   String get connectNow => 'Connect now';
+
+  @override
+  String get newSession => 'New session';
+
+  @override
+  String sessionN(int n) {
+    return 'Session $n';
+  }
+
+  @override
+  String get closeSession => 'Close session';
+
+  @override
+  String get sessionMenu => 'Sessions';
+
+  @override
+  String statusWithCount(String status, int count) {
+    return '$status · $count';
+  }
 
   @override
   String get newConnection => 'New connection';

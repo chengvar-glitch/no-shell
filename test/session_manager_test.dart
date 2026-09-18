@@ -111,7 +111,7 @@ void main() {
 
       await pumpEventQueue();
 
-      final session = sessions.byServerId('srv-01')!;
+      final session = sessions.activeOf('srv-01')!;
       expect(session.phase, TerminalPhase.connected);
       expect(session.isActive, isTrue);
       expect(store.byId('srv-01')?.status, ServerStatus.connected);
@@ -143,9 +143,9 @@ void main() {
       sessions.open(_server(), const SshCredentials(password: 'pw'));
       await pumpEventQueue();
 
-      sessions.close('srv-01');
+      sessions.closeAll('srv-01');
 
-      expect(sessions.byServerId('srv-01'), isNull);
+      expect(sessions.activeOf('srv-01'), isNull);
       expect(transport.disposed, isTrue);
       expect(store.byId('srv-01')?.status, ServerStatus.idle);
     });
@@ -163,7 +163,7 @@ void main() {
       expect(session.phase, TerminalPhase.connecting);
 
       // 用户在转圈时就断开 / 删掉主机。
-      sessions.close('srv-01');
+      sessions.closeAll('srv-01');
       expect(transport.disposed, isTrue);
       expect(store.byId('srv-01')?.status, ServerStatus.idle);
 
@@ -226,7 +226,7 @@ void main() {
       sessions.open(_server(), const SshCredentials(password: 'wrong'));
       await pumpEventQueue();
 
-      final session = sessions.byServerId('srv-01')!;
+      final session = sessions.activeOf('srv-01')!;
       expect(session.phase, TerminalPhase.failed);
       expect(session.errorKind, TerminalErrorKind.auth);
       expect(session.isActive, isFalse);
@@ -242,7 +242,7 @@ void main() {
       sessions.open(_server(), const SshCredentials(password: 'pw'));
       await pumpEventQueue();
 
-      final session = sessions.byServerId('srv-01')!;
+      final session = sessions.activeOf('srv-01')!;
       expect(session.phase, TerminalPhase.closed);
       expect(store.byId('srv-01')?.status, ServerStatus.idle);
     });
@@ -255,12 +255,12 @@ void main() {
       ]);
       sessions.open(_server(), const SshCredentials(password: 'pw'));
       await pumpEventQueue();
-      expect(sessions.byServerId('srv-01')!.phase, TerminalPhase.failed);
+      expect(sessions.activeOf('srv-01')!.phase, TerminalPhase.failed);
 
-      sessions.retry('srv-01');
+      sessions.retry(sessions.activeOf('srv-01')!);
       await pumpEventQueue();
 
-      final session = sessions.byServerId('srv-01')!;
+      final session = sessions.activeOf('srv-01')!;
       expect(session.phase, TerminalPhase.connected);
       expect(session.credentials.password, 'pw');
       expect(store.byId('srv-01')?.status, ServerStatus.connected);
@@ -276,9 +276,173 @@ void main() {
       await pumpEventQueue();
 
       expect(
-        sessions.byServerId('srv-01')!.errorKind,
+        sessions.activeOf('srv-01')!.errorKind,
         TerminalErrorKind.unsupported,
       );
+    });
+  });
+
+  group('同一主机多开会话', () {
+    test('openNew 每次都新建：编号按序、新会话成为当前、状态是聚合的', () async {
+      final store = ServerStore(seed: [_server()]);
+      final sessions = _manager(store, [_FakeTransport(), _FakeTransport()]);
+
+      final first = sessions.open(
+        _server(),
+        const SshCredentials(password: 'a'),
+      );
+      await pumpEventQueue();
+      final second = sessions.openNew(
+        _server(),
+        const SshCredentials(password: 'b'),
+      );
+
+      expect(identical(first, second), isFalse);
+      expect(sessions.sessionCount, 2);
+      expect(sessions.sessionCountOf('srv-01'), 2);
+      expect(sessions.ordinalOf(first), 1);
+      expect(sessions.ordinalOf(second), 2);
+      // 当前会话 = 最新建的那条；byOrdinal 是稳定地址。
+      expect(identical(sessions.activeOf('srv-01'), second), isTrue);
+      expect(identical(sessions.byOrdinal('srv-01', 1), first), isTrue);
+      expect(store.byId('srv-01')?.status, ServerStatus.connecting);
+
+      await pumpEventQueue();
+      expect(first.phase, TerminalPhase.connected);
+      expect(second.phase, TerminalPhase.connected);
+      expect(store.byId('srv-01')?.status, ServerStatus.connected);
+    });
+
+    test('open 仍复用活跃会话，不会因为多开而变成每次都新建', () async {
+      final store = ServerStore(seed: [_server()]);
+      final sessions = _manager(store, [_FakeTransport(), _FakeTransport()]);
+      final first = sessions.open(
+        _server(),
+        const SshCredentials(password: 'a'),
+      );
+      await pumpEventQueue();
+
+      final again = sessions.open(
+        _server(),
+        const SshCredentials(password: 'b'),
+      );
+
+      expect(identical(again, first), isTrue);
+      expect(sessions.sessionCount, 1);
+    });
+
+    test('closeSession 只关一条，当前身份交给相邻的一条', () async {
+      final store = ServerStore(seed: [_server()]);
+      final firstTransport = _FakeTransport();
+      final secondTransport = _FakeTransport();
+      final sessions = _manager(store, [firstTransport, secondTransport]);
+      final first = sessions.open(
+        _server(),
+        const SshCredentials(password: 'a'),
+      );
+      await pumpEventQueue();
+      final second = sessions.openNew(
+        _server(),
+        const SshCredentials(password: 'b'),
+      );
+      await pumpEventQueue();
+
+      // 关掉当前（第二条）：当前落回第一条，第一条的连接不动。
+      sessions.closeSession(second);
+
+      expect(sessions.sessionCountOf('srv-01'), 1);
+      expect(identical(sessions.activeOf('srv-01'), first), isTrue);
+      expect(secondTransport.disposed, isTrue);
+      expect(firstTransport.disposed, isFalse);
+      expect(store.byId('srv-01')?.status, ServerStatus.connected);
+
+      // 再关掉最后一条：主机回到未连接，簿记清干净。
+      sessions.closeSession(first);
+      expect(sessions.sessionCount, 0);
+      expect(sessions.activeOf('srv-01'), isNull);
+      expect(sessions.sessionsOf('srv-01'), isEmpty);
+      expect(store.byId('srv-01')?.status, ServerStatus.idle);
+    });
+
+    test('closeAll 关掉该主机的全部会话并把主机置回未连接', () async {
+      final store = ServerStore(seed: [_server()]);
+      final firstTransport = _FakeTransport();
+      final secondTransport = _FakeTransport();
+      final sessions = _manager(store, [firstTransport, secondTransport]);
+      sessions.open(_server(), const SshCredentials(password: 'a'));
+      sessions.openNew(_server(), const SshCredentials(password: 'b'));
+      await pumpEventQueue();
+
+      sessions.closeAll('srv-01');
+
+      expect(sessions.sessionCount, 0);
+      expect(firstTransport.disposed, isTrue);
+      expect(secondTransport.disposed, isTrue);
+      expect(store.byId('srv-01')?.status, ServerStatus.idle);
+    });
+
+    test('聚合状态：一条连上就算连上，全失败才算错误', () async {
+      final store = ServerStore(seed: [_server()]);
+      final sessions = _manager(store, [
+        _FakeTransport(),
+        _FakeTransport(error: SSHAuthFailError('Permission denied')),
+      ]);
+      // 第一条连上、第二条认证失败。
+      sessions.open(_server(), const SshCredentials(password: 'a'));
+      await pumpEventQueue();
+      sessions.openNew(_server(), const SshCredentials(password: 'bad'));
+      await pumpEventQueue();
+
+      expect(sessions.hasAuthFailure('srv-01'), isTrue);
+      expect(store.byId('srv-01')?.status, ServerStatus.connected);
+
+      // 把连上的那条关掉：只剩失败的那条，状态变 error。
+      sessions.closeSession(sessions.byOrdinal('srv-01', 1)!);
+      expect(store.byId('srv-01')?.status, ServerStatus.error);
+    });
+
+    test('activate 切当前会话；编号永不复用', () async {
+      final store = ServerStore(seed: [_server()]);
+      final sessions = _manager(store, [
+        _FakeTransport(),
+        _FakeTransport(),
+        _FakeTransport(),
+      ]);
+      sessions.open(_server(), const SshCredentials(password: 'a'));
+      await pumpEventQueue();
+      final first = sessions.activeOf('srv-01')!;
+      final second = sessions.openNew(
+        _server(),
+        const SshCredentials(password: 'b'),
+      );
+      await pumpEventQueue();
+
+      sessions.activate(first);
+      expect(identical(sessions.activeOf('srv-01'), first), isTrue);
+
+      // 关掉第二条再开一条：新会话拿 3，不回收 2。
+      sessions.closeSession(second);
+      final third = sessions.openNew(
+        _server(),
+        const SshCredentials(password: 'c'),
+      );
+      expect(sessions.ordinalOf(third), 3);
+      expect(identical(sessions.activeOf('srv-01'), third), isTrue);
+    });
+
+    test('会话标题跟着远端 OSC 走，供界面区分同主机的多条会话', () async {
+      final store = ServerStore(seed: [_server()]);
+      final transport = _FakeTransport();
+      final sessions = _manager(store, [transport]);
+      final session = sessions.open(
+        _server(),
+        const SshCredentials(password: 'pw'),
+      );
+      await pumpEventQueue();
+
+      expect(session.title.value, isEmpty);
+      transport.attachedTerminal!.setTitle('root@web1: /var/log');
+      expect(session.title.value, 'root@web1: /var/log');
     });
   });
 }

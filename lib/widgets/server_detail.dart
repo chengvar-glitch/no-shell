@@ -6,6 +6,8 @@ import '../app_locale.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../settings.dart';
+import '../ssh/connect_flow.dart';
+import '../ssh/credential_store.dart';
 import '../ssh/session_manager.dart';
 import '../ssh/terminal_session.dart';
 import '../ssh/terminal_view.dart';
@@ -13,6 +15,7 @@ import '../store.dart';
 import '../theme.dart';
 import 'port_forward_panel.dart';
 import 'session_log_dialog.dart';
+import 'session_menu.dart';
 import 'sftp_browser.dart';
 import 'status_badges.dart';
 import 'window_caption.dart';
@@ -24,6 +27,7 @@ class ServerDetailPanel extends StatelessWidget {
     required this.server,
     required this.store,
     required this.sessions,
+    required this.credentials,
     required this.onConnect,
     required this.onCreate,
     this.sidebarCollapsed = false,
@@ -33,6 +37,9 @@ class ServerDetailPanel extends StatelessWidget {
   final SshServer? server;
   final ServerStore store;
   final SessionManager sessions;
+
+  /// 凭据存储：「新建会话」要按存档凭据 / 现有会话手头的凭据决定弹不弹框。
+  final CredentialStore credentials;
   final ValueChanged<SshServer> onConnect;
   final VoidCallback onCreate;
   final bool sidebarCollapsed;
@@ -52,6 +59,7 @@ class ServerDetailPanel extends StatelessWidget {
       server: selected,
       store: store,
       sessions: sessions,
+      credentials: credentials,
       onConnect: () => onConnect(selected),
       sidebarCollapsed: sidebarCollapsed,
       onToggleSidebar: onToggleSidebar,
@@ -205,6 +213,7 @@ class _ServerDetail extends StatefulWidget {
     required this.server,
     required this.store,
     required this.sessions,
+    required this.credentials,
     required this.onConnect,
     required this.sidebarCollapsed,
     required this.onToggleSidebar,
@@ -213,6 +222,7 @@ class _ServerDetail extends StatefulWidget {
   final SshServer server;
   final ServerStore store;
   final SessionManager sessions;
+  final CredentialStore credentials;
   final VoidCallback onConnect;
   final bool sidebarCollapsed;
   final VoidCallback? onToggleSidebar;
@@ -222,18 +232,83 @@ class _ServerDetail extends StatefulWidget {
 }
 
 class _ServerDetailState extends State<_ServerDetail> {
+  /// 状态胶囊的 key：多会话时会话菜单要锚在它下方弹出。
+  final GlobalKey _sessionPillKey = GlobalKey();
+
+  /// 上一次看到的「当前会话 + 会话条数」。
+  ///
+  /// 详情面板必须跟着会话注册表重建——切会话（[SessionManager.activate]）
+  /// 只发会话层的通知，store 的状态没变，光靠 store 那一路重建不起来，
+  /// 终端 / SFTP 就会停在旧会话上。这里按这两个值做无变化守卫：
+  /// 会话阶段的高频通知（输出、重连倒计时）不会白白把整页重建一遍。
+  int _syncedCount = 0;
+  TerminalSession? _syncedActive;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncSessionSelection();
+    widget.sessions.addListener(_onSessionsChanged);
+  }
+
+  @override
+  void didUpdateWidget(_ServerDetail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sessions != widget.sessions) {
+      oldWidget.sessions.removeListener(_onSessionsChanged);
+      widget.sessions.addListener(_onSessionsChanged);
+      _syncSessionSelection();
+    }
+    // 换了一台主机：守卫的基准跟着换，否则会拿上一台的会话数做比较。
+    if (oldWidget.server.id != widget.server.id) _syncSessionSelection();
+  }
+
+  @override
+  void dispose() {
+    widget.sessions.removeListener(_onSessionsChanged);
+    super.dispose();
+  }
+
+  void _syncSessionSelection() {
+    _syncedCount = widget.sessions.sessionCountOf(widget.server.id);
+    _syncedActive = widget.sessions.activeOf(widget.server.id);
+  }
+
+  void _onSessionsChanged() {
+    final count = widget.sessions.sessionCountOf(widget.server.id);
+    final active = widget.sessions.activeOf(widget.server.id);
+    if (count == _syncedCount && identical(active, _syncedActive)) return;
+    _syncedCount = count;
+    _syncedActive = active;
+    setState(() {});
+  }
+
+  /// 在同一台主机上再开一条会话。凭据优先级与失败回退见 [newSessionFlow]。
+  Future<void> _createSession() => newSessionFlow(
+    context,
+    sessions: widget.sessions,
+    server: widget.server,
+    credentials: widget.credentials,
+    store: widget.store,
+  );
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final server = widget.server;
-    final session = widget.sessions.byServerId(server.id);
+    final session = widget.sessions.activeOf(server.id);
+    final sessionCount = widget.sessions.sessionCountOf(server.id);
     final header = _DetailHeader(
       server: server,
       session: session,
+      sessionCount: sessionCount,
+      pillKey: _sessionPillKey,
       connected: session?.isActive ?? false,
+      sessions: widget.sessions,
       sidebarCollapsed: widget.sidebarCollapsed,
       onToggleSidebar: widget.onToggleSidebar,
       onConnect: widget.onConnect,
+      onCreateSession: _createSession,
     );
     final tabs = _DetailTabs(
       labels: [l10n.overview, l10n.terminal, l10n.sftp, l10n.portForwarding],
@@ -251,14 +326,14 @@ class _ServerDetailState extends State<_ServerDetail> {
           idleHint: l10n.sessionDesktopHint,
           onRetry: session == null
               ? null
-              : () => widget.sessions.retry(server.id),
+              : () => widget.sessions.retry(session),
         ),
         SftpTab(
           session: session,
           idleHint: l10n.sftpSessionHint,
           onRetry: session == null
               ? null
-              : () => widget.sessions.retry(server.id),
+              : () => widget.sessions.retry(session),
         ),
         PortForwardPanel(
           server: server,
@@ -334,10 +409,14 @@ class _DetailHeader extends StatelessWidget {
   const _DetailHeader({
     required this.server,
     required this.session,
+    required this.sessionCount,
+    required this.pillKey,
     required this.connected,
+    required this.sessions,
     required this.sidebarCollapsed,
     required this.onToggleSidebar,
     required this.onConnect,
+    required this.onCreateSession,
   });
 
   final SshServer server;
@@ -346,10 +425,38 @@ class _DetailHeader extends StatelessWidget {
   /// 断开但未关闭的会话仍算有——日志要能事后查看。
   final TerminalSession? session;
 
+  /// 该主机的会话条数：大于 1 时胶囊带计数、点开是会话菜单。
+  final int sessionCount;
+
+  /// 状态胶囊的 key：会话菜单锚在它下方。
+  final GlobalKey pillKey;
+
   final bool connected;
+  final SessionManager sessions;
   final bool sidebarCollapsed;
   final VoidCallback? onToggleSidebar;
   final VoidCallback onConnect;
+
+  /// 在同一台主机上再开一条会话。
+  final VoidCallback onCreateSession;
+
+  /// 点状态胶囊：一条会话时进日志（与多会话功能之前完全一样），
+  /// 多开了才换成会话菜单——菜单里照样有「会话日志」。
+  void _openSessions(BuildContext context) {
+    final session = this.session;
+    if (session == null) return;
+    if (sessionCount <= 1) {
+      showSessionLogDialog(context, session: session);
+      return;
+    }
+    showSessionMenu(
+      context,
+      sessions: sessions,
+      server: server,
+      anchor: pillKey,
+      onNewSession: onCreateSession,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -357,6 +464,7 @@ class _DetailHeader extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     // 局部变量让空检查提升进闭包：可空的字段本身不行。
     final session = this.session;
+    final multi = sessionCount > 1;
     // macOS 收起态同样排进行内：头部已平移到红绿灯右侧（96pt），
     // 按钮不会与灯重叠，用户不必靠 ⌘B 也能找回侧边栏。
     final showExpand = sidebarCollapsed && onToggleSidebar != null;
@@ -382,17 +490,31 @@ class _DetailHeader extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         StatusPill(
+          key: pillKey,
           status: server.status,
-          onTap: session == null
-              ? null
-              : () => showSessionLogDialog(context, session: session),
+          sessionCount: sessionCount,
+          tooltip: multi ? l10n.sessionMenu : null,
+          onTap: session == null ? null : () => _openSessions(context),
         ),
+        // 「新建会话」只在有会话时出现：没连上时该做的是连接（右边那颗）。
+        // 一枚图标，不新增一行、不新增分区。
+        if (sessionCount > 0) ...[
+          const SizedBox(width: 4),
+          IconButton(
+            tooltip: l10n.newSession,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            onPressed: onCreateSession,
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+          ),
+        ],
         const SizedBox(width: 4),
         connected
             ? OutlinedButton.icon(
                 onPressed: onConnect,
                 icon: const Icon(Icons.link_off_rounded, size: 15),
-                label: Text(l10n.disconnect),
+                label: Text(multi ? l10n.disconnectAll : l10n.disconnect),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(0, 32),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -805,12 +927,17 @@ final class TerminalTab extends StatelessWidget {
   /// 会话层的其它通知不经过这里。
   Widget _terminalWithReconnect(BuildContext context, TerminalSession session) {
     Widget view(BuildContext context) => SshTerminalView(
+      // 按会话换 key：xterm 的 TerminalView 不处理 `terminal` 被换掉
+      // （didUpdateWidget 里没有这一条），复用同一个 State 切会话会继续画
+      // 旧缓冲区。换 key 让它整棵重建，切过去的才是当前会话的画面。
+      // 代价是每次切换重测一次字符宽度——比画错缓冲区划算得多。
+      key: ObjectKey(session),
       session: session,
       onRetry: onRetry,
-      reconnectPlan: sessions?.reconnectPlanOf(server.id),
+      reconnectPlan: sessions?.reconnectPlanOf(session),
       onStopAutoReconnect: sessions == null
           ? null
-          : () => sessions!.cancelAutoReconnect(server.id),
+          : () => sessions!.cancelAutoReconnect(session),
     );
     final manager = sessions;
     return manager == null
