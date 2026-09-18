@@ -111,7 +111,28 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void _onStoreChanged() => setState(() {});
+  /// 上一次整页重建时选中的那台（含它跳板机的名字）。
+  ///
+  /// 详情面板渲染的 store 数据只有这两样：选中的主机本身，以及概览卡片上
+  /// 「经哪台跳板机」的名字。其余变更（别的主机增删改、状态翻转、分组折叠）
+  /// 由侧边栏自己订阅 store 处理，不该把整页连同终端 / SFTP 保活子树重画——
+  /// 那些子树的重建代价远大于侧边栏的一行。
+  ///
+  /// 主机对象是不可变的，任何编辑或状态变更都会换一个新实例，因此身份比较
+  /// 就足以判断「这台主机的内容变了」。
+  Object? _renderedSelection;
+
+  Object? _selectionSignature() {
+    final selected = _selected;
+    if (selected == null) return null;
+    return (selected, widget.store.byId(selected.jumpServerId)?.name);
+  }
+
+  void _onStoreChanged() {
+    final signature = _selectionSignature();
+    if (signature == _renderedSelection) return;
+    setState(() => _renderedSelection = signature);
+  }
 
   void _toggleSidebar() =>
       setState(() => _layout.sidebarCollapsed = !_layout.sidebarCollapsed);

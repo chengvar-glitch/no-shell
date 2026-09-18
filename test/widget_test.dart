@@ -8,6 +8,7 @@ import 'package:no_shell/models.dart';
 import 'package:no_shell/store.dart';
 import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/sidebar.dart';
+import 'package:no_shell/widgets/status_badges.dart';
 import 'package:no_shell/widgets/window_caption.dart';
 
 import 'support/credential_store_fake.dart';
@@ -101,6 +102,53 @@ void main() {
 
     expect(find.text('web-prod-01'), findsNothing);
     expect(find.text('已删除 web-prod-01'), findsOneWidget);
+  });
+
+  testWidgets('别的主机变了侧边栏照样更新；选中那台的状态变化详情面板也跟得上', (tester) async {
+    // HomePage 现在只为「选中那台（及其跳板机）」整页重建，其余变更交给
+    // 侧边栏自己的 store 订阅——这条守住那个分工：两边都不能漏更新。
+    // store 由 NoShellApp 接管生命周期，这里不自行 dispose。
+    final store = ServerStore(seed: demoServers);
+    tester.platformDispatcher.localesTestValue = const [Locale('zh')];
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    await tester.pumpWidget(
+      NoShellApp(
+        store: store,
+        credentials: FakeCredentialStore(),
+        agentKeysProbe: () async => false,
+      ),
+    );
+    await tester.pump();
+
+    // 选中第一台，另一台随后「连上」。
+    await tester.tap(find.text('web-prod-01'));
+    await tester.pump();
+    final other = store.byId('srv-02')!;
+    store.upsert(other.copyWith(status: ServerStatus.connected));
+    await tester.pump();
+
+    List<ServerStatus> dotStatuses() => [
+      for (final dot in tester.widgetList<StatusDot>(
+        find.descendant(
+          of: find.byType(Sidebar),
+          matching: find.byType(StatusDot),
+        ),
+      ))
+        dot.status,
+    ];
+    expect(
+      dotStatuses(),
+      contains(ServerStatus.connected),
+      reason: '别的主机的状态变化必须体现在侧边栏上',
+    );
+
+    // 选中那台自己的状态变了：详情面板头部的胶囊要跟着翻。
+    expect(find.text('已连接'), findsNothing);
+    store.upsert(
+      store.byId('srv-01')!.copyWith(status: ServerStatus.connected),
+    );
+    await tester.pump();
+    expect(find.text('已连接'), findsWidgets, reason: '选中那台的状态变化必须让详情面板重建');
   });
 
   testWidgets('编辑主机：跳板机与端口转发规则都不会被顺手抹掉', (tester) async {
