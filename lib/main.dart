@@ -8,6 +8,7 @@ import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_locale.dart';
+import 'fps_hud.dart';
 import 'home_page.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'mobile/mobile_shell.dart';
@@ -231,6 +232,18 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   void initState() {
     super.initState();
     _terminalStyle.addListener(_scheduleSave);
+    if (kFpsHudEnabled) {
+      // 无头取证探针：宿主拿不到屏幕录制权限时，靠 stdout 判断点击是否
+      // 命中（选中了哪台主机、会话建没建、走到哪个阶段）。release 无此代码。
+      Timer.periodic(const Duration(seconds: 2), (_) {
+        final phases = [for (final s in _sessions.sessions) s.phase.name];
+        debugPrint(
+          'STATE ts=${DateTime.now().millisecondsSinceEpoch} '
+          'sel=${_layout.selectedId ?? '-'} '
+          'sessions=${_sessions.sessionCount} phases=$phases',
+        );
+      });
+    }
     // 关窗时先把排队中的落盘写完再真的退出：主机的增删改是异步链式写盘，
     // 直接退出会把最后一次改动丢掉（刚改完分组就关窗正是这种节奏）。
     // 注册失败（平台通道不可用，如组件测试环境）就算了，不影响界面。
@@ -339,42 +352,50 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
           child: child ?? const SizedBox.shrink(),
         ),
       ),
-      home: LayoutBuilder(
-        builder: (context, constraints) {
-          // 窄屏走移动端底部导航骨架，宽屏保持桌面左右分栏。
-          // 两个骨架共用一份 _layout：跨断点时整棵树会被换掉，选中项 /
-          // 侧边栏折叠 / 当前 Tab 只有放在骨架外面才留得住。
-          final isMobile = constraints.maxWidth < 640;
-          return isMobile
-              ? MobileShell(
-                  store: _store,
-                  sessions: _sessions,
-                  credentials: _credentials,
-                  hostKeys: _hostKeys,
-                  themeMode: _themeMode,
-                  onThemeModeChanged: _setThemeMode,
-                  language: _language,
-                  onLanguageChanged: _setLanguage,
-                  allowLegacyHostKeys: _allowLegacyHostKeys,
-                  onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
-                  layout: _layout,
-                )
-              : HomePage(
-                  store: _store,
-                  sessions: _sessions,
-                  credentials: _credentials,
-                  hostKeys: _hostKeys,
-                  themeMode: _themeMode,
-                  onThemeModeChanged: _setThemeMode,
-                  language: _language,
-                  onLanguageChanged: _setLanguage,
-                  onSettingsClosed: _saveNow,
-                  allowLegacyHostKeys: _allowLegacyHostKeys,
-                  onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
-                  layout: _layout,
-                );
-        },
-      ),
+      // 开发自测的 FPS 悬浮表：kFpsHudEnabled 在 release 里是编译期 false，
+      // 整个 Stack 分支连同 FpsHud 一起被 tree-shake，用户包零残留。
+      home: kFpsHudEnabled
+          ? Stack(children: [_buildShell(), const FpsHud()])
+          : _buildShell(),
+    );
+  }
+
+  Widget _buildShell() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 窄屏走移动端底部导航骨架，宽屏保持桌面左右分栏。
+        // 两个骨架共用一份 _layout：跨断点时整棵树会被换掉，选中项 /
+        // 侧边栏折叠 / 当前 Tab 只有放在骨架外面才留得住。
+        final isMobile = constraints.maxWidth < 640;
+        return isMobile
+            ? MobileShell(
+                store: _store,
+                sessions: _sessions,
+                credentials: _credentials,
+                hostKeys: _hostKeys,
+                themeMode: _themeMode,
+                onThemeModeChanged: _setThemeMode,
+                language: _language,
+                onLanguageChanged: _setLanguage,
+                allowLegacyHostKeys: _allowLegacyHostKeys,
+                onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
+                layout: _layout,
+              )
+            : HomePage(
+                store: _store,
+                sessions: _sessions,
+                credentials: _credentials,
+                hostKeys: _hostKeys,
+                themeMode: _themeMode,
+                onThemeModeChanged: _setThemeMode,
+                language: _language,
+                onLanguageChanged: _setLanguage,
+                onSettingsClosed: _saveNow,
+                allowLegacyHostKeys: _allowLegacyHostKeys,
+                onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
+                layout: _layout,
+              );
+      },
     );
   }
 }
