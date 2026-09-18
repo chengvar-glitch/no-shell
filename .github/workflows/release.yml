@@ -1,5 +1,6 @@
 # Release：推送 tag（如 0.1.0 / v0.1.0）时自动多平台构建并创建 GitHub Release。
-# 产物矩阵：web zip / android apk / linux deb+rpm / macos arm64 zip（仅 Apple Silicon）/
+# 产物矩阵：web zip / android apk / linux deb+rpm（GPG 签名，公钥随包发布）/
+# macos arm64 zip（仅 Apple Silicon）/
 # windows 免安装 zip + MSIX（附一次性自签证书 .cer，安装前需导入信任）。
 # iOS 需要开发者证书签名，暂不纳入自动构建。
 name: Release
@@ -165,6 +166,40 @@ jobs:
             .rpm-build/SPECS/noshell.spec
           cp .rpm-build/RPMS/x86_64/noshell-*.rpm \
             "NoShell-${GITHUB_REF_NAME}-linux-x86_64.rpm"
+
+      # 与 Windows 的一次性自签证书同一思路：每次发布在 CI 现生成一次性 GPG 密钥，
+      # 私钥不导出、随 runner 销毁，公钥（linux-signing.asc）随包发布供用户导入。
+      # rpm 走内嵌签名（rpmsign，rpm -K 即验）；deb 没有 apt 仓库元数据可签，
+      # 且 dpkg-sig 已从 Ubuntu 23.10 移除，故用分离签名 .asc（gpg --verify 即验）。
+      - name: 签名（linux deb + rpm）
+        if: matrix.target == 'linux'
+        run: |
+          DEB="NoShell-${GITHUB_REF_NAME}-linux-amd64.deb"
+          RPM="NoShell-${GITHUB_REF_NAME}-linux-x86_64.rpm"
+          PUB="NoShell-${GITHUB_REF_NAME}-linux-signing.asc"
+
+          cat > .gpg-keygen <<KEYGEN
+          %no-protection
+          Key-Type: RSA
+          Key-Length: 3072
+          Key-Usage: sign
+          Name-Real: NoShell release
+          Name-Email: noshell@signing.invalid
+          Expire-Date: 0
+          %commit
+          KEYGEN
+          gpg --batch --gen-key .gpg-keygen && rm .gpg-keygen
+          KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')
+          gpg --armor --export "$KEYID" > "$PUB"
+
+          rpmsign --addsign --define "_gpg_name $KEYID" "$RPM"
+          gpg --batch --detach-sign --armor --local-user "$KEYID" \
+            --output "$DEB.asc" "$DEB"
+
+          # 自检：公钥导入后两条链路都必须验得过，签名坏的包不许上 Release。
+          rpmkeys --import "$PUB"
+          rpm --checksig -v "$RPM"
+          gpg --verify "$DEB.asc" "$DEB"
 
       # macOS 构建产物已在 Release.xcconfig 限定 arm64（仅 Apple Silicon）。
       - name: 打包（macos arm64）

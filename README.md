@@ -68,9 +68,21 @@ Grab the artifact for your platform from [Releases](https://github.com/chengvar-
 | --- | --- |
 | Windows | Portable zip + MSIX installer (with a one-off self-signed `.cer` — import it into "Trusted Root Certification Authorities" before installing the MSIX) |
 | macOS | arm64 zip (Apple Silicon) |
-| Linux | deb + rpm (installs to `/opt/noshell`, includes a desktop entry) |
+| Linux | deb + rpm (installs to `/opt/noshell`, includes a desktop entry; GPG-signed, see below) |
 | Android | APK |
 | Web | Static site zip |
+
+The Linux deb and rpm are GPG-signed. Same idea as the Windows certificate: CI generates a one-off key per release — the private key is destroyed with the build runner, and the public key is published as `NoShell-<tag>-linux-signing.asc` alongside that release. To verify (replace `<tag>` with the actual version, and use the public key attached to the same release):
+
+```bash
+# deb: detached signature
+gpg --import NoShell-<tag>-linux-signing.asc
+gpg --verify NoShell-<tag>-linux-amd64.deb.asc NoShell-<tag>-linux-amd64.deb
+
+# rpm: embedded signature
+rpmkeys --import NoShell-<tag>-linux-signing.asc
+rpm -K NoShell-<tag>-linux-x86_64.rpm
+```
 
 ## Building from source
 

@@ -68,9 +68,21 @@
 | --- | --- |
 | Windows | 免安装 zip + MSIX 安装包（附一次性自签证书 `.cer`，安装 MSIX 前需先导入「受信任的根证书颁发机构」） |
 | macOS | arm64 zip（Apple Silicon） |
-| Linux | deb + rpm（安装到 `/opt/noshell`，含桌面入口） |
+| Linux | deb + rpm（安装到 `/opt/noshell`，含桌面入口；带 GPG 签名，验证方式见下） |
 | Android | APK |
 | Web | 静态站点 zip |
+
+Linux 的 deb / rpm 均带 GPG 签名。与 Windows 证书同一思路，CI 在每次发布时现生成一次性密钥：私钥随构建环境销毁，公钥即该次 Release 附带的 `NoShell-<tag>-linux-signing.asc`。验证（把 `<tag>` 换成实际版本，公钥用同一 Release 附带的那份）：
+
+```bash
+# deb：分离签名
+gpg --import NoShell-<tag>-linux-signing.asc
+gpg --verify NoShell-<tag>-linux-amd64.deb.asc NoShell-<tag>-linux-amd64.deb
+
+# rpm：内嵌签名
+rpmkeys --import NoShell-<tag>-linux-signing.asc
+rpm -K NoShell-<tag>-linux-x86_64.rpm
+```
 
 ## 从源码构建
 
