@@ -493,6 +493,8 @@ void main() {
         controller.transfers.transfers.single.state,
         SftpTransferState.done,
       );
+      // 下载落点收到 0600：远端内容里可能是私钥这类只该自己读的东西。
+      expect(gateway.ownerOnlyWrites, [gateway.temporaryPath('/tmp/app.log')]);
     });
 
     test('多个条目走目录选择，取消则不产生传输', () async {

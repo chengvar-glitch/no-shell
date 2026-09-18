@@ -27,15 +27,17 @@ bool get _supported =>
     Platform.isIOS ||
     Platform.isFuchsia;
 
-/// 为新建文件设置权限位（默认 0600）。
+/// 为文件设置权限位（默认 0600），文件不存在时先建出来。
 ///
-/// 已存在的文件直接返回：那是用户自己建的文件，改它的权限属于越界；
-/// 导出场景要么是新建，要么由用户明确选择了覆盖。
+/// 已存在的文件也照样收紧：调用方只在写入机密内容时传 ownerOnly
+/// （导出含密码的备份、保存会话日志），此时「目标文件恰好已存在」多半是
+/// 上一次的导出，沿用它的权限位（例如 0644）等于让同机器上任何本地账号
+/// 都能读到这次刚写进去的密码。用户在选择器里点了覆盖，就是同意按本应用
+/// 的规则重写这个文件，权限一并归位。
 void restrictFileToOwner(File file, {int mode = _ownerReadWrite}) {
   if (!_supported) return;
   try {
-    if (file.existsSync()) return;
-    file.createSync();
+    if (!file.existsSync()) file.createSync();
   } on Object {
     return;
   }

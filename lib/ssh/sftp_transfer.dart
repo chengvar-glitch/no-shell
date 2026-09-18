@@ -245,7 +245,9 @@ final class SftpTransferQueue extends ChangeNotifier {
       // 同理：先写临时文件，成功了再改名到落点。桌面的「另存为」可以
       // 选中一个已存在的文件，直接覆写再失败会把那份旧文件毁掉。
       final temporaryPath = localFiles.temporaryPath(target.path);
-      final sink = localFiles.openWrite(temporaryPath);
+      // ownerOnly：临时文件与改名后的目标权限一致，而远端内容里可能是私钥
+      // 这类只该自己读的东西——下载落点不该是世界可读的。
+      final sink = localFiles.openWrite(temporaryPath, ownerOnly: true);
       var written = 0;
       var unflushed = 0;
       try {

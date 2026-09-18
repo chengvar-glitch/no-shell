@@ -37,22 +37,40 @@ void main() {
       }
     });
 
-    test('默认不收紧权限，普通下载不受影响', () async {
+    test('默认不收紧权限，普通下载落点不受影响', () async {
       final path = '${dir.path}/plain.bin';
       final handle = openLocalWrite(path);
       handle.add([9]);
       await handle.close();
       expect(File(path).readAsBytesSync(), [9]);
+      if (!Platform.isWindows) {
+        // 走进程 umask，不主动改权限位（默认 022 下是 0644）。
+        expect(_modeOf(path), isNot(0x180), reason: '没要求 ownerOnly 就不该动权限');
+      }
     });
 
-    test('ownerOnly 覆盖已存在的文件时沿用原文件权限', () async {
+    test('ownerOnly 覆盖已存在的文件时把权限收回 0600', () async {
       final path = '${dir.path}/exists.nsbak';
       File(path).writeAsStringSync('old');
+      if (!Platform.isWindows) {
+        // 上一次导出留下的文件（或用户自己建的），先给它一个宽松权限位。
+        Process.runSync('chmod', ['0644', path]);
+        expect(_modeOf(path), 0x1A4);
+      }
+
       final handle = openLocalWrite(path, ownerOnly: true);
       handle.add([7]);
       await handle.close();
 
       expect(File(path).readAsBytesSync(), [7]);
+      if (!Platform.isWindows) {
+        // 沿用原权限位等于让同机器上任何本地账号都能读到这里刚写进去的密码。
+        expect(
+          _modeOf(path),
+          0x180, // 0600
+          reason: '覆盖导出时也要把权限收回来',
+        );
+      }
     });
   });
 

@@ -151,8 +151,10 @@ Future<String> _encodeScrypt(
   final salt = _randomBytes(_saltLength);
   final nonce = _randomBytes(_nonceLength);
   final key = await _deriveInIsolate(password, salt, params);
+  // 明文里是各主机的密码：用完即抹（_seal 内部还会再拷一份，那份也在那里抹掉）。
+  final plain = utf8.encode('$_formatMarker\n$hostsText');
   try {
-    final sealed = _seal(key, nonce, utf8.encode('$_formatMarker\n$hostsText'));
+    final sealed = _seal(key, nonce, plain);
     return jsonEncode({
       'scheme': _scheme,
       'kdf': _kdfScrypt,
@@ -166,6 +168,7 @@ Future<String> _encodeScrypt(
     });
   } finally {
     key.fillRange(0, key.length, 0);
+    plain.fillRange(0, plain.length, 0);
   }
 }
 
@@ -190,7 +193,13 @@ Future<String> _decode(
   }
 
   // 明文带格式标记：即使密文来自别的用途，也要能识别出「这不是主机清单」。
-  final text = utf8.decode(plain, allowMalformed: true);
+  final String text;
+  try {
+    text = utf8.decode(plain, allowMalformed: true);
+  } finally {
+    // 解出来的明文里是各主机的密码，取出文本后立刻抹掉这份字节。
+    plain.fillRange(0, plain.length, 0);
+  }
   final breakAt = text.indexOf('\n');
   if (breakAt < 0 || text.substring(0, breakAt).trim() != _formatMarker) {
     throw const BackupFormatException(BackupProblem.notHostList);
@@ -331,7 +340,14 @@ Uint8List deriveScryptSync(
 ) {
   final derivator = Scrypt()
     ..init(ScryptParameters(params.n, params.r, params.p, _keyLength, salt));
-  return derivator.process(Uint8List.fromList(utf8.encode(password)));
+  // 口令的字节副本用完即抹掉：String 本身无法清零（Dart 的不可变字符串），
+  // 但这份副本可以，没必要让明文口令一直躺在堆上。
+  final bytes = Uint8List.fromList(utf8.encode(password));
+  try {
+    return derivator.process(bytes);
+  } finally {
+    bytes.fillRange(0, bytes.length, 0);
+  }
 }
 
 /// AES-256-GCM 加密，返回「密文 + 认证标签」。
@@ -339,10 +355,15 @@ Uint8List _seal(Uint8List key, Uint8List nonce, List<int> plain) {
   final cipher = GCMBlockCipher(AESEngine())
     ..init(true, AEADParameters(KeyParameter(key), _macBits, nonce, _empty));
   final input = Uint8List.fromList(plain);
-  final out = Uint8List(cipher.getOutputSize(input.length));
-  var written = cipher.processBytes(input, 0, input.length, out, 0);
-  written += cipher.doFinal(out, written);
-  return Uint8List.sublistView(out, 0, written);
+  try {
+    final out = Uint8List(cipher.getOutputSize(input.length));
+    var written = cipher.processBytes(input, 0, input.length, out, 0);
+    written += cipher.doFinal(out, written);
+    return Uint8List.sublistView(out, 0, written);
+  } finally {
+    // 这份明文副本里是各主机的密码，加密完就抹掉。
+    input.fillRange(0, input.length, 0);
+  }
 }
 
 /// AES-256-GCM 解密；标签校验失败抛 [InvalidCipherTextException]。
