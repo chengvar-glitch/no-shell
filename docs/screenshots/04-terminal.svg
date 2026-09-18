@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="820" viewBox="0 0 1280 820" font-family="-apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <rect x="0" y="0" width="264" height="820" fill="#ECEEF2"/>
+  <rect x="264" y="0" width="1016" height="820" fill="#F6F7F9"/>
+  <line x1="264" y1="0" x2="264" y2="820" stroke="#E0E2E7" stroke-width="1"/>
+  <!-- 侧边栏：8 hosts，demo-server 已连接 -->
+  <rect x="12" y="12" width="30" height="30" rx="8" fill="#101725"/>
+  <g transform="translate(12 12) scale(0.0293)">
+    <path d="M208 730 V294 L628 730 V294" fill="none" stroke="#EAF0FB" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="732" y="650" width="144" height="140" rx="34" fill="#4C8DFF"/>
+  </g>
+  <text x="52" y="25" font-size="13.5" font-weight="600" fill="#1D2430">NoShell</text>
+  <text x="52" y="41" font-size="11" fill="#6E7683">8 hosts</text>
+  <text x="33" y="131" font-size="11.5" font-weight="600" fill="#6E7683">Production</text>
+  <text x="250" y="131" font-size="11" fill="#8A909C" text-anchor="end">4</text>
+  <circle cx="21" cy="161" r="4.5" fill="#8B949E"/>
+  <text x="36" y="158.5" font-size="13" font-weight="600" fill="#1D2430">web-prod-01</text>
+  <text x="36" y="176" font-size="11.5" fill="#6E7683">deploy@10.0.1.11</text>
+  <circle cx="21" cy="217" r="4.5" fill="#8B949E"/>
+  <text x="36" y="214.5" font-size="13" font-weight="600" fill="#1D2430">web-prod-02</text>
+  <text x="36" y="232" font-size="11.5" fill="#6E7683">deploy@10.0.1.12</text>
+  <circle cx="21" cy="273" r="4.5" fill="#8B949E"/>
+  <text x="36" y="270.5" font-size="13" font-weight="600" fill="#1D2430">api-gateway</text>
+  <text x="36" y="288" font-size="11.5" fill="#6E7683">ops@10.0.1.20:2222</text>
+  <rect x="8" y="296" width="248" height="54" rx="8" fill="#D9E0F2"/>
+  <circle cx="21" cy="317" r="4.5" fill="#3FB950"/>
+  <text x="36" y="314.5" font-size="13" font-weight="600" fill="#1D2430">demo-server</text>
+  <text x="36" y="332" font-size="11.5" fill="#6E7683">smoke@127.0.0.1:2222</text>
+  <g stroke="#565D68" stroke-width="1.5" fill="none" stroke-linecap="round">
+    <path d="M243 311 c4 -4 10 -4 14 0 M243 323 c4 4 10 4 14 0"/>
+    <path d="M246 317 h9 M249 313 l-4 4 M253 321 l-4 4" stroke-linejoin="round"/>
+  </g>
+  <text x="33" y="375" font-size="11.5" font-weight="600" fill="#6E7683">Development</text>
+  <text x="250" y="375" font-size="11" fill="#8A909C" text-anchor="end">3</text>
+  <circle cx="21" cy="417" r="4.5" fill="#8B949E"/>
+  <text x="36" y="414.5" font-size="13" font-weight="600" fill="#1D2430">db-primary</text>
+  <text x="36" y="432" font-size="11.5" fill="#6E7683">root@10.0.2.31</text>
+  <circle cx="21" cy="473" r="4.5" fill="#8B949E"/>
+  <text x="36" y="470.5" font-size="13" font-weight="600" fill="#1D2430">redis-cache</text>
+  <text x="36" y="488" font-size="11.5" fill="#6E7683">root@10.0.2.32</text>
+  <circle cx="21" cy="529" r="4.5" fill="#8B949E"/>
+  <text x="36" y="526.5" font-size="13" font-weight="600" fill="#1D2430">ci-runner</text>
+  <text x="36" y="544" font-size="11.5" fill="#6E7683">ci@10.0.2.40</text>
+  <text x="33" y="581" font-size="11.5" font-weight="600" fill="#6E7683">Personal</text>
+  <text x="250" y="581" font-size="11" fill="#8A909C" text-anchor="end">1</text>
+  <circle cx="21" cy="623" r="4.5" fill="#8B949E"/>
+  <text x="36" y="620.5" font-size="13" font-weight="600" fill="#1D2430">nas-home</text>
+  <text x="36" y="638" font-size="11.5" fill="#6E7683">admin@192.168.1.10</text>
+  <line x1="0" y1="772" x2="264" y2="772" stroke="#E0E2E7" stroke-width="1"/>
+  <g stroke="#565D68" stroke-width="1.5" fill="none">
+    <circle cx="25" cy="794" r="3.2"/>
+    <path d="M25 788.5 v2 M25 797.5 v2 M19.5 794 h2 M28.5 794 h2 M21.2 790.2 l1.4 1.4 M27.4 796.4 l1.4 1.4 M28.8 790.2 l-1.4 1.4 M22.6 796.4 l-1.4 1.4"/>
+  </g>
+  <text x="48" y="798.5" font-size="13" font-weight="500" fill="#3C434E">Settings</text>
+
+  <!-- 详情头部：已连接 -->
+  <text x="280" y="69" font-size="16" font-weight="700" fill="#1D2430">demo-server</text>
+  <rect x="402" y="50" width="118" height="28" rx="14" fill="#DFF5E5"/>
+  <circle cx="416" cy="64" r="4" fill="#3FB950"/>
+  <text x="426" y="68.5" font-size="12.5" font-weight="600" fill="#1F7A3A">Connected</text>
+  <text x="542" y="69" font-size="16" font-weight="700" fill="#6E7683">⋯</text>
+  <rect x="576" y="46" width="126" height="32" rx="16" fill="#FFFFFF" stroke="#C9CFD8"/>
+  <g stroke="#4C6FBF" stroke-width="1.5" fill="none" stroke-linecap="round">
+    <path d="M594 57 c4 -5 10 -5 14 0 M594 67 c4 5 10 5 14 0"/>
+    <path d="M598 62 h10 M604 58 l-4 4 M608 66 l-4 4"/>
+  </g>
+  <text x="614" y="67" font-size="12.5" font-weight="600" fill="#4C6FBF">Disconnect</text>
+
+  <!-- Tabs：Terminal 激活 -->
+  <text x="470" y="163" font-size="13" fill="#6E7683" text-anchor="middle">Overview</text>
+  <text x="744" y="163" font-size="13" font-weight="600" fill="#1D2430" text-anchor="middle">Terminal</text>
+  <rect x="708" y="171" width="72" height="3" rx="1.5" fill="#3D5AA9"/>
+  <text x="1116" y="163" font-size="13" fill="#6E7683" text-anchor="middle">SFTP</text>
+  <line x1="264" y1="178" x2="1280" y2="178" stroke="#E4E6EA" stroke-width="1"/>
+
+  <!-- 终端 -->
+  <rect x="289" y="192" width="975" height="616" rx="12" fill="#0A0C0F"/>
+  <g font-family="'SF Mono', Menlo, Consolas, 'Courier New', monospace" font-size="13.5">
+    <text x="306" y="226" fill="#8FBCA6">demo@localhost:~$</text>
+    <text x="462" y="226" fill="#C9D1D9"> ls -la</text>
+    <text x="306" y="290" fill="#C9D1D9">total 16</text>
+    <text x="306" y="318" fill="#C9D1D9">drwxr-xr-x 5 demo demo 4096 Sep 16 10:00 .</text>
+    <text x="306" y="346" fill="#C9D1D9">drwxr-xr-x 3 demo demo 4096 Sep 16 10:00 ..</text>
+    <text x="306" y="374" fill="#C9D1D9">-rw-r--r-- 1 demo demo  27 Sep 16 10:00 hello.txt</text>
+    <text x="306" y="402" fill="#C9D1D9">drwxr-xr-x 2 demo demo 4096 Sep 16 10:00 logs</text>
+    <text x="306" y="430" fill="#C9D1D9">drwxr-xr-x 2 demo demo 4096 Sep 16 10:00 projects</text>
+    <text x="306" y="458" fill="#8FBCA6">demo@localhost:~$</text>
+    <rect x="452" y="446" width="9" height="17" fill="none" stroke="#3FB950" stroke-width="1.5"/>
+  </g>
+</svg>

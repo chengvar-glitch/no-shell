@@ -1,0 +1,105 @@
+name: no_shell
+description: "NoShell — cross-platform SSH connection manager with terminal, SFTP and secure credential storage."
+publish_to: 'none'
+version: 4.0.0+1
+
+environment:
+  sdk: ^3.13.3
+
+dependencies:
+  dartssh2: ^4.1.0
+  # 只用来绑定 libc 的 chmod：导出备份要把文件收到 0600，而 dart:io
+  # 没有设置权限位的 API（建文件一律走 umask）。
+  ffi: ^2.1.0
+  file_selector: ^1.1.0
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_secure_storage: ^11.1.1
+  intl: any
+  path_provider: ^2.1.6
+  pointycastle: ^4.0.0
+  screen_retriever: ^0.2.2
+  share_plus: ^13.3.0
+  shared_preferences: ^2.5.5
+  url_launcher: ^6.3.2
+  window_manager: ^0.5.2
+  xterm: ^4.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  # 断线重连的退避计时器用假时钟驱动，测试不再等真实的秒数。
+  fake_async: ^1.3.3
+  # 凭据存储的失败契约测试要替换平台实现（钥匙串不可用时是返回 false 还是
+  # 抛异常），插件本身只把它当传递依赖，这里显式声明。
+  flutter_secure_storage_platform_interface: ^2.1.0
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# 图标源在 icon/：art.svg 是唯一样式来源，render.py 生成 icon/png/ 全套 PNG。
+# 改图标：编辑 icon/art.svg，重跑 render.py，再执行 `dart run flutter_launcher_icons`。
+# Linux 不在本工具覆盖范围，hicolor 主题图标由 release.yml 安装 icon/png/linux/*.png。
+flutter_launcher_icons:
+  # Android 传统图标（8.0 以下）与通用兜底
+  image_path: icon/png/icon-1024.png
+
+  android: true
+  adaptive_icon_background: "#101725"
+  adaptive_icon_foreground: icon/png/android-foreground-1024.png
+  adaptive_icon_monochrome: icon/png/android-monochrome-1024.png
+  # 前景已按 66dp 安全区缩放，不要再内缩一次
+  adaptive_icon_foreground_inset: 0
+
+  ios: true
+  # 不含 alpha 的实心底板：App Store Connect 拒收带 alpha 的图
+  image_path_ios: icon/png/ios-1024.png
+  remove_alpha_ios: true
+
+  macos:
+    generate: true
+    # macOS 不做图标遮罩，圆角方板直接画在图上（Apple 824/185.4 网格）
+    image_path: icon/png/macos-1024.png
+
+  windows:
+    generate: true
+    image_path: icon/png/icon-1024.png
+    icon_size: 256
+
+  web:
+    generate: true
+    image_path: icon/png/icon-1024.png
+    background_color: "#101725"
+    theme_color: "#101725"
+
+flutter:
+  uses-material-design: true
+  generate: true
+  # 应用内品牌标（侧边栏头部 / 设置 / 关于）直接用启动图标那份 PNG，
+  # 不再单独维护一份应用内图标源。
+  # 字体的 OFL 许可文本必须随包分发（SIL OFL 1.1 要求），启动时经
+  # LicenseRegistry 注册，「关于 → 查看许可」里可见。
+  assets:
+    - icon/png/icon-128.png
+    - assets/fonts/jetbrains_mono/OFL.txt
+    - assets/fonts/fira_code/OFL.txt
+  # 终端字体随包内置：用户不必安装任何字体，六端渲染一致，也不存在
+  # 「请求的族名在系统里不存在」时被 fontconfig 顶替成比例字体的风险。
+  # 族名带 NoShell 前缀是刻意的——与系统字体彻底解耦，引擎必定命中这里。
+  # 升级字体：替换 ttf 并同步 OFL.txt，族名保持不变（族名是落盘偏好的取值）。
+  fonts:
+    - family: NoShell JetBrains Mono
+      fonts:
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Bold.ttf
+          weight: 700
+    - family: NoShell Fira Code
+      fonts:
+        - asset: assets/fonts/fira_code/FiraCode-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/fira_code/FiraCode-Bold.ttf
+          weight: 700

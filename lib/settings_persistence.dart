@@ -1,0 +1,172 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'app_locale.dart';
+import 'settings.dart';
+
+/// 落盘的偏好快照：主题 / 语言 + 终端样式（配色、字体、字号）+ 连接兼容性。
+///
+/// 只存枚举名而不是索引：以后往枚举中间插值也不会把存档读串。
+/// 单个字段读不出来只退回该字段的默认值，不让一条脏数据带走整份偏好。
+///
+/// 不认得的字段读时忽略、下次保存即被抹掉——存档格式处于开发阶段，
+/// 不做版本号也不做旧字段迁移。
+@immutable
+class AppSettings {
+  const AppSettings({
+    this.themeMode = ThemeMode.system,
+    this.language = AppLanguage.system,
+    this.terminalStyle = const TerminalStylePrefs(),
+    this.allowLegacyHostKeys = false,
+  });
+
+  final ThemeMode themeMode;
+  final AppLanguage language;
+  final TerminalStylePrefs terminalStyle;
+
+  /// 是否允许连接只提供 `ssh-rsa`（SHA-1）主机密钥的老设备。
+  ///
+  /// 默认关闭：SHA-1 签名早已不该被信任，现代 sshd 也默认不再提供它。
+  /// 但交换机 / 嵌入式设备这类只在旧固件上跑的机器确实还会用到，
+  /// 因此给一个显式开关，而不是把算法放宽成默认行为。
+  final bool allowLegacyHostKeys;
+
+  AppSettings copyWith({
+    ThemeMode? themeMode,
+    AppLanguage? language,
+    TerminalStylePrefs? terminalStyle,
+    bool? allowLegacyHostKeys,
+  }) => AppSettings(
+    themeMode: themeMode ?? this.themeMode,
+    language: language ?? this.language,
+    terminalStyle: terminalStyle ?? this.terminalStyle,
+    allowLegacyHostKeys: allowLegacyHostKeys ?? this.allowLegacyHostKeys,
+  );
+
+  Map<String, Object?> toJson() => {
+    'themeMode': themeMode.name,
+    'language': language.name,
+    'terminalPreset': terminalStyle.preset.name,
+    'terminalFont': terminalStyle.font.name,
+    'terminalFontSize': terminalStyle.fontSize,
+    'terminalCopyOnSelect': terminalStyle.copyOnSelect,
+    'allowLegacyHostKeys': allowLegacyHostKeys,
+  };
+
+  factory AppSettings.fromJson(Map<String, Object?> json) => AppSettings(
+    themeMode: _enumByName(
+      ThemeMode.values,
+      json['themeMode'],
+      ThemeMode.system,
+    ),
+    language: _enumByName(
+      AppLanguage.values,
+      json['language'],
+      AppLanguage.system,
+    ),
+    terminalStyle: TerminalStylePrefs(
+      preset: _enumByName(
+        TerminalPreset.values,
+        json['terminalPreset'],
+        TerminalPreset.githubDark,
+      ),
+      font: _enumByName(
+        TerminalFont.values,
+        json['terminalFont'],
+        TerminalFont.jetBrainsMono,
+      ),
+      fontSize: TerminalStylePrefs.clampFontSize(json['terminalFontSize']),
+      // 缺字段（旧存档）即默认关闭。
+      copyOnSelect: json['terminalCopyOnSelect'] == true,
+    ),
+    // 缺字段（旧存档）即默认关闭。
+    allowLegacyHostKeys: json['allowLegacyHostKeys'] == true,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is AppSettings &&
+      other.themeMode == themeMode &&
+      other.language == language &&
+      other.terminalStyle.preset == terminalStyle.preset &&
+      other.terminalStyle.font == terminalStyle.font &&
+      other.terminalStyle.fontSize == terminalStyle.fontSize &&
+      other.terminalStyle.copyOnSelect == terminalStyle.copyOnSelect &&
+      other.allowLegacyHostKeys == allowLegacyHostKeys;
+
+  @override
+  int get hashCode => Object.hash(
+    themeMode,
+    language,
+    terminalStyle.preset,
+    terminalStyle.font,
+    terminalStyle.fontSize,
+    terminalStyle.copyOnSelect,
+    allowLegacyHostKeys,
+  );
+}
+
+/// 按名字取枚举值；读不到（旧存档 / 脏数据）就退回默认值。
+///
+/// 不做旧取值迁移：本应用还在开发阶段，存档格式不背历史包袱
+/// （见 AGENTS.md「导入 / 导出」一节对格式的态度）。
+T _enumByName<T extends Enum>(List<T> values, Object? name, T fallback) {
+  if (name is! String) return fallback;
+  return values.asNameMap()[name] ?? fallback;
+}
+
+/// 偏好落盘通道；内存中的唯一状态源仍是 [NoShellApp] 持有的那几个字段与
+/// `TerminalStyleScope` 的 notifier。测试可注入内存假实现。
+abstract interface class SettingsPersistence {
+  /// 读取已保存的偏好；从未保存过返回 null，由调用方按默认值启动。
+  /// 存档损坏同样返回 null，让下次保存覆盖为干净数据。
+  Future<AppSettings?> load();
+
+  Future<void> save(AppSettings settings);
+}
+
+/// 基于 shared_preferences 的 JSON 实现，六个平台均可用（web 为 localStorage）。
+/// 只存偏好本身，不含任何凭据。
+final class SharedPreferencesSettingsPersistence
+    implements SettingsPersistence {
+  static const _key = 'app_settings_v1';
+
+  @override
+  Future<AppSettings?> load() async {
+    final String raw;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final value = prefs.getString(_key);
+      if (value == null) return null;
+      raw = value;
+    } catch (_) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      return AppSettings.fromJson(decoded.cast<String, Object?>());
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> save(AppSettings settings) async {
+    // 与 load 同样的兜底：落盘失败只降级为「改动未存档」，不上抛成未处理异常。
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_key, jsonEncode(settings.toJson()));
+    } on FormatException {
+      return;
+    } on TypeError {
+      return;
+    } catch (_) {
+      return;
+    }
+  }
+}

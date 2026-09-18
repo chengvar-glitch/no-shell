@@ -1,0 +1,20 @@
+NoShell
+Copyright 2026 chengvar
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Bundled third-party components
+------------------------------
+
+Terminal fonts bundled with the app (assets/fonts/):
+
+  * JetBrains Mono — Copyright 2020 The JetBrains Mono Project Authors
+    (https://github.com/JetBrains/JetBrainsMono), licensed under the SIL Open
+    Font License 1.1 (assets/fonts/jetbrains_mono/OFL.txt)
+  * Fira Code — Copyright (c) 2014, The Fira Code Project Authors
+    (https://github.com/tonsky/FiraCode), licensed under the SIL Open Font
+    License 1.1 (assets/fonts/fira_code/OFL.txt)
+
+Dart and Flutter package dependencies are licensed under their respective
+licenses (MIT / BSD-3-Clause). Their full license texts ship with the app and
+are listed in the app under About → View licenses.

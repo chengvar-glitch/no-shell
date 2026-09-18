@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- artwork only. background plates live in render.py, which wraps this into
+       the app icon, the maskable icon and the Android adaptive layers.
+
+       NShell mark: the N is what you typed; the block after it is the live
+       shell — the solid cursor cell a terminal shows while it waits. The block
+       is also the mark's I, so the pair reads "NI" as a word and as a prompt
+       and its cursor.
+
+       The N is three strokes that do not touch. The legs stay slender and keep
+       the outer corners; the diagonal is the heavier stroke and its ends are
+       cut back — vertical faces, parallel to the legs — leaving a 16-unit slot
+       at each junction. Read straight this is an N; read as a terminal it is a
+       prompt whose middle stroke is the thickest thing on the line. Cut
+       corners are filleted so the slot reads as a deliberate notch rather than
+       a break. -->
+  <!-- artwork -->
+  <path d="M196 292 V732" fill="none" stroke="#EAF0FB" stroke-width="118" stroke-linecap="round"/>
+  <path d="M586 292 V732" fill="none" stroke="#EAF0FB" stroke-width="118" stroke-linecap="round"/>
+  <path d="M271 479.7 L271 273.5 Q271 257.5 281.6 269.5 L500.4 516.3 Q511 528.3 511 544.3 L511 750.5 Q511 766.5 500.4 754.5 L281.6 507.7 Q271 495.7 271 479.7 Z" fill="#EAF0FB"/>
+  <rect x="692" y="234" width="195" height="556" rx="26" fill="#4C8DFF"/>
+</svg>

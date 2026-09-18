@@ -1,0 +1,531 @@
+{
+  "@@locale": "zh",
+  "appName": "NoShell",
+  "cancel": "取消",
+  "save": "保存",
+  "delete": "删除",
+  "edit": "编辑",
+  "connect": "连接",
+  "disconnect": "断开连接",
+  "disconnectAll": "断开全部",
+  "connectNow": "立即连接",
+  "newSession": "新建会话",
+  "sessionN": "会话 {n}",
+  "closeSession": "关闭会话",
+  "sessionMenu": "切换会话",
+  "statusWithCount": "{status} · {count}",
+  "newConnection": "新建连接",
+  "editConnection": "编辑连接",
+  "defaultGroupName": "默认分组",
+  "undo": "撤销",
+  "deletedSnackbar": "已删除 {name}",
+  "deleteConfirmTitle": "删除「{name}」？",
+  "deleteConfirmBody": "该主机将被移除，且无法恢复。",
+  "hostNotFound": "主机不存在",
+  "language": "语言",
+  "followSystem": "跟随系统",
+  "statusConnected": "已连接",
+  "statusConnecting": "连接中",
+  "statusError": "连接失败",
+  "statusIdle": "未连接",
+  "hostCount": "{count, plural, other{{count} 台主机}}",
+  "collapseSidebar": "收起侧边栏 ({shortcut})",
+  "expandSidebar": "展开侧边栏 ({shortcut})",
+  "windowMinimize": "最小化",
+  "windowMaximize": "最大化",
+  "windowRestore": "还原",
+  "windowClose": "关闭",
+  "searchHint": "搜索名称、主机或标签…",
+  "noMatchingHosts": "没有匹配的主机",
+  "about": "关于",
+  "selectHostToStart": "选择左侧主机开始",
+  "emptyDetailHint": "从侧边栏选择一个主机查看详情，或新建一个连接",
+  "overview": "概览",
+  "terminal": "终端",
+  "sftp": "SFTP",
+  "moreActions": "更多操作",
+  "hostAddress": "主机地址",
+  "copyAddress": "复制地址",
+  "copy": "复制",
+  "copied": "已复制 {value}",
+  "port": "端口",
+  "username": "用户名",
+  "authMethod": "认证方式",
+  "authPassword": "密码",
+  "authKey": "SSH 密钥",
+  "authAgent": "Agent",
+  "agentAuthHint": "使用本机 SSH agent 里的密钥认证（macOS / Linux）。请先 ssh-add 装入密钥，agent 未运行或没有密钥时会连接失败。",
+  "lastConnected": "最近连接",
+  "group": "分组",
+  "notes": "备注",
+  "notesOptional": "备注（可选）",
+  "pasteMetadata": "粘贴元数据（可选）",
+  "pasteMetadataHint": "名称: serverName\n地址: 127.0.0.1\n端口: 22\n用户: root\n密码: password",
+  "sessionDesktopHint": "会话未建立 —— 点击右上角「连接」建立 SSH 会话后即可使用终端。\n",
+  "sessionMobileHint": "会话未建立 —— 点击底部「立即连接」建立 SSH 会话后即可使用终端。\n",
+  "connectAuthTitle": "连接「{name}」",
+  "@connectAuthTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "authMemoryHint": "凭据用于本次连接；勾选「记住凭据」后加密保存，下次免输。",
+  "rememberCredentials": "记住凭据",
+  "fieldPrivateKey": "私钥内容（PEM）",
+  "privateKeyHint": "-----BEGIN OPENSSH PRIVATE KEY-----",
+  "fieldPassphrase": "私钥口令（可选）",
+  "credentialsRequired": "请输入密码或粘贴私钥",
+  "connectingTo": "正在连接 {account} …",
+  "@connectingTo": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionClosedMsg": "连接已断开",
+  "authFailedMsg": "认证失败，请检查密码或密钥",
+  "credentialsSaveFailedMsg": "凭据保存失败：本次连接不受影响，但下次连接需要重新输入。请检查系统钥匙串权限。",
+  "agentErrorMsg": "无法使用本机 SSH agent：请确认 agent 正在运行且已装入密钥（ssh-add），必要时重新加载后重试。",
+  "networkErrorMsg": "无法连接主机，请检查地址、端口与网络",
+  "webUnsupportedMsg": "Web 端暂不支持 SSH 直连",
+  "hostKeyChangedMsg": "主机密钥校验失败：服务器指纹与首次连接记录不一致，已拒绝连接。若确认服务器确实更换（如重装系统），可清除记录的指纹后重连；否则请警惕中间人攻击。",
+  "hostKeyForgetAndRetry": "清除记录的指纹并重连",
+  "hostKeyForgetConfirmTitle": "清除这台主机的指纹？",
+  "hostKeyForgetConfirmBody": "清除后，下次连接会直接信任 {host} 出示的密钥。只有在你已经从别的途径核对过新指纹时才该这么做——指纹不一致也可能意味着有人正在中间截获这条连接。",
+  "@hostKeyForgetConfirmBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostKeyForgetConfirmAction": "清除并重连",
+  "reconnect": "重连",
+  "fieldName": "名称",
+  "nameHint": "例：web-prod-01",
+  "nameRequired": "请输入名称",
+  "fieldHost": "主机",
+  "hostHint": "IP 或域名",
+  "hostRequired": "请输入主机",
+  "portInvalid": "1-65535",
+  "usernameHint": "例：root",
+  "usernameRequired": "请输入用户名",
+  "groupHint": "例：生产环境",
+  "groupNew": "新建分组",
+  "groupRename": "重命名分组",
+  "groupDelete": "删除分组",
+  "groupDeleteConfirm": "删除分组「{name}」？",
+  "groupDeleteEmptyBody": "该分组下还没有主机。",
+  "groupDeleteBody": "{count, plural, other{其中 {count} 台主机将移到「{target}」。}}",
+  "groupMoveUp": "上移分组",
+  "groupMoveDown": "下移分组",
+  "groupNewConnection": "在此分组新建连接",
+  "groupMoveTo": "移动到分组…",
+  "groupMoveTitle": "移动「{name}」到",
+  "groupCreateFirst": "还没有其它分组，先新建一个",
+  "groupKeepOne": "至少保留一个分组",
+  "groupNameRequired": "请填写分组名",
+  "groupNameExists": "同名分组已存在",
+  "navServers": "服务器",
+  "navSettings": "设置",
+  "search": "搜索",
+  "cancelSearch": "取消搜索",
+  "noHostsYet": "还没有主机",
+  "createFirstConnection": "点击右下角按钮新建一个连接",
+  "noHostsHint": "点击上方的 + 新建一个连接",
+  "tryAnotherKeyword": "换个关键词试试",
+  "noActiveSessions": "暂无活跃会话",
+  "sessionsEmptyHint": "在「服务器」页连接主机后，会话将在这里统一管理",
+  "appearance": "外观",
+  "theme": "主题",
+  "light": "浅色",
+  "dark": "深色",
+  "fontSystemMonospace": "系统等宽",
+  "terminalPreset": "终端主题",
+  "terminalFont": "终端字体",
+  "terminalFontSize": "终端字号",
+  "fontSizeDecrease": "减小字号",
+  "fontSizeIncrease": "增大字号",
+  "presetDefaultDark": "默认深色",
+  "terminalPreview": "预览",
+  "terminalPreviewCommand": "ssh deploy@10.0.0.1",
+  "done": "完成",
+  "sftpSessionHint": "会话未建立 —— 点击右上角「连接」建立 SSH 会话后即可浏览服务器文件。\n",
+  "sftpSessionMobileHint": "会话未建立 —— 点击底部「立即连接」建立 SSH 会话后即可浏览服务器文件。\n",
+  "sftpRetry": "重试",
+  "sftpUp": "上级目录",
+  "sftpRefresh": "刷新",
+  "sftpUpload": "上传",
+  "sftpDownload": "下载",
+  "sftpNewFolder": "新建文件夹",
+  "sftpEditPath": "编辑路径",
+  "sftpPathHint": "远端路径",
+  "sftpFilter": "筛选",
+  "sftpFilterHint": "在当前目录中筛选…",
+  "sftpShowHidden": "显示隐藏文件",
+  "sftpHideHidden": "隐藏隐藏文件",
+  "sftpSortBy": "排序方式",
+  "sftpSortName": "名称",
+  "sftpSortSize": "大小",
+  "sftpSortModified": "修改时间",
+  "sftpCopyPath": "复制路径",
+  "sftpRename": "重命名",
+  "sftpColumnName": "名称",
+  "sftpColumnSize": "大小",
+  "sftpColumnModified": "修改时间",
+  "sftpColumnPermissions": "权限",
+  "sftpItemCount": "{count, plural, other{{count} 项}}",
+  "@sftpItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sftpSelectedCount": "{count, plural, other{已选 {count} 项}}",
+  "@sftpSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sftpTotalSize": "共 {size}",
+  "@sftpTotalSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpFolderEmpty": "此目录为空",
+  "sftpFolderEmptyHint": "点击「上传」把本地文件传到这个目录",
+  "sftpNoMatches": "没有匹配的条目",
+  "sftpNewFolderTitle": "新建文件夹",
+  "sftpFolderNameField": "文件夹名称",
+  "sftpRenameTitle": "重命名「{name}」",
+  "@sftpRenameTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpNameInvalid": "名称不能包含「/」或「..」",
+  "sftpDeleteTitle": "删除「{name}」？",
+  "@sftpDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpDeleteMultiTitle": "{count, plural, other{删除这 {count} 个条目？}}",
+  "@sftpDeleteMultiTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sftpDeleteFileBody": "删除后无法恢复。",
+  "sftpDeleteFolderBody": "该目录及其中的全部内容都会被删除，且无法恢复。",
+  "sftpOverwriteTitle": "文件已存在",
+  "sftpOverwriteBody": "{count, plural, other{该目录中已有 {count} 个同名文件，是否覆盖？}}",
+  "@sftpOverwriteBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sftpOverwrite": "覆盖",
+  "sftpTransfersTitle": "传输",
+  "sftpClearFinished": "清除已完成",
+  "sftpCanceling": "正在取消…",
+  "sftpCanceled": "已取消",
+  "sftpDone": "已完成",
+  "sftpRemaining": "剩余 {time}",
+  "@sftpRemaining": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpUploaded": "已上传 {name}",
+  "@sftpUploaded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpDownloaded": "已保存 {name}",
+  "@sftpDownloaded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpUploadFailed": "上传失败：{name}",
+  "@sftpUploadFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpDownloadFailed": "下载失败：{name}",
+  "@sftpDownloadFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpTransferCanceledMsg": "已取消 {name}",
+  "@sftpTransferCanceledMsg": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpPickerFailed": "无法打开文件选择器",
+  "sftpTargetUnavailable": "无法确定本地保存位置",
+  "sftpErrorPermission": "没有权限访问该位置",
+  "sftpErrorNotFound": "路径不存在",
+  "sftpErrorUnsupported": "当前连接不支持 SFTP",
+  "sftpErrorNetwork": "连接已断开",
+  "sftpErrorBusy": "上一个文件操作还没结束",
+  "sftpErrorOther": "操作失败",
+  "neverConnected": "从未连接",
+  "justNow": "刚刚",
+  "minutesAgo": "{count, plural, other{{count} 分钟前}}",
+  "hoursAgo": "{count, plural, other{{count} 小时前}}",
+  "daysAgo": "{count, plural, other{{count} 天前}}",
+  "importHosts": "导入主机",
+  "exportHosts": "导出主机",
+  "importExportHosts": "导入 / 导出主机",
+  "importDone": "{count, plural, other{已导入 {count} 台主机}}",
+  "importSkipped": "{count, plural, other{已跳过 {count} 台重复主机}}",
+  "importEmpty": "未识别到有效主机条目，请检查文件格式",
+  "exportDone": "{count, plural, other{已导出 {count} 台主机}}",
+  "exportEmpty": "没有可导出的主机",
+  "exportFailed": "导出失败，请重试",
+  "backupCreateTitle": "设置备份口令",
+  "backupCreateHint": "整份清单都用这个口令加密，其中包含已记住的密码。恢复备份时需要输入该口令，且无法找回。",
+  "backupOpenTitle": "输入备份口令",
+  "backupOpenHint": "请输入创建这份备份时设置的口令。",
+  "backupPassword": "备份口令",
+  "backupPasswordConfirm": "再次输入口令",
+  "backupPasswordRequired": "请输入备份口令",
+  "backupPasswordMismatch": "两次输入的口令不一致",
+  "backupPasswordWarning": "没有这个口令就无法恢复备份，请妥善保管。",
+  "backupCreateConfirm": "导出",
+  "backupOpenConfirm": "导入",
+  "backupWrongPassword": "备份口令不正确，未导入任何主机",
+  "backupUnreadable": "无法读取该文件，请确认它是主机备份",
+  "connectionSection": "连接",
+  "allowLegacyHostKeys": "允许连接旧式 ssh-rsa 主机",
+  "allowLegacyHostKeysHint": "仅用于只提供 ssh-rsa（SHA-1）主机密钥的老设备，例如交换机与嵌入式设备。现代服务器不受影响。",
+  "archiveUnreadableTitle": "已保存的主机列表读不出来",
+  "archiveUnreadableHint": "磁盘上的存档解析失败，已原样保留、未被覆盖；本次会话的改动不会落盘。可导入一份 .nsbak 备份把主机找回来。",
+  "hostKeyChangedMsgWithFingerprint": "主机密钥校验失败：服务器出示的是 {keyType} {fingerprint}，与首次连接时记录的不一致。若服务器确实是重建过，可清除记录的指纹后重连；否则请警惕中间人攻击。",
+  "@hostKeyChangedMsgWithFingerprint": {
+    "placeholders": {
+      "keyType": {
+        "type": "String"
+      },
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
+  "hostKeyUnavailableMsg": "已记录的主机密钥指纹读不出来，连接被拒绝。这是本地存储故障、不是密钥变更，原有记录未被改动。",
+  "privateKeyUnsupportedMsg": "不支持这份私钥的格式。请粘贴 OpenSSH 或 PEM（RSA / EC）格式的私钥——以 \"BEGIN PRIVATE KEY\" 开头的 PKCS#8 密钥需要先转换。",
+  "portForwarding": "端口转发",
+  "portForwardEmpty": "还没有转发规则",
+  "portForwardEmptyHint": "新建一条规则，连接主机后即可启停。",
+  "portForwardAdd": "新建转发",
+  "portForwardEdit": "编辑转发",
+  "portForwardDeleteTitle": "删除这条转发？",
+  "portForwardDeleteBody": "只删除这条规则，其它已经在跑的转发不受影响。",
+  "portForwardStatusStarting": "启动中",
+  "portForwardStatusRunning": "运行中",
+  "portForwardStatusStopped": "未启动",
+  "portForwardStatusFailed": "启动失败",
+  "portForwardSessionHint": "会话未建立 —— 先连接主机，才能启停端口转发。",
+  "portForwardAutoTag": "自动",
+  "portForwardSummaryLocal": "{listen} → {target}（经服务器）",
+  "@portForwardSummaryLocal": {
+    "placeholders": {
+      "listen": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardSummaryRemote": "服务器 {listen} → 本机 {target}",
+  "@portForwardSummaryRemote": {
+    "placeholders": {
+      "listen": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardSummaryDynamic": "SOCKS5 代理 {listen}",
+  "@portForwardSummaryDynamic": {
+    "placeholders": {
+      "listen": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardBoundPort": "实际端口 {port}",
+  "@portForwardBoundPort": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "portForwardErrorNotConnected": "会话未建立，转发没有启动",
+  "portForwardErrorUnsupported": "当前平台不支持端口转发（浏览器没有原生 TCP）",
+  "portForwardErrorRefused": "服务端拒绝了这条转发（端口被占用或不允许监听）",
+  "portForwardErrorNetwork": "网络中断，转发没有启动",
+  "portForwardErrorOther": "转发没有启动",
+  "portForwardModeLocal": "本地转发 (-L)",
+  "portForwardModeRemote": "远程转发 (-R)",
+  "portForwardModeDynamic": "动态转发 (-D)",
+  "portForwardLocalDesc": "本机监听，连接经服务器转给目标地址",
+  "portForwardRemoteDesc": "让服务器监听，连接转回本机地址",
+  "portForwardDynamicDesc": "本机开一个 SOCKS5 代理，目标由客户端逐次指定",
+  "portForwardListenAddress": "监听地址",
+  "portForwardListenPort": "监听端口",
+  "portForwardTargetAddress": "目标地址",
+  "portForwardTargetPort": "目标端口",
+  "portForwardAutoStart": "连接后自动启动",
+  "portForwardAutoStartHint": "自动启动需要已记住凭据，否则连接时会先弹凭据框。",
+  "portForwardAddressRequired": "请填写地址",
+  "portForwardExposeWarning": "监听地址不是回环地址：同一网络里的任何人都能连上这条隧道（动态转发等于开了一个不需要认证的代理）。",
+  "portForwardExposeTitle": "这条转发会对整个网络开放",
+  "portForwardExposeBody": "监听地址 {host} 不是本机回环地址，同一网络里的任何人都能连上它。确定保存吗？",
+  "@portForwardExposeBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardExposeConfirm": "仍然保存",
+  "jumpHost": "跳板机",
+  "jumpHostNone": "不使用",
+  "jumpHostHint": "先登录它，再由它连到本机",
+  "jumpCredentialsHint": "这是跳板机「{name}」的凭据，用于先登录它。",
+  "@jumpCredentialsHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostMissing": "「{name}」的跳板机已被删除，请在主机设置里重新选择",
+  "@jumpHostMissing": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostCycle": "「{name}」的跳板机形成了环，请在主机设置里重新选择",
+  "@jumpHostCycle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostTooDeep": "跳板机层数超过上限（{count} 层）",
+  "@jumpHostTooDeep": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "jumpChainErrorMsg": "跳板机配置不成立，请在主机设置里检查",
+  "jumpHopFailure": "经跳板机「{hop}」时失败：{reason}",
+  "@jumpHopFailure": {
+    "placeholders": {
+      "hop": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "jumpHostUnavailable": "已失效（跳板机被删除，或会形成环）",
+  "sessionLog": "会话日志",
+  "sessionLogHint": "终端画面（含回滚）的纯文本快照，配色与控制序列不会出现。被 clear 或全屏程序覆盖掉的内容不在此列；输密码时服务器不回显，密码也不会进入日志。",
+  "sessionLogEmpty": "还没有内容——会话运行后输出会出现在这里。",
+  "sessionLogSave": "保存日志",
+  "sessionLogSaved": "日志已保存：{name}",
+  "@sessionLogSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionLogSaveFailed": "日志保存失败，请重试。",
+  "sessionLogCopied": "日志已复制到剪贴板",
+  "snippets": "命令片段",
+  "snippetsHint": "点按片段即可在当前会话中执行。",
+  "snippetNew": "新建片段",
+  "snippetEdit": "编辑片段",
+  "snippetName": "名称",
+  "snippetNameRequired": "请输入名称",
+  "snippetCommand": "命令",
+  "snippetCommandRequired": "请输入命令",
+  "snippetCommandHint": "按原样发送，末尾自动回车执行。",
+  "snippetEmpty": "还没有命令片段",
+  "snippetEmptyHint": "把常用的命令存起来，需要时一键发送。",
+  "snippetDeleteTitle": "删除「{name}」？",
+  "@snippetDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "snippetDeleteBody": "该片段将被移除。",
+  "autoReconnectCountdown": "将在 {seconds} 秒后自动重连（第 {attempt} 次）",
+  "@autoReconnectCountdown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      },
+      "attempt": {
+        "type": "int"
+      }
+    }
+  },
+  "autoReconnectStop": "停止自动重连",
+  "paste": "粘贴",
+  "selectAll": "全选",
+  "copyOnSelect": "选中即复制",
+  "copyOnSelectHint": "在终端中选中文字后自动复制到剪贴板。",
+  "linkOpenFailed": "无法打开链接"
+}

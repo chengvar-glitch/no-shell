@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Sandbox 已移除：沙盒要求 keychain-access-groups 能通过 application-identifier
+	     前缀校验，而本项目自始至终没有 Apple 团队签名（ad-hoc / TeamIdentifier=not set），
+	     $(AppIdentifierPrefix) 展开为空，钥匙串访问一律报 -34018（凭据静默存不进去）。
+	     去掉沙盒后钥匙串走常规访问，本地签名即可用；若将来接入团队签名需要恢复沙盒，
+	     必须同步配置 DEVELOPMENT_TEAM。 -->
+	<!-- SSH 出站连接需要沙盒网络客户端权限 -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+</dict>
+</plist>

@@ -1,0 +1,260 @@
+# Release：推送 tag（如 0.1.0 / v0.1.0）时自动多平台构建并创建 GitHub Release。
+# 产物矩阵：android apk（正式签名，keystore 经 Secrets 还原）/
+# linux deb+rpm（GPG 签名，公钥随包发布）/
+# macos arm64 zip（仅 Apple Silicon）/ windows 免安装 zip。
+# iOS 需要开发者证书签名，暂不纳入自动构建。
+# web 与 Windows MSIX 已从产物矩阵移除：MSIX 的自签证书过不了 SmartScreen，且每次
+# 发版都要现生成新证书、用户升级时得重新导入 .cer；要恢复就按固定证书方案加回来
+# （生成一次、存 Secrets），别再用每次现生成的那种写法。
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '*.*.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: android
+            flutter-build: apk
+            runs-on: ubuntu-latest
+          - target: linux
+            flutter-build: linux
+            runs-on: ubuntu-latest
+          - target: macos
+            flutter-build: macos
+            runs-on: macos-latest
+          - target: windows
+            flutter-build: windows
+            runs-on: windows-latest
+
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 安装 Linux 构建依赖
+        if: matrix.target == 'linux'
+        run: >
+          sudo apt-get update -y &&
+          sudo apt-get install -y ninja-build libgtk-3-dev clang cmake pkg-config
+          libsecret-1-dev libjsoncpp-dev rpm
+
+      - name: 安装依赖
+        run: flutter pub get
+
+      # 正式签名：keystore 与密码只存仓库 Secrets（明文与 key.properties 均不入库，
+      # android/.gitignore 已挡）。Secrets 未配置时跳过，Gradle 回退 debug 签名。
+      - name: 还原 Android 签名密钥
+        if: matrix.target == 'android'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "未配置 ANDROID_KEYSTORE_BASE64，回退 debug 签名"
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          cat > android/key.properties <<PROPS
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=upload-keystore.jks
+          PROPS
+
+      - name: 构建产物
+        run: flutter build ${{ matrix.flutter-build }} --release
+
+      - name: 打包（android）
+        if: matrix.target == 'android'
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "NoShell-${{ github.ref_name }}-android.apk"
+
+      # deb / rpm：装到 /opt/noshell，附 .desktop 入口与 /usr/bin 软链。
+      - name: 打包（linux deb + rpm）
+        if: matrix.target == 'linux'
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUNDLE=build/linux/x64/release/bundle
+
+          rm -rf .deb-pkg
+          mkdir -p .deb-pkg/noshell/DEBIAN \
+            .deb-pkg/noshell/opt \
+            .deb-pkg/noshell/usr/bin \
+            .deb-pkg/noshell/usr/share/applications
+          cp -R "$BUNDLE" .deb-pkg/noshell/opt/noshell
+          ln -s /opt/noshell/NoShell .deb-pkg/noshell/usr/bin/noshell
+          # hicolor 主题图标：flutter_launcher_icons 不覆盖 Linux，图源见 icon/。
+          for n in 16 24 32 48 64 128 256 512; do
+            install -Dm644 "icon/png/linux/noshell-$n.png" \
+              ".deb-pkg/noshell/usr/share/icons/hicolor/${n}x${n}/apps/noshell.png"
+          done
+          cat > .deb-pkg/noshell/DEBIAN/control <<CONTROL
+          Package: noshell
+          Version: $VERSION
+          Section: net
+          Priority: optional
+          Architecture: amd64
+          Depends: libgtk-3-0t64 | libgtk-3-0, libsecret-1-0
+          Maintainer: chengvar <chengvar@users.noreply.github.com>
+          Description: NoShell — cross-platform SSH connection manager
+           SSH terminal, SFTP file management and secure credential storage.
+          CONTROL
+          cat > .deb-pkg/noshell/usr/share/applications/noshell.desktop <<DESKTOP
+          [Desktop Entry]
+          Type=Application
+          Name=NoShell
+          Comment=SSH terminal and SFTP file management
+          Exec=/opt/noshell/NoShell
+          Icon=noshell
+          Terminal=false
+          StartupWMClass=com.noshell
+          StartupNotify=true
+          Categories=Network;RemoteAccess;
+          DESKTOP
+          dpkg-deb --build --root-owner-group .deb-pkg/noshell \
+            "NoShell-${GITHUB_REF_NAME}-linux-amd64.deb"
+
+          rm -rf .rpm-build
+          mkdir -p .rpm-build/BUILD .rpm-build/RPMS .rpm-build/SPECS .rpm-build/SOURCES .rpm-build/SRPMS
+          cat > .rpm-build/SPECS/noshell.spec <<SPEC
+          Name:           noshell
+          Version:        $VERSION
+          Release:        1
+          Summary:        NoShell — cross-platform SSH connection manager
+          License:        Proprietary
+          BuildArch:      x86_64
+          Requires:       gtk3, libsecret
+
+          %description
+          SSH terminal, SFTP file management and secure credential storage.
+
+          %install
+          mkdir -p %{buildroot}/opt/noshell %{buildroot}/usr/bin %{buildroot}/usr/share/applications
+          cp -R "$PWD/$BUNDLE/." %{buildroot}/opt/noshell/
+          ln -s /opt/noshell/NoShell %{buildroot}/usr/bin/noshell
+          # 循环变量延时到 rpmbuild 执行 %install 时才展开（此处已转义）。
+          for n in 16 24 32 48 64 128 256 512; do
+            install -Dm644 "$PWD/icon/png/linux/noshell-\$n.png" \
+              "%{buildroot}/usr/share/icons/hicolor/\${n}x\${n}/apps/noshell.png"
+          done
+          cat > %{buildroot}/usr/share/applications/noshell.desktop <<DESKTOP
+          [Desktop Entry]
+          Type=Application
+          Name=NoShell
+          Comment=SSH terminal and SFTP file management
+          Exec=/opt/noshell/NoShell
+          Icon=noshell
+          Terminal=false
+          StartupWMClass=com.noshell
+          StartupNotify=true
+          Categories=Network;RemoteAccess;
+          DESKTOP
+
+          %files
+          /opt/noshell
+          /usr/bin/noshell
+          /usr/share/applications/noshell.desktop
+          /usr/share/icons/hicolor
+          SPEC
+          rpmbuild -bb --define "_topdir $PWD/.rpm-build" \
+            .rpm-build/SPECS/noshell.spec
+          cp .rpm-build/RPMS/x86_64/noshell-*.rpm \
+            "NoShell-${GITHUB_REF_NAME}-linux-x86_64.rpm"
+
+      # 每次发布在 CI 现生成一次性 GPG 密钥，私钥不导出、随 runner 销毁，
+      # 公钥（linux-signing.asc）随包发布供用户导入。
+      # rpm 走内嵌签名（rpmsign，rpm -K 即验）；deb 没有 apt 仓库元数据可签，
+      # 且 dpkg-sig 已从 Ubuntu 23.10 移除，故用分离签名 .asc（gpg --verify 即验）。
+      - name: 签名（linux deb + rpm）
+        if: matrix.target == 'linux'
+        run: |
+          DEB="NoShell-${GITHUB_REF_NAME}-linux-amd64.deb"
+          RPM="NoShell-${GITHUB_REF_NAME}-linux-x86_64.rpm"
+          PUB="NoShell-${GITHUB_REF_NAME}-linux-signing.asc"
+
+          cat > .gpg-keygen <<KEYGEN
+          %no-protection
+          Key-Type: RSA
+          Key-Length: 3072
+          Key-Usage: sign
+          Name-Real: NoShell release
+          Name-Email: noshell@signing.invalid
+          Expire-Date: 0
+          %commit
+          KEYGEN
+          gpg --batch --gen-key .gpg-keygen && rm .gpg-keygen
+          KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')
+          gpg --armor --export "$KEYID" > "$PUB"
+
+          rpmsign --addsign --define "_gpg_name $KEYID" "$RPM"
+          gpg --batch --detach-sign --armor --local-user "$KEYID" \
+            --output "$DEB.asc" "$DEB"
+
+          # 自检：公钥导入后两条链路都必须验得过，签名坏的包不许上 Release。
+          rpmkeys --import "$PUB"
+          rpm --checksig -v "$RPM"
+          gpg --verify "$DEB.asc" "$DEB"
+
+      # macOS 构建产物已在 Release.xcconfig 限定 arm64（仅 Apple Silicon）。
+      # 这一步不能省成「直接把 NoShell.app 交给 upload-artifact」：artifact 上传会
+      # 解引用符号链接并把权限统一成 644/755（见 upload-artifact README 的
+      # Permission Loss 一节），FlutterMacOS.framework 的 Versions/Current 一旦被
+      # 展平，bundle 结构就有歧义，下载方 codesign 会拒收（electron-builder 换掉
+      # ditto 后正是这么炸的）；而且 Release 资产只收文件，glob 匹配到目录会被
+      # softprops/action-gh-release 静默丢弃——那样 macOS 产物会整个从 Release 消失。
+      - name: 打包（macos arm64）
+        if: matrix.target == 'macos'
+        run: >
+          ditto -c -k --sequesterRsrc --keepParent
+          build/macos/Build/Products/Release/NoShell.app
+          "NoShell-${{ github.ref_name }}-macos-arm64.zip"
+
+      - name: 打包（windows 免安装 zip）
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: >
+          Compress-Archive -Path build\windows\x64\runner\Release\*
+          -DestinationPath "NoShell-$($env:GITHUB_REF_NAME)-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: noshell-${{ matrix.target }}
+          path: NoShell-*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/NoShell-*

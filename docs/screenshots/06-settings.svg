@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="820" viewBox="0 0 1280 820" font-family="-apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <rect x="0" y="0" width="1280" height="820" fill="#F6F7F9"/>
+  <!-- 底层 SFTP 界面（简化，被遮罩压暗） -->
+  <rect x="0" y="0" width="264" height="820" fill="#ECEEF2"/>
+  <rect x="12" y="12" width="30" height="30" rx="8" fill="#101725"/>
+  <g transform="translate(12 12) scale(0.0293)">
+    <path d="M208 730 V294 L628 730 V294" fill="none" stroke="#EAF0FB" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="732" y="650" width="144" height="140" rx="34" fill="#4C8DFF"/>
+  </g>
+  <text x="52" y="25" font-size="13.5" font-weight="600" fill="#1D2430">NoShell</text>
+  <text x="52" y="41" font-size="11" fill="#6E7683">8 hosts</text>
+  <rect x="8" y="296" width="248" height="54" rx="8" fill="#D9E0F2"/>
+  <circle cx="21" cy="317" r="4.5" fill="#3FB950"/>
+  <text x="36" y="314.5" font-size="13" font-weight="600" fill="#1D2430">demo-server</text>
+  <text x="448" y="69" font-size="16" font-weight="700" fill="#1D2430">demo-server</text>
+  <rect x="1180" y="164" width="88" height="42" rx="21" fill="#D9E0F2"/>
+  <text x="1212" y="190" font-size="13" font-weight="600" fill="#2B4C8C">Upload</text>
+  <rect x="287" y="222" width="980" height="576" rx="10" fill="#FFFFFF" stroke="#ECEEF2"/>
+  <text x="340" y="245" font-size="12.5" font-weight="600" fill="#565D68">Name</text>
+  <text x="1262" y="245" font-size="12.5" font-weight="600" fill="#565D68" text-anchor="end">Permissions</text>
+  <text x="330" y="286" font-size="13.5" font-weight="600" fill="#1D2430">logs</text>
+  <text x="1262" y="286" font-size="13" fill="#6E7683" text-anchor="end">drwxr-xr-x</text>
+  <text x="306" y="812" font-size="12.5" fill="#6E7683">3 items    18 B total</text>
+  <!-- 遮罩 -->
+  <rect x="0" y="0" width="1280" height="820" fill="#000000" opacity="0.45"/>
+  <!-- 设置对话框 -->
+  <rect x="343" y="49" width="604" height="722" rx="18" fill="#FFFFFF"/>
+  <rect x="358" y="64" width="44" height="44" rx="12" fill="#101725"/>
+  <g transform="translate(358 64) scale(0.043)">
+    <path d="M208 730 V294 L628 730 V294" fill="none" stroke="#EAF0FB" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="732" y="650" width="144" height="140" rx="34" fill="#4C8DFF"/>
+  </g>
+  <text x="416" y="84" font-size="18" font-weight="700" fill="#1D2430">Settings</text>
+  <text x="416" y="103" font-size="12.5" fill="#6E7683">NoShell · v0.1.0</text>
+  <g stroke="#6E7683" stroke-width="1.6" stroke-linecap="round">
+    <path d="M950 90 l10 10 M960 90 l-10 10"/>
+  </g>
+  <line x1="343" y1="127" x2="947" y2="127" stroke="#E4E6EA"/>
+  <!-- Appearance -->
+  <text x="372" y="158" font-size="13.5" font-weight="600" fill="#1D2430">◖ Appearance</text>
+  <text x="388" y="180" font-size="12.5" fill="#6E7683">Theme and font for the app UI</text>
+  <text x="372" y="231" font-size="14" font-weight="600" fill="#1D2430">Theme</text>
+  <rect x="372" y="243" width="390" height="43" rx="21.5" fill="#FFFFFF" stroke="#D0D3DA"/>
+  <rect x="374" y="245" width="128" height="39" rx="19.5" fill="#D9E0F2"/>
+  <text x="398" y="270" font-size="13" font-weight="600" fill="#2B4C8C">⚙ System</text>
+  <text x="527" y="270" font-size="13" fill="#3C434E">☀ Light</text>
+  <text x="652" y="270" font-size="13" fill="#3C434E">☾ Dark</text>
+  <text x="372" y="342" font-size="14" font-weight="600" fill="#1D2430">App font</text>
+  <rect x="372" y="354" width="560" height="40" rx="10" fill="#EEF0F4"/>
+  <text x="390" y="380" font-size="14.5" fill="#1D2430">System default</text>
+  <path d="M913 368 l7 9 -14 0 z" fill="#565D68"/>
+  <!-- Terminal -->
+  <text x="372" y="454" font-size="13.5" font-weight="600" fill="#1D2430">⛶ Terminal</text>
+  <text x="388" y="477" font-size="12.5" fill="#6E7683">Colors, font and size used by terminals</text>
+  <text x="372" y="527" font-size="14" font-weight="600" fill="#1D2430">Terminal theme</text>
+  <!-- 预设卡 3×3 -->
+  <g>
+    <rect x="372" y="542" width="178" height="52" rx="10" fill="#10141B" stroke="#4C6FBF" stroke-width="1.6"/>
+    <text x="384" y="562" font-size="12.5" font-weight="600" fill="#E6EDF3">Default dark</text>
+    <circle cx="390" cy="578" r="3" fill="#F85149"/><circle cx="400" cy="578" r="3" fill="#D29922"/><circle cx="410" cy="578" r="3" fill="#3FB950"/><circle cx="420" cy="578" r="3" fill="#4C8DFF"/><circle cx="430" cy="578" r="3" fill="#A371F7"/>
+    <circle cx="536" cy="561" r="7" fill="#3D5AA9"/><path d="M532 561 l3 3 5 -6" stroke="#FFFFFF" stroke-width="1.5" fill="none"/>
+    <rect x="566" y="542" width="178" height="52" rx="10" fill="#1E1F29"/>
+    <text x="578" y="562" font-size="12.5" font-weight="600" fill="#BD93F9">Dracula</text>
+    <circle cx="584" cy="578" r="3" fill="#FF79C6"/><circle cx="594" cy="578" r="3" fill="#BD93F9"/><circle cx="604" cy="578" r="3" fill="#50FA7B"/><circle cx="614" cy="578" r="3" fill="#FFB86C"/><circle cx="624" cy="578" r="3" fill="#8BE9FD"/>
+    <rect x="760" y="542" width="178" height="52" rx="10" fill="#21252B"/>
+    <text x="772" y="562" font-size="12.5" font-weight="600" fill="#9DA5B4">One Dark</text>
+    <circle cx="778" cy="578" r="3" fill="#E06C75"/><circle cx="788" cy="578" r="3" fill="#D19A66"/><circle cx="798" cy="578" r="3" fill="#98C379"/><circle cx="808" cy="578" r="3" fill="#61AFEF"/><circle cx="818" cy="578" r="3" fill="#C678DD"/>
+    <rect x="372" y="604" width="178" height="52" rx="10" fill="#2E3440"/>
+    <text x="384" y="624" font-size="12.5" font-weight="600" fill="#88C0D0">Nord</text>
+    <circle cx="390" cy="640" r="3" fill="#BF616A"/><circle cx="400" cy="640" r="3" fill="#D08770"/><circle cx="410" cy="640" r="3" fill="#A3BE8C"/><circle cx="420" cy="640" r="3" fill="#5E81AC"/><circle cx="430" cy="640" r="3" fill="#B48EAD"/>
+    <rect x="566" y="604" width="178" height="52" rx="10" fill="#16161E"/>
+    <text x="578" y="624" font-size="12.5" font-weight="600" fill="#7AA2F7">Tokyo Night</text>
+    <circle cx="584" cy="640" r="3" fill="#F7768E"/><circle cx="594" cy="640" r="3" fill="#FF9E64"/><circle cx="604" cy="640" r="3" fill="#9ECE6A"/><circle cx="614" cy="640" r="3" fill="#7AA2F7"/><circle cx="624" cy="640" r="3" fill="#BB9AF7"/>
+    <rect x="760" y="604" width="178" height="52" rx="10" fill="#1D2021"/>
+    <text x="772" y="624" font-size="12.5" font-weight="600" fill="#B8BB26">Gruvbox Dark</text>
+    <circle cx="778" cy="640" r="3" fill="#FB4934"/><circle cx="788" cy="640" r="3" fill="#FE8019"/><circle cx="798" cy="640" r="3" fill="#B8BB26"/><circle cx="808" cy="640" r="3" fill="#FABD2F"/><circle cx="818" cy="640" r="3" fill="#83A598"/>
+    <rect x="372" y="666" width="178" height="52" rx="10" fill="#272822"/>
+    <text x="384" y="686" font-size="12.5" font-weight="600" fill="#F8F8F2">Monokai</text>
+    <circle cx="390" cy="702" r="3" fill="#F92672"/><circle cx="400" cy="702" r="3" fill="#A6E22E"/><circle cx="410" cy="702" r="3" fill="#FD971F"/><circle cx="420" cy="702" r="3" fill="#66D9EF"/><circle cx="430" cy="702" r="3" fill="#AE81FF"/>
+    <rect x="566" y="666" width="178" height="52" rx="10" fill="#002B36"/>
+    <text x="578" y="686" font-size="12.5" font-weight="600" fill="#93A1A1">Solarized Dark</text>
+    <circle cx="584" cy="702" r="3" fill="#DC322F"/><circle cx="594" cy="702" r="3" fill="#CB4B16"/><circle cx="604" cy="702" r="3" fill="#859900"/><circle cx="614" cy="702" r="3" fill="#268BD2"/><circle cx="624" cy="702" r="3" fill="#6C71C4"/>
+    <rect x="760" y="666" width="178" height="52" rx="10" fill="#FFFFFF" stroke="#D0D3DA"/>
+    <text x="772" y="686" font-size="12.5" font-weight="600" fill="#1D2430">Light</text>
+    <circle cx="778" cy="702" r="3" fill="#D73A49"/><circle cx="788" cy="702" r="3" fill="#E36209"/><circle cx="798" cy="702" r="3" fill="#28A745"/><circle cx="808" cy="702" r="3" fill="#0366D6"/><circle cx="818" cy="702" r="3" fill="#6F42C1"/>
+  </g>
+  <text x="372" y="746" font-size="14" font-weight="600" fill="#1D2430">Terminal font</text>
+  <!-- 底部 -->
+  <line x1="343" y1="722" x2="947" y2="722" stroke="#E4E6EA"/>
+  <text x="372" y="750" font-size="12.5" fill="#6E7683">⚡ Changes apply immediately</text>
+  <text x="880" y="750" font-size="13.5" font-weight="500" fill="#2B4C8C">About</text>
+  <rect x="895" y="731" width="52" height="30" rx="15" fill="#3D5AA9"/>
+  <text x="921" y="751" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">Done</text>
+</svg>
