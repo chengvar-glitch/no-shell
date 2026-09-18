@@ -12,6 +12,10 @@ class MainFlutterWindow: NSWindow {
   /// 按钮，平移必须以这份原始坐标为基准做绝对定位，重复触发才不会累加偏移。
   private var baseTrafficLightOrigins: [NSWindow.ButtonType: NSPoint] = [:]
 
+  /// 是否处于全屏。全屏时红绿灯的隐藏与唤出（鼠标移到屏幕顶部）交给系统
+  /// 管理，平移不再介入；窗口态才按 trafficLightLeftInset / TopInset 校对位置。
+  private var isInFullScreen = false
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     self.contentViewController = flutterViewController
@@ -63,15 +67,50 @@ class MainFlutterWindow: NSWindow {
       self?.repositionTrafficLights()
     }
 
+    // 全屏时摘掉空工具条：窗口态它负责把标题条带撑高，红绿灯平移后才收得到
+    // 点击；全屏里这条条带却以不透明材质绘制，正好盖住内容顶部一行（Flutter
+    // 的头部按钮整行被盖掉），平移到条带区间里的红绿灯也被压在材质之下，
+    // 连同系统「鼠标移到顶部唤出红绿灯」一起失效。进全屏前摘除、退出时恢复，
+    // 全屏期间的红绿灯显示与唤出完全交给系统。
+    NotificationCenter.default.addObserver(
+      forName: NSWindow.willEnterFullScreenNotification, object: self,
+      queue: .main
+    ) { [weak self] _ in
+      self?.setFullScreenChrome(true)
+    }
+    NotificationCenter.default.addObserver(
+      forName: NSWindow.willExitFullScreenNotification, object: self,
+      queue: .main
+    ) { [weak self] _ in
+      self?.setFullScreenChrome(false)
+    }
+
     RegisterGeneratedPlugins(registry: flutterViewController)
 
     super.awakeFromNib()
   }
 
+  /// 全屏进出时切换标题条带：进入摘掉工具条（并停用红绿灯平移），退出恢复。
+  /// 挂回工具条要在恢复平移之前，条带先回到 52pt，平移过去的红绿灯才接得到点击。
+  private func setFullScreenChrome(_ enters: Bool) {
+    isInFullScreen = enters
+    if enters {
+      self.toolbar = nil
+    } else {
+      let toolbar = NSToolbar(identifier: "NoShellTitlebarToolbar")
+      toolbar.displayMode = .iconOnly
+      self.toolbar = toolbar
+      self.toolbarStyle = .unified
+    }
+  }
+
   /// 平移红绿灯：close 灯的左上角对齐到 trafficLightLeftUnits / TopUnits
   /// 定义的偏移，其余两灯保持系统给的相对间距一起移动。坐标只在偏离目标
   /// 时回写，避免 set 布局值再触发一轮无意义的失效循环。
+  /// 全屏期间不介入：红绿灯的隐藏与唤出由系统管理，平移过去只会压在
+  /// 全屏的标题条带材质之下，看起来就是「红绿灯消失」。
   private func repositionTrafficLights() {
+    if isInFullScreen { return }
     let types: [NSWindow.ButtonType] = [
       .closeButton, .miniaturizeButton, .zoomButton,
     ]
