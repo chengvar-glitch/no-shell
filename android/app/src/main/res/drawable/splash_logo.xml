@@ -19,11 +19,18 @@
         android:scaleX="0.70"
         android:scaleY="0.70">
         <path
-            android:pathData="M197,730 V294 L587,730 V294"
+            android:pathData="M196,292 V732"
             android:strokeColor="#EAF0FB"
-            android:strokeWidth="120"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round"/>
+            android:strokeWidth="118"
+            android:strokeLineCap="round"/>
+        <path
+            android:pathData="M586,292 V732"
+            android:strokeColor="#EAF0FB"
+            android:strokeWidth="118"
+            android:strokeLineCap="round"/>
+        <path
+            android:pathData="M271,479.7 L271,273.5 Q271,257.5 281.6,269.5 L500.4,516.3 Q511,528.3 511,544.3 L511,750.5 Q511,766.5 500.4,754.5 L281.6,507.7 Q271,495.7 271,479.7 Z"
+            android:fillColor="#EAF0FB"/>
         <path
             android:pathData="M718,234 H861 A26,26 0 0 1 887,260 V764 A26,26 0 0 1 861,790 H718 A26,26 0 0 1 692,764 V260 A26,26 0 0 1 718,234 Z"
             android:fillColor="#4C8DFF"/>

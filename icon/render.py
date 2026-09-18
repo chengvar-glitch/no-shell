@@ -215,7 +215,7 @@ def check():
         ((392, 512), ink, "N diagonal"),
         ((587, 400), ink, "N right leg"),
         ((790, 700), accent, "cursor"),
-        ((500, 512), rgb(BG), "background"),
+        ((500, 460), rgb(BG), "background"),
     ):
         got = full.getpixel(xy)[:3]
         assert got == expected, f"{what} at {xy} is {got}, expected {expected}"
