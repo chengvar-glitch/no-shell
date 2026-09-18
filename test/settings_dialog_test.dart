@@ -138,9 +138,18 @@ void main() {
   testWidgets('设置弹窗：终端字号可增减，预览字号跟着变', (tester) async {
     await pumpDesktop(tester);
     await openSettings(tester);
-    // 字体与字号已合并为一行，字号控件本身定宽在字体下拉右侧。
+    // 字号单独一行，在字体下拉下面（不再与下拉同行）。
     await tester.ensureVisible(find.byTooltip('增大字号'));
     await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(find.byType(TerminalFontSizeControl)).dy,
+      greaterThan(tester.getBottomLeft(find.byType(TerminalFontDropdown)).dy),
+    );
+    // 撑满整行：与字体下拉同宽（不再是定宽的小方块）。
+    expect(
+      tester.getSize(find.byType(TerminalFontSizeControl)).width,
+      tester.getSize(find.byType(TerminalFontDropdown)).width,
+    );
 
     final scope = TerminalStyleScope.of(tester.element(find.byTooltip('增大字号')));
     expect(scope.notifier.value.fontSize, TerminalStylePrefs.defaultFontSize);

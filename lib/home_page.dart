@@ -314,9 +314,9 @@ class _ServerDialogState extends State<_ServerDialog> {
     text: (widget.initial?.port ?? 22).toString(),
   );
   late final _username = TextEditingController(text: widget.initial?.username);
-  late final _group = TextEditingController(
-    text: widget.initial?.group ?? widget.initialGroup ?? '',
-  );
+
+  /// 选中的分组名；null 表示默认分组（没动过下拉就是它）。
+  late String? _group = widget.initial?.group ?? widget.initialGroup;
   late final _notes = TextEditingController(text: widget.initial?.notes);
   late AuthMethod _auth = widget.initial?.authMethod ?? AuthMethod.privateKey;
 
@@ -327,20 +327,6 @@ class _ServerDialogState extends State<_ServerDialog> {
   String? _password;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_groupSeeded) return;
-    _groupSeeded = true;
-    if (_group.text.isEmpty) {
-      // 新建时预填默认分组：分组与跳板机一样带默认值呈现（标签浮到上方，
-      // 值可见），不再是空框。保存语义不变——空分组本来就会落到默认分组。
-      _group.text = AppLocalizations.of(context).defaultGroupName;
-    }
-  }
-
-  bool _groupSeeded = false;
-
-  @override
   void dispose() {
     for (final controller in [
       _metadata,
@@ -348,7 +334,6 @@ class _ServerDialogState extends State<_ServerDialog> {
       _host,
       _port,
       _username,
-      _group,
       _notes,
     ]) {
       controller.dispose();
@@ -398,13 +383,13 @@ class _ServerDialogState extends State<_ServerDialog> {
       await dropStoredCredential(widget.credentials, id);
     }
     if (!mounted) return;
-    // 分组留空即落到默认分组；填了新名字就当场建一个（GroupField 支持直接输入）。
-    final group = _group.text.trim();
+    // 分组下拉里只有已建好的分组，没动过就是默认分组。
+    final group = _group ?? l10n.defaultGroupName;
     // 这里重建整台主机（而不是在 initial 上改），所以没显式带上的字段都会丢：
     // forwards 归转发面板维护，必须原样带回去，否则每编辑一次就静默删光规则。
     final saved = SshServer(
       id: id,
-      group: group.isEmpty ? l10n.defaultGroupName : group,
+      group: group,
       name: _name.text.trim(),
       host: _host.text.trim(),
       username: _username.text.trim(),
@@ -515,9 +500,9 @@ class _ServerDialogState extends State<_ServerDialog> {
                 ),
                 const SizedBox(height: 12),
                 GroupField(
-                  controller: _group,
+                  value: _group ?? l10n.defaultGroupName,
                   groups: widget.groupNames,
-                  textStyle: const TextStyle(fontSize: 13.5),
+                  onChanged: (name) => setState(() => _group = name),
                 ),
                 const SizedBox(height: 12),
                 // 排在分组之后：分组是「这台主机属于哪」，跳板机是「怎么连过去」，

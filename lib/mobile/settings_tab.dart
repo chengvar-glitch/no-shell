@@ -101,16 +101,12 @@ class SettingsTab extends StatelessWidget {
               ),
               SettingsRow(
                 label: l10n.terminalFont,
-                child: Row(
-                  children: [
-                    const Expanded(child: TerminalFontDropdown()),
-                    const SizedBox(width: 12),
-                    const SizedBox(
-                      width: 140,
-                      child: TerminalFontSizeControl(),
-                    ),
-                  ],
-                ),
+                child: const TerminalFontDropdown(),
+              ),
+              // 字号单独一行、撑满整行：与字体下拉同宽。
+              SettingsRow(
+                label: l10n.terminalFontSize,
+                child: const TerminalFontSizeControl(),
               ),
               SettingsRow(
                 label: l10n.terminalPreview,

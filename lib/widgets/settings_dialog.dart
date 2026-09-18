@@ -160,17 +160,13 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                         ),
                         SettingsRow(
                           label: l10n.terminalFont,
-                          // 字体 + 字号同行：字号控件定宽，字体吃剩余宽度。
-                          child: Row(
-                            children: [
-                              const Expanded(child: TerminalFontDropdown()),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 150,
-                                child: const TerminalFontSizeControl(),
-                              ),
-                            ],
-                          ),
+                          child: const TerminalFontDropdown(),
+                        ),
+                        // 字号单独一行、撑满整行：与字体下拉同宽，高度不再
+                        // 写死（并排那套才需要钳高对齐）。
+                        SettingsRow(
+                          label: l10n.terminalFontSize,
+                          child: const TerminalFontSizeControl(),
                         ),
                         SettingsRow(
                           label: l10n.terminalPreview,

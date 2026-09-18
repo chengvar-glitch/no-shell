@@ -1,6 +1,5 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -229,7 +228,7 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('新建连接时可以直接输入一个新分组名', (tester) async {
+    testWidgets('新建连接的分组只能从已有分组里选，不再手输', (tester) async {
       final store = await pumpDesktop(tester);
 
       await tester.tap(find.byTooltip('新建连接'));
@@ -243,25 +242,74 @@ void main() {
         '10.0.3.9',
       );
       await tester.enterText(find.widgetWithText(TextFormField, '用户名'), 'ops');
-      // 桌面端旧版只有下拉，建不出第二个分组——这里回归的正是这条路径。
-      await tester.enterText(
-        find.descendant(
-          of: find.byType(DropdownMenu<String>),
-          matching: find.byType(TextField),
-        ),
-        '预发环境',
+
+      final dialog = find.byType(AlertDialog);
+      final groupDropdown = find.descendant(
+        of: dialog,
+        matching: find.byType(DropdownButtonFormField<String>),
       );
-      // 输入下拉框会展开候选菜单，先收起来再点保存。
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      // 下拉里没有任何可输入的框：分组只能选，不能敲。
+      expect(
+        find.descendant(of: groupDropdown, matching: find.byType(TextField)),
+        findsNothing,
+      );
+
+      await tester.tap(groupDropdown);
+      await tester.pumpAndSettle();
+      // 菜单在浮层里，排在弹窗之后，取最后一个「生产环境」（侧边栏分组头同名）。
+      await tester.tap(find.text('生产环境').last);
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, '保存'));
       await tester.pumpAndSettle();
 
-      expect(store.groupNames, contains('预发环境'));
-      final created = store.groups().firstWhere(
-        (group) => group.name == '预发环境',
+      // 选的是已有分组：不新建分组，主机落到选中的那个。
+      expect(store.groupNames, ['生产环境', '开发 / 测试', '个人服务器']);
+      final saved = store.servers.firstWhere((s) => s.name == 'staging-1');
+      expect(saved.group, '生产环境');
+    });
+
+    testWidgets('全新安装的分组下拉只有默认分组一项，保存就落在它上面', (tester) async {
+      tester.platformDispatcher.localesTestValue = const [Locale('zh')];
+      addTearDown(tester.platformDispatcher.clearAllTestValues);
+      final store = ServerStore(seed: const []);
+      await tester.pumpWidget(
+        NoShellApp(
+          store: store,
+          credentials: FakeCredentialStore(),
+          agentKeysProbe: () async => false,
+        ),
       );
-      expect(created.servers.single.name, 'staging-1');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('新建连接'));
+      await tester.pumpAndSettle();
+
+      // 一个分组都还没建：候选只有默认分组，下拉照常可用（不禁用，也不加
+      // 任何自制外壳），选中项就是默认分组。
+      final dropdown = tester.widget<DropdownButton<String>>(
+        find.descendant(
+          of: find.byType(DropdownButtonFormField<String>),
+          matching: find.byType(DropdownButton<String>),
+        ),
+      );
+      expect(dropdown.items?.map((item) => item.value), ['默认分组']);
+      expect(dropdown.onChanged, isNotNull);
+      expect(find.text('默认分组').hitTestable(), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '名称'),
+        'staging-2',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '主机'),
+        '10.0.4.1',
+      );
+      await tester.enterText(find.widgetWithText(TextFormField, '用户名'), 'ops');
+      await tester.tap(find.widgetWithText(FilledButton, '保存'));
+      await tester.pumpAndSettle();
+
+      expect(store.groupNames, ['默认分组']);
+      expect(store.servers.single.group, '默认分组');
     });
 
     testWidgets('分组头「⋯」菜单可重命名分组，成员跟着走', (tester) async {

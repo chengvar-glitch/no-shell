@@ -45,9 +45,9 @@ class _ServerEditPageState extends State<ServerEditPage> {
     text: (widget.initial?.port ?? 22).toString(),
   );
   late final _username = TextEditingController(text: widget.initial?.username);
-  late final _group = TextEditingController(
-    text: widget.initial?.group ?? widget.initialGroup ?? '',
-  );
+
+  /// 选中的分组名；null 表示默认分组（没动过下拉就是它）。
+  late String? _group = widget.initial?.group ?? widget.initialGroup;
   late final _notes = TextEditingController(text: widget.initial?.notes);
   late AuthMethod _auth = widget.initial?.authMethod ?? AuthMethod.privateKey;
 
@@ -58,20 +58,6 @@ class _ServerEditPageState extends State<ServerEditPage> {
   String? _password;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_groupSeeded) return;
-    _groupSeeded = true;
-    if (_group.text.isEmpty) {
-      // 新建时预填默认分组：分组与跳板机一样带默认值呈现（标签浮到上方，
-      // 值可见），不再是空框。保存语义不变——空分组本来就会落到默认分组。
-      _group.text = AppLocalizations.of(context).defaultGroupName;
-    }
-  }
-
-  bool _groupSeeded = false;
-
-  @override
   void dispose() {
     for (final controller in [
       _metadata,
@@ -79,7 +65,6 @@ class _ServerEditPageState extends State<ServerEditPage> {
       _host,
       _port,
       _username,
-      _group,
       _notes,
     ]) {
       controller.dispose();
@@ -109,7 +94,8 @@ class _ServerEditPageState extends State<ServerEditPage> {
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final l10n = AppLocalizations.of(context);
-    final group = _group.text.trim();
+    // 分组下拉里只有已建好的分组，没动过就是默认分组。
+    final group = _group ?? l10n.defaultGroupName;
     final id =
         widget.initial?.id ?? 'srv-${DateTime.now().microsecondsSinceEpoch}';
     final password = _password;
@@ -132,7 +118,7 @@ class _ServerEditPageState extends State<ServerEditPage> {
     widget.store.upsert(
       SshServer(
         id: id,
-        group: group.isEmpty ? l10n.defaultGroupName : group,
+        group: group,
         name: _name.text.trim(),
         host: _host.text.trim(),
         username: _username.text.trim(),
@@ -234,7 +220,11 @@ class _ServerEditPageState extends State<ServerEditPage> {
                   v == null || v.trim().isEmpty ? l10n.usernameRequired : null,
             ),
             const SizedBox(height: 14),
-            GroupField(controller: _group, groups: widget.store.groupNames),
+            GroupField(
+              value: _group ?? l10n.defaultGroupName,
+              groups: widget.store.groupNames,
+              onChanged: (name) => setState(() => _group = name),
+            ),
             const SizedBox(height: 14),
             JumpHostField(
               servers: widget.store.servers,

@@ -366,6 +366,10 @@ class TerminalFontDropdown extends StatelessWidget {
 }
 
 /// 终端字号：范围固定、步进 1，改动立刻反映到终端与预览。
+///
+/// 独占一行、撑满整行宽度（与字体下拉、配色选择器同宽），高度不写死：
+/// 由主题的输入框装饰加 30 的图标按钮自然撑开。写死高度只在「和字体下拉
+/// 并排」时才需要，那套并排布局已经取消。
 class TerminalFontSizeControl extends StatelessWidget {
   const TerminalFontSizeControl({super.key});
 
@@ -379,14 +383,7 @@ class TerminalFontSizeControl extends StatelessWidget {
       builder: (context, prefs, _) {
         final size = prefs.fontSize;
         return InputDecorator(
-          // 高度与同行的字体下拉（48）对齐：内容 30 的图标按钮
-          // 加上下各 9 的内边距正好撑满，两边不再一高一低。
-          // maxHeight 必须钳死：只给 minHeight 时松约束下会撑满可用高度。
-          decoration: const InputDecoration(
-            isDense: true,
-            constraints: BoxConstraints(minHeight: 48, maxHeight: 48),
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          ),
+          decoration: const InputDecoration(isDense: true),
           child: Row(
             children: [
               SettingsIconButton(

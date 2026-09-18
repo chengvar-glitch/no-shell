@@ -355,8 +355,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 跳板机下拉在表单靠下的位置，先滚到可见再点（否则点击落不到它身上）。
-    await tester.ensureVisible(find.text('不使用'));
+    // 跳板机下拉在表单靠下的位置：ListView 懒构建，得先滚到它被建出来
+    // 才点得到（分组多了一行说明，它会落在缓存区之外）。
+    await tester.dragUntilVisible(
+      find.text('不使用'),
+      find.byType(ListView),
+      const Offset(0, -80),
+    );
     await tester.pumpAndSettle();
     // 默认「不使用」，展开后选中 jump-host。
     await tester.tap(find.text('不使用'));

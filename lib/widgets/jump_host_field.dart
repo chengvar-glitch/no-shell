@@ -42,6 +42,8 @@ class JumpHostField extends StatelessWidget {
         DropdownButtonFormField<String?>(
           initialValue: value,
           isExpanded: true,
+          // 主机攒多以后菜单能长过弹窗：限高，菜单内部自己滚。
+          menuMaxHeight: 320,
           // helper 原挂在装饰里会把字段撑到 68：挪到字段下方独立小字，
           // 字段本体与用户名 / 分组同高（48）。
           decoration: InputDecoration(labelText: l10n.jumpHost),

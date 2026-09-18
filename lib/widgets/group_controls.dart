@@ -11,47 +11,49 @@ import '../store.dart';
 import '../theme.dart';
 import 'confirm_dialog.dart';
 
-/// 分组输入框：下拉能选已有分组，也能直接输入新名字。
-/// 旧版桌面端只有下拉，导致根本建不出第二个分组；这里两端共用同一个控件。
+/// 分组选择：只能从已建好的分组里挑，默认分组永远在候选里。
+///
+/// 表单不再接受手输分组名（旧版一个框既选组又建组，敲个新名字就当场建组）；
+/// 新建分组走分组菜单（`runGroupAction` → `promptGroupName`），建好这里就能选到。
+/// 控件就是一个官方下拉，不套任何自制外壳。
 class GroupField extends StatelessWidget {
   const GroupField({
     super.key,
-    required this.controller,
+    required this.value,
     required this.groups,
-    this.textStyle,
+    required this.onChanged,
   });
 
-  final TextEditingController controller;
+  /// 当前选中的分组名，调用方保证非空（空一律由调用方回落到默认分组）。
+  final String value;
+
+  /// 已建好的分组名；顺序即用户排过的分组顺序。
   final List<String> groups;
 
-  /// 与同表单其它输入框保持同一字号，由调用方按端给。
-  final TextStyle? textStyle;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return DropdownMenu<String>(
-      controller: controller,
-      // 撑满父宽度，与同列的 TextFormField 对齐。
-      expandedInsets: EdgeInsets.zero,
-      enableFilter: true,
-      requestFocusOnTap: true,
-      label: Text(l10n.group),
-      hintText: l10n.groupHint,
-      textStyle: textStyle,
-      // DropdownMenu 默认用框架自带的描边白底，不回落到全局输入框主题；
-      // 显式传入全局主题，才能与跳板机（DropdownButtonFormField）等
-      // 表单字段同观感。样式唯一定义在 theme.dart。
-      // 高度钳到 48：浮动标签 + 值两行内容在 dense 主题下正好占满，
-      // 与同列单行输入框（用户名等）同高，不再一高一低。
-      inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(
-        constraints: const BoxConstraints(minHeight: 48, maxHeight: 48),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      ),
-      dropdownMenuEntries: [
-        for (final name in groups)
-          DropdownMenuEntry<String>(value: name, label: name),
+    // 默认分组恒在候选里（全新安装时它还没入册）；当前值兜一手——主机所属分组
+    // 万一不在注册表里，下拉也不会因为找不到选中项而断言失败。Set 字面量按
+    // 插入序去重，value 就是默认分组时不会给出两个同值条目。
+    final items = <String>{...groups, l10n.defaultGroupName, value}.toList();
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: l10n.group),
+      items: [
+        for (final name in items)
+          DropdownMenuItem<String>(
+            value: name,
+            child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
       ],
+      // 框架的回调签名带可空值，而候选里没有 null 项，直接透传。
+      onChanged: (name) {
+        if (name != null) onChanged(name);
+      },
     );
   }
 }
