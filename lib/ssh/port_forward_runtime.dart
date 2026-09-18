@@ -140,6 +140,9 @@ final class PortForwardManager extends ChangeNotifier {
   /// 自行汇总成一次通知，而不是逐条走 [_setStatus]：会话断开时要重置的规则
   /// 可能有好几条，逐条通知等于让转发面板连着重建好几遍。
   void stopAll() {
+    // dispose 已经把在跑的与状态都收干净了：迟到的 stopAll（会话在回收之后
+    // 才收到远端关闭）不该再往空表里写一遍。
+    if (_disposed) return;
     final pending = _running.values.toList();
     _running.clear();
     var changed = false;
@@ -149,7 +152,7 @@ final class PortForwardManager extends ChangeNotifier {
       _statuses[ruleId] = reset;
       changed = true;
     }
-    if (changed && !_disposed) notifyListeners();
+    if (changed) notifyListeners();
     for (final running in pending) {
       unawaited(running.shutdown());
     }
