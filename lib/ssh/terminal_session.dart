@@ -89,8 +89,8 @@ final class TerminalSession extends ChangeNotifier {
 
   /// 终端缓冲区（含回滚行），视图层直接渲染；会话日志也从这里取。
   ///
-  /// `maxLines` 是日志的长度上限：缓冲区保留 5000 行回滚，超出的最旧行被丢弃。
-  final Terminal terminal = Terminal(maxLines: 5000);
+  /// `maxLines` 是日志的长度上限：缓冲区保留 50000 行回滚，超出的最旧行被丢弃。
+  final Terminal terminal = Terminal(maxLines: 50000);
 
   /// 会话日志：终端画面与回滚的纯文本快照（见 [SessionLog]）。
   /// 惰性构造，无状态——每次读取都现从缓冲区取一份。
