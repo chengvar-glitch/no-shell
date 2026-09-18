@@ -39,6 +39,19 @@ final class PortForwardStatus {
   final int? boundPort;
 
   bool get isRunning => phase == PortForwardPhase.running;
+
+  /// 值语义：运行时按它做无变化守卫，重复写同一个状态不该再通知一遍。
+  @override
+  bool operator ==(Object other) =>
+      other is PortForwardStatus &&
+      other.ruleId == ruleId &&
+      other.phase == phase &&
+      other.errorKind == errorKind &&
+      other.error == error &&
+      other.boundPort == boundPort;
+
+  @override
+  int get hashCode => Object.hash(ruleId, phase, errorKind, error, boundPort);
 }
 
 /// 一台主机上的端口转发运行时：把规则绑到该主机会话的传输层上。
@@ -123,12 +136,20 @@ final class PortForwardManager extends ChangeNotifier {
   }
 
   /// 停掉全部转发（会话结束 / 断开时调用）。
+  ///
+  /// 自行汇总成一次通知，而不是逐条走 [_setStatus]：会话断开时要重置的规则
+  /// 可能有好几条，逐条通知等于让转发面板连着重建好几遍。
   void stopAll() {
     final pending = _running.values.toList();
     _running.clear();
+    var changed = false;
     for (final ruleId in _statuses.keys.toList()) {
-      _setStatus(PortForwardStatus(ruleId: ruleId));
+      final reset = PortForwardStatus(ruleId: ruleId);
+      if (_statuses[ruleId] == reset) continue;
+      _statuses[ruleId] = reset;
+      changed = true;
     }
+    if (changed && !_disposed) notifyListeners();
     for (final running in pending) {
       unawaited(running.shutdown());
     }
@@ -264,6 +285,9 @@ final class PortForwardManager extends ChangeNotifier {
 
   void _setStatus(PortForwardStatus status) {
     if (_disposed) return;
+    // 无变化守卫：启动流程会在几个阶段间反复写状态，重复写同一个值不该
+    // 让订阅方重建一遍（与 AppSettings / TerminalStylePrefs 同一套约定）。
+    if (_statuses[status.ruleId] == status) return;
     _statuses[status.ruleId] = status;
     notifyListeners();
   }
