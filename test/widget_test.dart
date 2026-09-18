@@ -155,6 +155,47 @@ void main() {
     expect(find.byIcon(Icons.view_sidebar), findsNothing);
   });
 
+  testWidgets('窗口宽度跨过断点：选中的主机 / 侧边栏折叠 / 当前 Tab 都留得住', (tester) async {
+    // 回归：640px 两侧是两棵类型不同的骨架，Element 会被整棵销毁重建。
+    // 这几个值只有放在骨架之外（应用入口持有的 ShellLayoutState）才留得住，
+    // 否则每拖一次窗口宽度，详情面板就跳回空态、Tab 跳回第一个。
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpDesktop(tester);
+
+    await tester.tap(find.text('web-prod-01'));
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.menu_open)); // 收起侧边栏
+    await tester.pumpAndSettle();
+    expect(find.text('10.0.1.11'), findsOneWidget);
+
+    NavigationBar navBar() =>
+        tester.widget<NavigationBar>(find.byType(NavigationBar));
+
+    // 收窄到移动端骨架，切到设置 Tab
+    tester.view.physicalSize = const Size(420, 900);
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsOneWidget);
+    await tester.tap(find.text('设置').last);
+    await tester.pumpAndSettle();
+    expect(navBar().selectedIndex, 2);
+
+    // 拖回宽屏：选中的主机还在，侧边栏仍是收起状态
+    tester.view.physicalSize = const Size(1280, 900);
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.text('10.0.1.11'), findsOneWidget);
+    expect(find.text('选择左侧主机开始'), findsNothing);
+    expect(sidebarSlot(tester).size.width, 0);
+    expect(find.byIcon(Icons.view_sidebar), findsOneWidget);
+
+    // 再收窄一次：移动端停在设置 Tab，不是跳回第一个
+    tester.view.physicalSize = const Size(420, 900);
+    await tester.pumpAndSettle();
+    expect(navBar().selectedIndex, 2);
+  });
+
   testWidgets('侧边栏固定宽度且与内容区同色，界面上没有拖拽条', (tester) async {
     await pumpDesktop(tester);
 

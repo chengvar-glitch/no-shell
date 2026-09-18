@@ -14,6 +14,7 @@ import 'ssh/host_key_store.dart';
 import 'ssh/session_manager.dart';
 import 'ssh/ssh_agent.dart';
 import 'ssh/ssh_credentials.dart';
+import 'shell_layout.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'widgets/group_controls.dart';
@@ -38,6 +39,7 @@ class HomePage extends StatefulWidget {
     this.onSettingsClosed,
     this.allowLegacyHostKeys = false,
     this.onAllowLegacyHostKeysChanged,
+    this.layout,
   });
 
   final ServerStore store;
@@ -58,6 +60,10 @@ class HomePage extends StatefulWidget {
   final bool allowLegacyHostKeys;
   final ValueChanged<bool>? onAllowLegacyHostKeysChanged;
 
+  /// 跨断点保留的界面状态；由应用入口持有，两套骨架共用一份。
+  /// 为空时（组件测试、单独挂载）本页自建一份，行为与从前一致。
+  final ShellLayoutState? layout;
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -76,8 +82,13 @@ class _HomePageState extends State<HomePage> {
     LogicalKeyboardKey.digit9,
   ];
 
-  bool _sidebarCollapsed = false;
-  String? _selectedId;
+  /// 跨断点保留的那几个值（选中项 / 侧边栏折叠）放在这里，而不是本 State：
+  /// 窗口宽度跨过 640px 时整套骨架会被换掉，State 连同它一起销毁重建。
+  late final ShellLayoutState _layout = widget.layout ?? ShellLayoutState();
+
+  String? get _selectedId => _layout.selectedId;
+
+  bool get _sidebarCollapsed => _layout.sidebarCollapsed;
 
   @override
   void initState() {
@@ -103,7 +114,7 @@ class _HomePageState extends State<HomePage> {
   void _onStoreChanged() => setState(() {});
 
   void _toggleSidebar() =>
-      setState(() => _sidebarCollapsed = !_sidebarCollapsed);
+      setState(() => _layout.sidebarCollapsed = !_layout.sidebarCollapsed);
 
   void _openSettings() {
     unawaited(_showSettings());
@@ -194,7 +205,7 @@ class _HomePageState extends State<HomePage> {
     );
     final index = widget.store.remove(server.id);
     if (index == -1) return;
-    if (_selectedId == server.id) setState(() => _selectedId = null);
+    if (_selectedId == server.id) setState(() => _layout.selectedId = null);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -204,7 +215,7 @@ class _HomePageState extends State<HomePage> {
             label: l10n.undo,
             onPressed: () {
               widget.store.restore(server, index);
-              setState(() => _selectedId = server.id);
+              setState(() => _layout.selectedId = server.id);
             },
           ),
         ),
@@ -227,7 +238,7 @@ class _HomePageState extends State<HomePage> {
     );
     if (result == null || !mounted) return;
     widget.store.upsert(result);
-    setState(() => _selectedId = result.id);
+    setState(() => _layout.selectedId = result.id);
   }
 
   @override
@@ -261,7 +272,8 @@ class _HomePageState extends State<HomePage> {
               store: widget.store,
               sessions: widget.sessions,
               selectedId: _selectedId,
-              onSelect: (server) => setState(() => _selectedId = server.id),
+              onSelect: (server) =>
+                  setState(() => _layout.selectedId = server.id),
               onCreate: () => _editOrCreate(),
               onCreateInGroup: (group) => _editOrCreate(null, group),
               onEdit: (server) => _editOrCreate(server),

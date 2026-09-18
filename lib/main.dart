@@ -13,6 +13,7 @@ import 'l10n/generated/app_localizations.dart';
 import 'mobile/mobile_shell.dart';
 import 'server_persistence.dart';
 import 'settings.dart';
+import 'shell_layout.dart';
 import 'settings_persistence.dart';
 import 'snippets.dart';
 import 'ssh/credential_store.dart';
@@ -219,6 +220,10 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   /// 合并成一次写盘；退出前再补一次，保证「点完成 → 值一定落盘」。
   Timer? _saveTimer;
 
+  /// 跨骨架保留的界面状态：窗口宽度跨过 640px 时两套骨架整棵互换，
+  /// 选中项 / 侧边栏折叠 / 当前 Tab 只有放在这里才不会被重置。
+  final ShellLayoutState _layout = ShellLayoutState();
+
   @override
   void initState() {
     super.initState();
@@ -334,6 +339,8 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
       home: LayoutBuilder(
         builder: (context, constraints) {
           // 窄屏走移动端底部导航骨架，宽屏保持桌面左右分栏。
+          // 两个骨架共用一份 _layout：跨断点时整棵树会被换掉，选中项 /
+          // 侧边栏折叠 / 当前 Tab 只有放在骨架外面才留得住。
           final isMobile = constraints.maxWidth < 640;
           return isMobile
               ? MobileShell(
@@ -347,6 +354,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
                   onLanguageChanged: _setLanguage,
                   allowLegacyHostKeys: _allowLegacyHostKeys,
                   onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
+                  layout: _layout,
                 )
               : HomePage(
                   store: _store,
@@ -360,6 +368,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
                   onSettingsClosed: _saveNow,
                   allowLegacyHostKeys: _allowLegacyHostKeys,
                   onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
+                  layout: _layout,
                 );
         },
       ),
