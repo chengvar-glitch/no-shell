@@ -135,5 +135,23 @@ void main() {
       session.sendText('ls -la\r');
       expect(transport.sent, ['ls -la\r']);
     });
+
+    test('连接失败的原因进会话日志', () async {
+      // 状态胶囊点开的会话日志是缓冲区快照：失败原因不落进缓冲区，
+      // 失败会话的日志就是空的，用户点开仍然不知道为何失败。
+      final session = TerminalSession(
+        server: _server(),
+        credentials: const SshCredentials(password: 'pw'),
+        transport: FakeTransport(
+          error: StateError('Connection refused (os error 111)'),
+        ),
+      );
+      addTearDown(session.dispose);
+      await session.start();
+      expect(session.phase, TerminalPhase.failed);
+      // error.toString() 可能带异常类型前缀（如 Bad state:），只断言原因本体。
+      expect(session.sessionLog.text, contains('[NoShell] '));
+      expect(session.sessionLog.text, contains('Connection refused'));
+    });
   });
 }

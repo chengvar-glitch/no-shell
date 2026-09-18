@@ -214,6 +214,11 @@ final class TerminalSession extends ChangeNotifier {
     _errorKind = _classify(error);
     _cause = error;
     _error = error.toString();
+    // 失败原因落进终端缓冲区：会话日志是缓冲区快照，不写这一行，
+    // 连接失败的日志就是空的——状态胶囊点开日志照样查不到为何失败。
+    // 写原始错误串（诊断数据，与错误遮罩 other 分支同一取向），本地化的
+    // 「人话」文案归视图层遮罩；retry 换新会话新缓冲区，不会污染重连画面。
+    terminal.write('\r\n[NoShell] $_error\r\n');
     _notify();
   }
 
