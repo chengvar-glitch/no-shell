@@ -134,6 +134,8 @@
   "rememberCredentials": "Remember credentials",
   "fieldPrivateKey": "Private key (PEM)",
   "privateKeyHint": "-----BEGIN OPENSSH PRIVATE KEY-----",
+  "pickKeyFile": "Choose key file",
+  "pickKeyFileFailedMsg": "Could not read the selected key file.",
   "fieldPassphrase": "Key passphrase (optional)",
   "credentialsRequired": "Please enter a password or paste a key",
   "connectingTo": "Connecting to {account}…",

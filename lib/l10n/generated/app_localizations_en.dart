@@ -245,6 +245,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get privateKeyHint => '-----BEGIN OPENSSH PRIVATE KEY-----';
 
   @override
+  String get pickKeyFile => 'Choose key file';
+
+  @override
+  String get pickKeyFileFailedMsg => 'Could not read the selected key file.';
+
+  @override
   String get fieldPassphrase => 'Key passphrase (optional)';
 
   @override

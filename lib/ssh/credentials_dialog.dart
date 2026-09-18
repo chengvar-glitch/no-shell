@@ -1,10 +1,42 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../widgets/confirm_dialog.dart' show showToast;
 import '../widgets/host_form.dart' show AuthMethodSelector;
 import 'ssh_credentials.dart';
+
+/// 一次密钥文件选择的结果：显示名 + 文件文本（PEM）。
+final class PickedKeyFile {
+  const PickedKeyFile({required this.name, required this.text});
+
+  final String name;
+  final String text;
+}
+
+/// 真正的 PEM 只有几 KB；超限必是选错了文件，别把整个文件读进内存。
+const _maxKeyFileLength = 1 << 20;
+
+/// 密钥文件选择入口。生产实现走系统文件对话框，测试注入假实现——
+/// widget 测试不能真的弹系统面板（同 `SshTerminalView.openLink` 的注入方式）。
+Future<PickedKeyFile?> Function(String confirmLabel) pickPrivateKeyFile =
+    pickPrivateKeyFileViaSelector;
+
+/// 生产实现：不加类型过滤——私钥文件通常没有扩展名（id_rsa / id_ed25519），
+/// 按扩展名过滤会把它们藏起来；读不出文本（超限 / 平台不支持）时抛错，
+/// 由弹窗统一提示「无法读取」，绝不与「用户取消」（返回 null）混同。
+Future<PickedKeyFile?> pickPrivateKeyFileViaSelector(
+  String confirmLabel,
+) async {
+  final file = await openFile(confirmButtonText: confirmLabel);
+  if (file == null) return null;
+  if (await file.length() > _maxKeyFileLength) {
+    throw StateError('key file too large: ${file.name}');
+  }
+  return PickedKeyFile(name: file.name, text: await file.readAsString());
+}
 
 /// 一次凭据弹窗的提交结果：[remember] 表示用户愿意把凭据存入安全存储。
 final class CredentialsSubmission {
@@ -70,6 +102,9 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
   bool _obscure = true;
   late bool _remember = widget.rememberInitially;
 
+  /// 最近一次选中的密钥文件名，仅作来源提示；手改输入框后即失效。
+  String? _keyFileName;
+
   @override
   void initState() {
     super.initState();
@@ -120,6 +155,27 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
   String? _passphraseOrNull() {
     final passphrase = _passphrase.text.trim();
     return passphrase.isEmpty ? null : passphrase;
+  }
+
+  /// 选密钥文件并把内容灌进私钥输入框。取消（null）什么都不动；
+  /// 读不出来（超限 / 平台不支持）提示后留在原状，不清用户已贴的内容。
+  Future<void> _pickKeyFile() async {
+    final l10n = AppLocalizations.of(context);
+    final PickedKeyFile? picked;
+    try {
+      picked = await pickPrivateKeyFile(l10n.pickKeyFile);
+    } catch (_) {
+      if (!mounted) return;
+      showToast(context, l10n.pickKeyFileFailedMsg);
+      return;
+    }
+    if (picked == null || !mounted) return;
+    // setState 的闭包里做不了类型提升，先取成非空局部量。
+    final keyFile = picked;
+    setState(() {
+      _privateKey.text = keyFile.text;
+      _keyFileName = keyFile.name;
+    });
   }
 
   @override
@@ -233,6 +289,40 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
                 validator: (value) => value == null || value.trim().isEmpty
                     ? l10n.credentialsRequired
                     : null,
+                // 手改内容后「来自文件」的提示不再成立。
+                onChanged: (_) {
+                  if (_keyFileName == null) return;
+                  setState(() => _keyFileName = null);
+                },
+              ),
+              const SizedBox(height: 8),
+              // 手贴与选文件两条路都汇入同一个输入框；文件名让用户知道
+              // 当前内容来自哪份文件。
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _pickKeyFile,
+                    icon: const Icon(Icons.file_open_outlined, size: 16),
+                    label: Text(
+                      l10n.pickKeyFile,
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                  if (_keyFileName != null) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _keyFileName!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.secondaryText,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 12),
               TextFormField(

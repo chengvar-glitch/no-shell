@@ -239,6 +239,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get privateKeyHint => '-----BEGIN OPENSSH PRIVATE KEY-----';
 
   @override
+  String get pickKeyFile => '选择密钥文件';
+
+  @override
+  String get pickKeyFileFailedMsg => '无法读取所选的密钥文件。';
+
+  @override
   String get fieldPassphrase => '私钥口令（可选）';
 
   @override

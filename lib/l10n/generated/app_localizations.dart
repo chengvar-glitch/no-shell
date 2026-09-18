@@ -506,6 +506,18 @@ abstract class AppLocalizations {
   /// **'-----BEGIN OPENSSH PRIVATE KEY-----'**
   String get privateKeyHint;
 
+  /// No description provided for @pickKeyFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose key file'**
+  String get pickKeyFile;
+
+  /// No description provided for @pickKeyFileFailedMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the selected key file.'**
+  String get pickKeyFileFailedMsg;
+
   /// No description provided for @fieldPassphrase.
   ///
   /// In en, this message translates to:

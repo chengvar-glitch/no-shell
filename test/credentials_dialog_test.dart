@@ -157,4 +157,78 @@ void main() {
     await tester.pumpAndSettle();
     expect(harness.captured?.credentials.useAgent, isTrue);
   });
+
+  testWidgets('密钥方式：选择文件灌入内容，提交返回私钥凭据', (tester) async {
+    pickPrivateKeyFile = (confirmLabel) async {
+      // 弹窗必须把本地化的确认按钮文案传给选择器。
+      expect(confirmLabel, '选择密钥文件');
+      return const PickedKeyFile(name: 'id_ed25519', text: '---FILE KEY---');
+    };
+    addTearDown(() => pickPrivateKeyFile = pickPrivateKeyFileViaSelector);
+    final harness = await _pumpDialog(tester);
+
+    await tester.tap(find.text('SSH 密钥'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('选择密钥文件'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.widgetWithText(TextFormField, '---FILE KEY---'),
+      findsOneWidget,
+    );
+    expect(find.text('id_ed25519'), findsOneWidget);
+
+    await tester.tap(find.text('连接'));
+    await tester.pumpAndSettle();
+    expect(harness.captured?.credentials.privateKey, '---FILE KEY---');
+    expect(harness.captured?.credentials.password, isNull);
+    expect(harness.captured?.credentials.passphrase, isNull);
+  });
+
+  testWidgets('密钥方式：手改内容后文件名提示消失', (tester) async {
+    pickPrivateKeyFile = (confirmLabel) async =>
+        const PickedKeyFile(name: 'id_rsa', text: '---FILE KEY---');
+    addTearDown(() => pickPrivateKeyFile = pickPrivateKeyFileViaSelector);
+    await _pumpDialog(tester);
+
+    await tester.tap(find.text('SSH 密钥'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('选择密钥文件'));
+    await tester.pumpAndSettle();
+    expect(find.text('id_rsa'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField).first, '---EDITED---');
+    await tester.pumpAndSettle();
+    expect(find.text('id_rsa'), findsNothing);
+  });
+
+  testWidgets('密钥方式：选择器取消 → 字段保持原状', (tester) async {
+    pickPrivateKeyFile = (confirmLabel) async => null;
+    addTearDown(() => pickPrivateKeyFile = pickPrivateKeyFileViaSelector);
+    await _pumpDialog(tester);
+
+    await tester.tap(find.text('SSH 密钥'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, '---PASTED---');
+    await tester.tap(find.text('选择密钥文件'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextFormField, '---PASTED---'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('密钥方式：读取失败 → 提示且保留已贴内容', (tester) async {
+    pickPrivateKeyFile = (confirmLabel) async => throw StateError('boom');
+    addTearDown(() => pickPrivateKeyFile = pickPrivateKeyFileViaSelector);
+    await _pumpDialog(tester);
+
+    await tester.tap(find.text('SSH 密钥'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, '---PASTED---');
+    await tester.tap(find.text('选择密钥文件'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('无法读取所选的密钥文件。'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, '---PASTED---'), findsOneWidget);
+  });
 }

@@ -75,6 +75,8 @@
   "rememberCredentials": "记住凭据",
   "fieldPrivateKey": "私钥内容（PEM）",
   "privateKeyHint": "-----BEGIN OPENSSH PRIVATE KEY-----",
+  "pickKeyFile": "选择密钥文件",
+  "pickKeyFileFailedMsg": "无法读取所选的密钥文件。",
   "fieldPassphrase": "私钥口令（可选）",
   "credentialsRequired": "请输入密码或粘贴私钥",
   "connectingTo": "正在连接 {account} …",
