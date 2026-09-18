@@ -60,6 +60,10 @@ final class DartSsh2Transport implements SshTransport {
   final List<StreamSubscription<Object?>> _subscriptions = [];
   bool _disposed = false;
 
+  /// 挂上回调的终端与那份写入闭包，关闭时按原样摘掉（见 [_detachTerminal]）。
+  Terminal? _terminal;
+  void Function(String data)? _sendOutput;
+
   @override
   Future<void> attach(
     Terminal terminal, {
@@ -135,6 +139,8 @@ final class DartSsh2Transport implements SshTransport {
     }
 
     void sendOutput(String data) => session.stdin.add(utf8.encode(data));
+    _terminal = terminal;
+    _sendOutput = sendOutput;
     terminal
       ..onOutput = sendOutput
       ..onResize = session.resizeTerminal;
@@ -449,6 +455,7 @@ final class DartSsh2Transport implements SshTransport {
   /// 关掉当前持有的一切：已建好的 client，或只连上、还没交给 client 的 socket。
   /// 三处清理路径（dispose 与两种失败）都走它，避免漏掉中间态的 socket。
   void _closeQuietly() {
+    _detachTerminal();
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }
@@ -468,6 +475,24 @@ final class DartSsh2Transport implements SshTransport {
     _jumpClients.clear();
     // agent 连接只服务于认证，连接结束即无用了。
     unawaited(_closeAgents());
+  }
+
+  /// 摘掉挂给终端的两个回调。
+  ///
+  /// 不摘的话，会话结束（断开 / 失败 / 退避等待重连）之后终端仍会把键入
+  /// 与窗口尺寸变化送进这条已经关掉的传输：写入落进无人消费的 sink 里越积
+  /// 越多，resize 则直接在 dartssh2 的 `sendPacket` 里抛
+  /// `SSHStateError('Transport is closed')`——拖窗口、收起侧边栏都会触发，
+  /// 异常最终报到控制台并中断那次布局。
+  void _detachTerminal() {
+    final terminal = _terminal;
+    final output = _sendOutput;
+    _terminal = null;
+    _sendOutput = null;
+    // 只摘自己挂的那一份：终端可能已经接到新的传输上了。
+    if (terminal == null || !identical(terminal.onOutput, output)) return;
+    terminal.onOutput = null;
+    terminal.onResize = null;
   }
 }
 
