@@ -20,17 +20,22 @@ final class SessionLog {
   final Terminal _terminal;
 
   /// 缓冲区全文（含回滚）的纯文本，屏幕底部没写到的空行不算内容。
-  String get text => _trimTrailingBlankLines(_terminal.buffer.getText());
+  String get text => lines.join('\n');
+
+  /// 逐行形式（同样去掉尾部整行空白）。
+  ///
+  /// 弹窗按行虚拟化渲染（见 `_LogBody`），不必把整份缓冲区当成一个段落交给
+  /// 单个 `Text` 排版——回滚上限是五万行，那一次排版是实打实的主线程停顿。
+  List<String> get lines =>
+      _trimTrailingBlankLines(_terminal.buffer.getText().split('\n'));
 
   /// 去掉尾部整行空白：屏幕行数固定，光标下面那些行只是「还没写到的格子」。
   /// 只在末尾倒着找第一行有内容的，中间的空行（`echo; echo` 那种）原样保留。
-  static String _trimTrailingBlankLines(String text) {
-    final lines = text.split('\n');
+  static List<String> _trimTrailingBlankLines(List<String> lines) {
     var end = lines.length;
     while (end > 0 && lines[end - 1].trim().isEmpty) {
       end--;
     }
-    if (end == lines.length) return text;
-    return lines.take(end).join('\n');
+    return end == lines.length ? lines : lines.take(end).toList();
   }
 }
