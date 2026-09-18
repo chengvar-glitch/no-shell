@@ -38,15 +38,12 @@
   "searchHint": "搜索名称、主机或标签…",
   "noMatchingHosts": "没有匹配的主机",
   "about": "关于",
-  "switchToDark": "切换为深色",
-  "switchToLight": "切换为浅色",
   "selectHostToStart": "选择左侧主机开始",
   "emptyDetailHint": "从侧边栏选择一个主机查看详情，或新建一个连接",
   "overview": "概览",
   "terminal": "终端",
   "sftp": "SFTP",
   "moreActions": "更多操作",
-  "deleteHost": "删除主机",
   "hostAddress": "主机地址",
   "copyAddress": "复制地址",
   "copy": "复制",
@@ -96,6 +93,16 @@
   "webUnsupportedMsg": "Web 端暂不支持 SSH 直连",
   "hostKeyChangedMsg": "主机密钥校验失败：服务器指纹与首次连接记录不一致，已拒绝连接。若确认服务器确实更换（如重装系统），可清除记录的指纹后重连；否则请警惕中间人攻击。",
   "hostKeyForgetAndRetry": "清除记录的指纹并重连",
+  "hostKeyForgetConfirmTitle": "清除这台主机的指纹？",
+  "hostKeyForgetConfirmBody": "清除后，下次连接会直接信任 {host} 出示的密钥。只有在你已经从别的途径核对过新指纹时才该这么做——指纹不一致也可能意味着有人正在中间截获这条连接。",
+  "@hostKeyForgetConfirmBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostKeyForgetConfirmAction": "清除并重连",
   "reconnect": "重连",
   "fieldName": "名称",
   "nameHint": "例：web-prod-01",
@@ -143,7 +150,6 @@
   "fontSizeDecrease": "减小字号",
   "fontSizeIncrease": "增大字号",
   "presetDefaultDark": "默认深色",
-  "settingsSubtitle": "主题、终端与语言",
   "terminalPreview": "预览",
   "terminalPreviewCommand": "ssh deploy@10.0.0.1",
   "done": "完成",
@@ -165,8 +171,6 @@
   "sftpSortName": "名称",
   "sftpSortSize": "大小",
   "sftpSortModified": "修改时间",
-  "sftpSortAscending": "升序",
-  "sftpSortDescending": "降序",
   "sftpCopyPath": "复制路径",
   "sftpRename": "重命名",
   "sftpColumnName": "名称",
@@ -244,7 +248,6 @@
   "sftpCanceling": "正在取消…",
   "sftpCanceled": "已取消",
   "sftpDone": "已完成",
-  "sftpFailed": "失败",
   "sftpRemaining": "剩余 {time}",
   "@sftpRemaining": {
     "placeholders": {
@@ -353,8 +356,6 @@
   "portForwardEdit": "编辑转发",
   "portForwardDeleteTitle": "删除这条转发？",
   "portForwardDeleteBody": "只删除这条规则，其它已经在跑的转发不受影响。",
-  "portForwardStart": "启动",
-  "portForwardStop": "停止",
   "portForwardStatusStarting": "启动中",
   "portForwardStatusRunning": "运行中",
   "portForwardStatusStopped": "未启动",
@@ -404,8 +405,6 @@
   "portForwardErrorRefused": "服务端拒绝了这条转发（端口被占用或不允许监听）",
   "portForwardErrorNetwork": "网络中断，转发没有启动",
   "portForwardErrorOther": "转发没有启动",
-  "portForwardRuleIncomplete": "规则没填完整：请补全地址与端口",
-  "portForwardMode": "转发类型",
   "portForwardModeLocal": "本地转发 (-L)",
   "portForwardModeRemote": "远程转发 (-R)",
   "portForwardModeDynamic": "动态转发 (-D)",
@@ -419,6 +418,17 @@
   "portForwardAutoStart": "连接后自动启动",
   "portForwardAutoStartHint": "自动启动需要已记住凭据，否则连接时会先弹凭据框。",
   "portForwardAddressRequired": "请填写地址",
+  "portForwardExposeWarning": "监听地址不是回环地址：同一网络里的任何人都能连上这条隧道（动态转发等于开了一个不需要认证的代理）。",
+  "portForwardExposeTitle": "这条转发会对整个网络开放",
+  "portForwardExposeBody": "监听地址 {host} 不是本机回环地址，同一网络里的任何人都能连上它。确定保存吗？",
+  "@portForwardExposeBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardExposeConfirm": "仍然保存",
   "jumpHost": "跳板机",
   "jumpHostNone": "不使用",
   "jumpHostHint": "先登录它，再由它连到本机",

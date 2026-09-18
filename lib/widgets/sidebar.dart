@@ -69,8 +69,31 @@ class _SidebarState extends State<Sidebar> {
   /// 都会跟着重建）。移动端主机页用的是同一套做法。
   final ValueNotifier<String> _query = ValueNotifier('');
 
+  /// store 一变就重建本子树。
+  ///
+  /// 侧边栏是主机列表与状态点的唯一渲染方，自己订阅之后，HomePage 就不必
+  /// 为「别的某台主机连上了 / 改了名」把整页（含终端与 SFTP 保活子树）
+  /// 重画一遍——详情面板只关心它当前选中的那一台。
+  void _onStoreChanged() => setState(() {});
+
+  @override
+  void initState() {
+    super.initState();
+    widget.store.addListener(_onStoreChanged);
+  }
+
+  @override
+  void didUpdateWidget(Sidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.store != widget.store) {
+      oldWidget.store.removeListener(_onStoreChanged);
+      widget.store.addListener(_onStoreChanged);
+    }
+  }
+
   @override
   void dispose() {
+    widget.store.removeListener(_onStoreChanged);
     _query.dispose();
     _searchController.dispose();
     _scrollController.dispose();

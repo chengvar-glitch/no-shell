@@ -4,50 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/ssh/auto_reconnect.dart';
 import 'package:no_shell/ssh/session_manager.dart';
-import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
 import 'package:no_shell/ssh/ssh_transport.dart';
 import 'package:no_shell/store.dart';
-import 'package:xterm/core.dart';
 
-import 'support/forward_fakes.dart';
-
-/// 可编程假传输：连上后写欢迎语；[error] 非空时 attach 抛错。
-final class _FakeTransport with NoForwardingTransport {
-  _FakeTransport({this.error});
-
-  final Object? error;
-
-  bool disposed = false;
-  Terminal? attachedTerminal;
-  void Function()? _onClosed;
-
-  /// 模拟远端断开（意外掉线）。
-  void closeFromRemote() => _onClosed?.call();
-
-  @override
-  Future<void> attach(
-    Terminal terminal, {
-    required void Function() onConnected,
-    required void Function() onClosed,
-  }) async {
-    // 与真实网络一致：握手要走事件循环，connecting 状态可被观察。
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    if (error != null) throw error!;
-    _onClosed = onClosed;
-    attachedTerminal = terminal;
-    terminal.write('welcome');
-    onConnected();
-  }
-
-  @override
-  Future<SftpFileSystem> openSftp() async =>
-      throw const SftpException(SftpErrorKind.unsupported, 'fake transport');
-
-  @override
-  void dispose() => disposed = true;
-}
+import 'support/transport_fakes.dart';
 
 SshServer _server() => SshServer(
   id: 'srv-01',
@@ -75,6 +37,12 @@ const _credentials = SshCredentials(password: 'pw');
 
 /// 推进到排队的微任务与毫秒级延迟任务都跑完（假传输的握手延迟 1ms）。
 void _settle(FakeAsync async) => async.elapse(const Duration(milliseconds: 5));
+
+/// 本文件的假传输：握手延迟 1ms（与真实网络一致，connecting 可被观察）。
+FakeTransport _transport({Object? error}) => FakeTransport(
+  error: error,
+  handshakeDelay: const Duration(milliseconds: 1),
+);
 
 void main() {
   group('ReconnectBackoff', () {
@@ -105,7 +73,7 @@ void main() {
   group('SessionManager 空闲重连退避', () {
     test('默认关闭：断开不自动重连', () {
       fakeAsync((async) {
-        final transport = _FakeTransport();
+        final transport = _transport();
         final sessions = _manager(ServerStore(seed: [_server()]), [
           transport,
         ], autoReconnect: false);
@@ -123,8 +91,8 @@ void main() {
 
     test('意外断开排一次退避，到点换新传输重连并复用原会话参数', () {
       fakeAsync((async) {
-        final first = _FakeTransport();
-        final second = _FakeTransport();
+        final first = _transport();
+        final second = _transport();
         final sessions = _manager(ServerStore(seed: [_server()]), [
           first,
           second,
@@ -159,12 +127,12 @@ void main() {
 
     test('重连再失败时退避递增（4s → 8s），暂不放弃', () {
       fakeAsync((async) {
-        final first = _FakeTransport();
+        final first = _transport();
         final sessions = _manager(ServerStore(seed: [_server()]), [
           first,
-          _FakeTransport(error: Exception('connection refused')),
-          _FakeTransport(error: Exception('connection refused')),
-          _FakeTransport(), // 第三次成功
+          _transport(error: Exception('connection refused')),
+          _transport(error: Exception('connection refused')),
+          _transport(), // 第三次成功
         ]);
         sessions.open(_server(), _credentials);
         _settle(async);
@@ -194,10 +162,10 @@ void main() {
 
     test('认证失败不自动重试：停下来把错误交还用户', () {
       fakeAsync((async) {
-        final first = _FakeTransport();
+        final first = _transport();
         final sessions = _manager(ServerStore(seed: [_server()]), [
           first,
-          _FakeTransport(error: SSHAuthFailError('Permission denied')),
+          _transport(error: SSHAuthFailError('Permission denied')),
         ]);
         sessions.open(_server(), _credentials);
         _settle(async);
@@ -219,7 +187,7 @@ void main() {
 
     test('用户主动断开会取消退避计划', () {
       fakeAsync((async) {
-        final transport = _FakeTransport();
+        final transport = _transport();
         final sessions = _manager(ServerStore(seed: [_server()]), [transport]);
         sessions.open(_server(), _credentials);
         _settle(async);
@@ -236,8 +204,8 @@ void main() {
 
     test('用户手动重连接管后不再自动重连', () {
       fakeAsync((async) {
-        final first = _FakeTransport();
-        final second = _FakeTransport();
+        final first = _transport();
+        final second = _transport();
         final sessions = _manager(ServerStore(seed: [_server()]), [
           first,
           second,
@@ -257,7 +225,7 @@ void main() {
 
     test('cancelAutoReconnect 只停计划，保留断开的会话', () {
       fakeAsync((async) {
-        final transport = _FakeTransport();
+        final transport = _transport();
         final sessions = _manager(ServerStore(seed: [_server()]), [transport]);
         sessions.open(_server(), _credentials);
         _settle(async);
@@ -274,7 +242,7 @@ void main() {
     test('首次手动连接就失败不触发退避', () {
       fakeAsync((async) {
         final sessions = _manager(ServerStore(seed: [_server()]), [
-          _FakeTransport(error: Exception('no route to host')),
+          _transport(error: Exception('no route to host')),
         ]);
         sessions.open(_server(), _credentials);
         _settle(async);
@@ -287,12 +255,12 @@ void main() {
 
     test('两条会话各自退避：掉线的那条重连，另一条不被替换', () {
       fakeAsync((async) {
-        final first = _FakeTransport();
-        final second = _FakeTransport();
+        final first = _transport();
+        final second = _transport();
         final sessions = _manager(ServerStore(seed: [_server()]), [
           first,
           second,
-          _FakeTransport(), // 第一条重连时换上的新传输
+          _transport(), // 第一条重连时换上的新传输
         ]);
         final server = _server();
         sessions.open(server, _credentials);
@@ -327,12 +295,12 @@ void main() {
 
     test('retry 只重开被点的那一条：编号与当前身份都保持', () {
       fakeAsync((async) {
-        final first = _FakeTransport();
-        final second = _FakeTransport();
+        final first = _transport();
+        final second = _transport();
         final sessions = _manager(ServerStore(seed: [_server()]), [
           first,
           second,
-          _FakeTransport(), // retry 换上的新传输
+          _transport(), // retry 换上的新传输
         ]);
         final server = _server();
         sessions.open(server, _credentials);
@@ -360,12 +328,12 @@ void main() {
 
     test('关掉一条会话不影响同主机另一条排着的退避', () {
       fakeAsync((async) {
-        final first = _FakeTransport();
-        final second = _FakeTransport();
+        final first = _transport();
+        final second = _transport();
         final sessions = _manager(ServerStore(seed: [_server()]), [
           first,
           second,
-          _FakeTransport(),
+          _transport(),
         ]);
         final server = _server();
         sessions.open(server, _credentials);

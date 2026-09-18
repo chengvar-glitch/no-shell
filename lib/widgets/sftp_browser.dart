@@ -278,8 +278,12 @@ final class _Browser extends StatelessWidget {
                 _FilterField(controller: controller, compact: compact),
               ],
               const SizedBox(height: 6),
+              // 刷新细进度条是不定动画、每帧都要重绘，包一层边界免得整块
+              // 详情面板（含被保活的终端区域）跟着逐帧重画。
               if (controller.isRefreshing)
-                const LinearProgressIndicator(minHeight: 2)
+                const RepaintBoundary(
+                  child: LinearProgressIndicator(minHeight: 2),
+                )
               else
                 const SizedBox(height: 2),
               const SizedBox(height: 4),

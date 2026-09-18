@@ -115,7 +115,9 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  testWidgets('三个 Tab 切换帧耗时', (tester) async {
+  testWidgets('三个 Tab 切换帧耗时', timeout: const Timeout(Duration(minutes: 5)), (
+    tester,
+  ) async {
     tester.platformDispatcher.localesTestValue = const [Locale('zh')];
     addTearDown(tester.platformDispatcher.clearAllTestValues);
 

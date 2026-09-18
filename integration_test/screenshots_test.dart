@@ -103,7 +103,9 @@ void main() {
     return;
   }
 
-  testWidgets('生成 README 截图', (tester) async {
+  testWidgets('生成 README 截图', timeout: const Timeout(Duration(minutes: 5)), (
+    tester,
+  ) async {
     // README 以英文为主文档，截图统一钉英文界面。
     tester.platformDispatcher.localesTestValue = const [Locale('en')];
     addTearDown(tester.platformDispatcher.clearAllTestValues);
@@ -117,7 +119,8 @@ void main() {
 
     // macOS 应用进程被沙盒重定向了工作目录，输出目录用环境变量显式指定。
     // 移动端应用沙盒只写临时目录，模拟器跑测试时截图不进仓库。
-    final shotsDir = Platform.environment['SSH_SHOTS_DIR'] ??
+    final shotsDir =
+        Platform.environment['SSH_SHOTS_DIR'] ??
         (isDesktop
             ? 'docs/screenshots'
             : Directory.systemTemp.createTempSync().path);

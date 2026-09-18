@@ -7,47 +7,16 @@ import 'package:no_shell/l10n/generated/app_localizations.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/ssh/connect_flow.dart';
 import 'package:no_shell/ssh/session_manager.dart';
-import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
 import 'package:no_shell/store.dart';
-import 'package:xterm/core.dart';
 
 import 'support/credential_store_fake.dart';
-import 'support/forward_fakes.dart';
-
-/// 可编程假传输：成功时向终端写入欢迎语，可配置抛错模拟认证失败。
-final class _FakeTransport with NoForwardingTransport {
-  _FakeTransport({this.error});
-
-  final Object? error;
-
-  bool disposed = false;
-
-  @override
-  Future<void> attach(
-    Terminal terminal, {
-    required void Function() onConnected,
-    required void Function() onClosed,
-  }) async {
-    // 模拟真实网络的异步握手，让直连失败可被观察。
-    await Future<void>.delayed(Duration.zero);
-    if (error != null) throw error!;
-    terminal.write('welcome');
-    onConnected();
-  }
-
-  @override
-  Future<SftpFileSystem> openSftp() async =>
-      throw const SftpException(SftpErrorKind.unsupported, 'fake transport');
-
-  @override
-  void dispose() => disposed = true;
-}
+import 'support/transport_fakes.dart';
 
 final class _Harness {
   late SessionManager sessions;
-  late List<_FakeTransport> transports;
+  late List<FakeTransport> transports;
   late FakeCredentialStore credentials;
 }
 
@@ -63,7 +32,7 @@ SshServer _server() => const SshServer(
 
 Future<_Harness> _pump(
   WidgetTester tester, {
-  required List<_FakeTransport> transports,
+  required List<FakeTransport> transports,
   FakeCredentialStore? credentials,
   AgentKeysProbe? agentKeys,
 }) async {
@@ -130,7 +99,7 @@ void main() {
   testWidgets('已存凭据直连，不弹凭据框', (tester) async {
     final harness = await _pump(
       tester,
-      transports: [_FakeTransport()],
+      transports: [FakeTransport()],
       credentials: FakeCredentialStore()
         ..write('srv-1', const SshCredentials(password: 'saved')),
     );
@@ -148,8 +117,8 @@ void main() {
     final harness = await _pump(
       tester,
       transports: [
-        _FakeTransport(error: SSHAuthFailError('Permission denied')),
-        _FakeTransport(),
+        FakeTransport(error: SSHAuthFailError('Permission denied')),
+        FakeTransport(),
       ],
       credentials: credentials,
     );
@@ -175,7 +144,7 @@ void main() {
   });
 
   testWidgets('无存档时弹窗，勾选记住提交后写入安全存储', (tester) async {
-    final harness = await _pump(tester, transports: [_FakeTransport()]);
+    final harness = await _pump(tester, transports: [FakeTransport()]);
 
     await tester.tap(find.text('go'));
     await tester.pumpAndSettle();
@@ -203,8 +172,8 @@ void main() {
     final harness = await _pump(
       tester,
       transports: [
-        _FakeTransport(error: SSHAuthFailError('Permission denied')),
-        _FakeTransport(),
+        FakeTransport(error: SSHAuthFailError('Permission denied')),
+        FakeTransport(),
       ],
       credentials: credentials,
     );
@@ -234,7 +203,7 @@ void main() {
   testWidgets('活跃会话再次点连接即断开', (tester) async {
     final harness = await _pump(
       tester,
-      transports: [_FakeTransport()],
+      transports: [FakeTransport()],
       credentials: FakeCredentialStore()
         ..write('srv-1', const SshCredentials(password: 'saved')),
     );
@@ -252,7 +221,7 @@ void main() {
     final credentials = FakeCredentialStore()..failWrite = true;
     final harness = await _pump(
       tester,
-      transports: [_FakeTransport()],
+      transports: [FakeTransport()],
       credentials: credentials,
     );
 
@@ -272,7 +241,7 @@ void main() {
   testWidgets('无存档凭据时静默试 agent，成功则免弹窗直连', (tester) async {
     final harness = await _pump(
       tester,
-      transports: [_FakeTransport()],
+      transports: [FakeTransport()],
       agentKeys: () async => true,
     );
 
@@ -292,9 +261,9 @@ void main() {
       tester,
       transports: [
         // 第 1 个：agent 探测，认证被拒。
-        _FakeTransport(error: SSHAuthFailError('Permission denied')),
+        FakeTransport(error: SSHAuthFailError('Permission denied')),
         // 第 2 个：弹窗提交后的正式连接。
-        _FakeTransport(),
+        FakeTransport(),
       ],
       agentKeys: () async => true,
     );
@@ -317,7 +286,7 @@ void main() {
   testWidgets('agent 探测遇到网络类失败时保留错误现场，不弹框掩盖', (tester) async {
     final harness = await _pump(
       tester,
-      transports: [_FakeTransport(error: TimeoutException('network'))],
+      transports: [FakeTransport(error: TimeoutException('network'))],
       agentKeys: () async => true,
     );
 
@@ -333,7 +302,7 @@ void main() {
   testWidgets('再开一条会话复用现有会话手头的内存凭据，不弹框也不落盘', (tester) async {
     final harness = await _pump(
       tester,
-      transports: [_FakeTransport(), _FakeTransport()],
+      transports: [FakeTransport(), FakeTransport()],
     );
 
     // 第一条：没有存档凭据 → 弹窗，输密码但**不勾**「记住凭据」。
@@ -365,9 +334,9 @@ void main() {
       tester,
       transports: [
         // 第 1 个：用存档里的旧密码直连，认证被拒。
-        _FakeTransport(error: SSHAuthFailError('Permission denied')),
+        FakeTransport(error: SSHAuthFailError('Permission denied')),
         // 第 2 个：弹窗提交后的那条新会话。
-        _FakeTransport(),
+        FakeTransport(),
       ],
       credentials: credentials,
     );
@@ -396,8 +365,8 @@ void main() {
   });
 
   testWidgets('两条活跃会话时点断开：一次关掉该主机的全部会话', (tester) async {
-    final firstTransport = _FakeTransport();
-    final secondTransport = _FakeTransport();
+    final firstTransport = FakeTransport();
+    final secondTransport = FakeTransport();
     final harness = await _pump(
       tester,
       transports: [firstTransport, secondTransport],

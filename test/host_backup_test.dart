@@ -341,6 +341,9 @@ void main() {
       expect(written, isNot(contains('192.0.2.10')));
       expect(isHostsBackup(written), isTrue);
       expect(find.text('已导出 1 台主机'), findsOneWidget);
+      // 落盘那一笔必须带 ownerOnly：备份明文里是各主机的密码，
+      // 按 umask 默认落成 0644 等于同机器上任何本地账号都能读到。
+      expect(gateway.ownerOnlyWrites, ['/tmp/backup.nsbak']);
 
       // 用同一个口令解密后就是原本的清单。
       final text = await _decode(written, 'file-password');

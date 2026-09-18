@@ -136,6 +136,40 @@ void main() {
       expect(fs.listCalls.length, calls);
     });
 
+    test('筛选沿用当前排序，改排序键后过滤结果跟着重排', () async {
+      // 展示序列是「先排好序再过滤」的一份（见 _rebuildVisible），
+      // 这条用例守住它与「先过滤再排序」等价，以及排序键变化能生效。
+      final (:controller, :fs) = await ready();
+      addTearDown(controller.dispose);
+      for (final name in ['c.txt', 'a.txt', 'b.txt']) {
+        fs.addFile(fs.home, name);
+      }
+      await controller.refresh();
+
+      controller.setQuery('.txt');
+      expect(controller.entries.map((entry) => entry.name), [
+        'a.txt',
+        'b.txt',
+        'c.txt',
+      ]);
+
+      // 再点一次同一个字段 → 反转方向，过滤结果跟着反过来。
+      controller.toggleSort(SftpSortField.name);
+      expect(controller.entries.map((entry) => entry.name), [
+        'c.txt',
+        'b.txt',
+        'a.txt',
+      ]);
+
+      // 换搜索词后仍按当前方向排列。
+      controller.setQuery('t');
+      expect(controller.entries.map((entry) => entry.name), [
+        'c.txt',
+        'b.txt',
+        'a.txt',
+      ]);
+    });
+
     test('导航进入子目录、返回上级并清空选中', () async {
       final (:controller, :fs) = await ready();
       addTearDown(controller.dispose);
@@ -459,6 +493,8 @@ void main() {
         controller.transfers.transfers.single.state,
         SftpTransferState.done,
       );
+      // 下载落点收到 0600：远端内容里可能是私钥这类只该自己读的东西。
+      expect(gateway.ownerOnlyWrites, [gateway.temporaryPath('/tmp/app.log')]);
     });
 
     test('多个条目走目录选择，取消则不产生传输', () async {
@@ -518,7 +554,9 @@ void main() {
       await pumpEventQueue();
 
       expect(transfer.state, SftpTransferState.canceled);
-      expect(gateway.discarded, ['/tmp/raw.bin.part'], reason: '半成品是临时文件');
+      expect(gateway.discarded, [
+        '/tmp/raw.bin.noshell-part',
+      ], reason: '半成品是临时文件');
       expect(gateway.written['/tmp/raw.bin'], [
         1,
         2,
@@ -569,7 +607,7 @@ void main() {
       final transfer = controller.transfers.transfers.single;
       expect(transfer.state, SftpTransferState.failed);
       expect(transfer.errorKind, SftpErrorKind.network);
-      expect(gateway.discarded, ['/tmp/raw.bin.part']);
+      expect(gateway.discarded, ['/tmp/raw.bin.noshell-part']);
       expect(gateway.written['/tmp/raw.bin'], [
         9,
         9,

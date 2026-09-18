@@ -473,6 +473,41 @@ class _Tag extends StatelessWidget {
   }
 }
 
+/// 监听地址不是回环时的内联警告：这条隧道对整个网络开放。
+///
+/// 只在形态上提醒，拦下来的是 [_ForwardRuleDialogState._submit] 里的确认框：
+/// 用户可能确实要这么做（比如故意让同事连本机的测试服务）。
+class _ExposeWarning extends StatelessWidget {
+  const _ExposeWarning({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.warning_amber_rounded,
+          size: 15,
+          color: AppPalette.danger,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 11.5,
+              height: 1.4,
+              color: AppPalette.danger,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// 新建 / 编辑转发规则的弹窗；桌面端与移动端共用，返回 null 表示取消。
 Future<PortForwardRule?> showForwardRuleDialog(
   BuildContext context, {
@@ -508,12 +543,29 @@ class _ForwardRuleDialogState extends State<_ForwardRuleDialog> {
   );
   late bool _autoStart = widget.existing?.autoStart ?? false;
 
+  /// 监听地址当前是否不是回环（决定是否展示暴露提示）。缓存成字段是为了
+  /// 只在「是不是回环」翻转时重建，而不是每敲一个字符都重建整张表单。
+  late bool _exposed = !isLoopbackHost(_localHost.text);
+
   /// 端口 0 是「还没填」，编辑时不该显示成 0；远程转发允许 0（服务端分配）。
   static String _initialPort(int? port) =>
       port == null || port == 0 ? '' : '$port';
 
   @override
+  void initState() {
+    super.initState();
+    _localHost.addListener(_onListenAddressChanged);
+  }
+
+  void _onListenAddressChanged() {
+    final exposed = !isLoopbackHost(_localHost.text);
+    if (exposed == _exposed) return;
+    setState(() => _exposed = exposed);
+  }
+
+  @override
   void dispose() {
+    _localHost.removeListener(_onListenAddressChanged);
     for (final controller in [
       _localHost,
       _localPort,
@@ -534,22 +586,32 @@ class _ForwardRuleDialogState extends State<_ForwardRuleDialog> {
     return null;
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final remote = int.tryParse(_remotePort.text.trim()) ?? 0;
-    Navigator.of(context).pop(
-      PortForwardRule(
-        id:
-            widget.existing?.id ??
-            'fwd-${DateTime.now().microsecondsSinceEpoch}',
-        mode: _mode,
-        localHost: _localHost.text.trim(),
-        localPort: int.tryParse(_localPort.text.trim()) ?? 0,
-        remoteHost: _remoteHost.text.trim(),
-        remotePort: _mode == PortForwardMode.dynamic ? 0 : remote,
-        autoStart: _autoStart,
-      ),
+    final rule = PortForwardRule(
+      id: widget.existing?.id ?? 'fwd-${DateTime.now().microsecondsSinceEpoch}',
+      mode: _mode,
+      localHost: _localHost.text.trim(),
+      localPort: int.tryParse(_localPort.text.trim()) ?? 0,
+      remoteHost: _remoteHost.text.trim(),
+      remotePort: _mode == PortForwardMode.dynamic ? 0 : remote,
+      autoStart: _autoStart,
     );
+    // 监听地址不是回环：隧道（或一个不认证的 SOCKS5 代理）会对整个网络开放。
+    // 表单里已经给了内联警告，但保存这个动作本身要用户明确认下来一次。
+    if (!isLoopbackHost(rule.localHost)) {
+      final l10n = AppLocalizations.of(context);
+      final confirmed = await showConfirmDialog(
+        context,
+        title: l10n.portForwardExposeTitle,
+        body: l10n.portForwardExposeBody(rule.localHost),
+        confirmLabel: l10n.portForwardExposeConfirm,
+      );
+      if (!confirmed || !mounted) return;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(rule);
   }
 
   @override
@@ -617,6 +679,10 @@ class _ForwardRuleDialogState extends State<_ForwardRuleDialog> {
                   portValidator: (value) =>
                       _validatePort(value, allowZero: false),
                 ),
+                if (_exposed) ...[
+                  const SizedBox(height: 8),
+                  _ExposeWarning(text: l10n.portForwardExposeWarning),
+                ],
                 if (!dynamic) ...[
                   const SizedBox(height: 14),
                   _AddressRow(

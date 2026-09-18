@@ -145,12 +145,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get about => 'About';
 
   @override
-  String get switchToDark => 'Switch to dark';
-
-  @override
-  String get switchToLight => 'Switch to light';
-
-  @override
   String get selectHostToStart => 'Select a host to get started';
 
   @override
@@ -168,9 +162,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get moreActions => 'More actions';
-
-  @override
-  String get deleteHost => 'Delete host';
 
   @override
   String get hostAddress => 'Host address';
@@ -293,6 +284,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get hostKeyForgetAndRetry => 'Forget fingerprint and reconnect';
+
+  @override
+  String get hostKeyForgetConfirmTitle => 'Forget this host key?';
+
+  @override
+  String hostKeyForgetConfirmBody(String host) {
+    return 'After forgetting, the next connection will trust whatever key $host presents. Only do this if you have verified the new fingerprint out of band — a mismatched fingerprint can also mean someone is intercepting this connection.';
+  }
+
+  @override
+  String get hostKeyForgetConfirmAction => 'Forget and reconnect';
 
   @override
   String get reconnect => 'Reconnect';
@@ -450,9 +452,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get presetDefaultDark => 'Default dark';
 
   @override
-  String get settingsSubtitle => 'Theme, terminal and language';
-
-  @override
   String get terminalPreview => 'Preview';
 
   @override
@@ -516,12 +515,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sftpSortModified => 'Modified';
-
-  @override
-  String get sftpSortAscending => 'Ascending';
-
-  @override
-  String get sftpSortDescending => 'Descending';
 
   @override
   String get sftpCopyPath => 'Copy path';
@@ -646,9 +639,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sftpDone => 'Done';
-
-  @override
-  String get sftpFailed => 'Failed';
 
   @override
   String sftpRemaining(String time) {
@@ -892,12 +882,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only this rule is removed; other running forwards are untouched.';
 
   @override
-  String get portForwardStart => 'Start';
-
-  @override
-  String get portForwardStop => 'Stop';
-
-  @override
   String get portForwardStatusStarting => 'Starting';
 
   @override
@@ -956,13 +940,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get portForwardErrorOther => 'The forward was not started';
 
   @override
-  String get portForwardRuleIncomplete =>
-      'This rule is incomplete — fill in the addresses and ports';
-
-  @override
-  String get portForwardMode => 'Type';
-
-  @override
   String get portForwardModeLocal => 'Local (-L)';
 
   @override
@@ -1004,6 +981,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get portForwardAddressRequired => 'Please enter an address';
+
+  @override
+  String get portForwardExposeWarning =>
+      'The listen address is not a loopback address: anyone on the same network can reach this tunnel (for dynamic forwarding that means an unauthenticated proxy).';
+
+  @override
+  String get portForwardExposeTitle =>
+      'This forward will be exposed to the network';
+
+  @override
+  String portForwardExposeBody(String host) {
+    return 'Listen address $host is not a loopback address — anyone on the same network can connect to it. Save anyway?';
+  }
+
+  @override
+  String get portForwardExposeConfirm => 'Save anyway';
 
   @override
   String get jumpHost => 'Jump host';

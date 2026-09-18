@@ -90,15 +90,12 @@
   "searchHint": "Search name, host, or tag…",
   "noMatchingHosts": "No matching hosts",
   "about": "About",
-  "switchToDark": "Switch to dark",
-  "switchToLight": "Switch to light",
   "selectHostToStart": "Select a host to get started",
   "emptyDetailHint": "Pick a host from the sidebar to view its details, or create a new connection.",
   "overview": "Overview",
   "terminal": "Terminal",
   "sftp": "SFTP",
   "moreActions": "More actions",
-  "deleteHost": "Delete host",
   "hostAddress": "Host address",
   "copyAddress": "Copy address",
   "copy": "Copy",
@@ -155,6 +152,16 @@
   "webUnsupportedMsg": "SSH connections are not supported on web yet",
   "hostKeyChangedMsg": "Host key verification failed — the server's fingerprint no longer matches the one recorded at first connection, so the connection was refused. If the server was rebuilt on purpose, forget the recorded fingerprint and reconnect; otherwise beware of a man-in-the-middle attack.",
   "hostKeyForgetAndRetry": "Forget fingerprint and reconnect",
+  "hostKeyForgetConfirmTitle": "Forget this host key?",
+  "hostKeyForgetConfirmBody": "After forgetting, the next connection will trust whatever key {host} presents. Only do this if you have verified the new fingerprint out of band — a mismatched fingerprint can also mean someone is intercepting this connection.",
+  "@hostKeyForgetConfirmBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostKeyForgetConfirmAction": "Forget and reconnect",
   "reconnect": "Reconnect",
   "fieldName": "Name",
   "nameHint": "e.g. web-prod-01",
@@ -226,7 +233,6 @@
   "fontSizeDecrease": "Decrease font size",
   "fontSizeIncrease": "Increase font size",
   "presetDefaultDark": "Default dark",
-  "settingsSubtitle": "Theme, terminal and language",
   "terminalPreview": "Preview",
   "terminalPreviewCommand": "ssh deploy@10.0.0.1",
   "done": "Done",
@@ -248,8 +254,6 @@
   "sftpSortName": "Name",
   "sftpSortSize": "Size",
   "sftpSortModified": "Modified",
-  "sftpSortAscending": "Ascending",
-  "sftpSortDescending": "Descending",
   "sftpCopyPath": "Copy path",
   "sftpRename": "Rename",
   "sftpColumnName": "Name",
@@ -327,7 +331,6 @@
   "sftpCanceling": "Canceling…",
   "sftpCanceled": "Canceled",
   "sftpDone": "Done",
-  "sftpFailed": "Failed",
   "sftpRemaining": "{time} left",
   "@sftpRemaining": {
     "placeholders": {
@@ -478,8 +481,6 @@
   "portForwardEdit": "Edit forward",
   "portForwardDeleteTitle": "Delete this port forward?",
   "portForwardDeleteBody": "Only this rule is removed; other running forwards are untouched.",
-  "portForwardStart": "Start",
-  "portForwardStop": "Stop",
   "portForwardStatusStarting": "Starting",
   "portForwardStatusRunning": "Running",
   "portForwardStatusStopped": "Stopped",
@@ -529,8 +530,6 @@
   "portForwardErrorRefused": "The server refused this forward (port in use, or listening is not permitted)",
   "portForwardErrorNetwork": "The network dropped, so the forward was not started",
   "portForwardErrorOther": "The forward was not started",
-  "portForwardRuleIncomplete": "This rule is incomplete — fill in the addresses and ports",
-  "portForwardMode": "Type",
   "portForwardModeLocal": "Local (-L)",
   "portForwardModeRemote": "Remote (-R)",
   "portForwardModeDynamic": "Dynamic (-D)",
@@ -544,6 +543,17 @@
   "portForwardAutoStart": "Start automatically on connect",
   "portForwardAutoStartHint": "Auto start needs saved credentials; otherwise you will be asked for them on connect.",
   "portForwardAddressRequired": "Please enter an address",
+  "portForwardExposeWarning": "The listen address is not a loopback address: anyone on the same network can reach this tunnel (for dynamic forwarding that means an unauthenticated proxy).",
+  "portForwardExposeTitle": "This forward will be exposed to the network",
+  "portForwardExposeBody": "Listen address {host} is not a loopback address — anyone on the same network can connect to it. Save anyway?",
+  "@portForwardExposeBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portForwardExposeConfirm": "Save anyway",
   "jumpHost": "Jump host",
   "jumpHostNone": "None",
   "jumpHostHint": "Log in to it first, then reach this host through it",

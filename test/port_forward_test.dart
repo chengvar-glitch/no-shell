@@ -379,6 +379,77 @@ void main() {
       expect(env.manager.runningIds, isEmpty);
       expect(env.gateway.listenerFor('127.0.0.1', 8080)?.closed, isTrue);
     });
+
+    test('状态没变就不通知：重复停一条已经停着的规则', () async {
+      final env = _build();
+      await env.manager.start(_rule());
+      await settle();
+      await env.manager.stop('fwd-1'); // 回到未启动（这一笔会通知）
+      var notifications = 0;
+      env.manager.addListener(() => notifications++);
+
+      await env.manager.stop('fwd-1'); // 已经停着，再来一次
+      env.manager.stopAll(); // 全部收一遍，但没有一条状态真的在变
+      await settle();
+
+      expect(notifications, 0);
+    });
+
+    test('stopAll 收掉多条规则时只通知一次', () async {
+      final env = _build();
+      await env.manager.start(_rule(id: 'fwd-1'));
+      await env.manager.start(
+        _rule(id: 'fwd-2', mode: PortForwardMode.dynamic, localPort: 1080),
+      );
+      await settle();
+      var notifications = 0;
+      env.manager.addListener(() => notifications++);
+
+      env.manager.stopAll();
+      await settle();
+
+      expect(env.manager.runningIds, isEmpty);
+      expect(notifications, 1);
+    });
+  });
+
+  group('PortForwardStatus', () {
+    test('值语义：内容相同即相等，任一字段不同就不等', () {
+      const base = PortForwardStatus(
+        ruleId: 'fwd-1',
+        phase: PortForwardPhase.running,
+        boundPort: 8080,
+      );
+      const same = PortForwardStatus(
+        ruleId: 'fwd-1',
+        phase: PortForwardPhase.running,
+        boundPort: 8080,
+      );
+      expect(base, same);
+      expect(base.hashCode, same.hashCode);
+      // 状态写入靠它做无变化守卫，漏掉任何一个字段都会让守卫失效。
+      expect(base == const PortForwardStatus(ruleId: 'fwd-1'), isFalse);
+      expect(
+        base ==
+            const PortForwardStatus(
+              ruleId: 'fwd-1',
+              phase: PortForwardPhase.running,
+              boundPort: 8081,
+            ),
+        isFalse,
+      );
+      expect(
+        base ==
+            const PortForwardStatus(
+              ruleId: 'fwd-1',
+              phase: PortForwardPhase.failed,
+              errorKind: ForwardErrorKind.refused,
+              error: 'busy',
+              boundPort: 8080,
+            ),
+        isFalse,
+      );
+    });
   });
 
   group('TerminalSession 与转发接线', () {

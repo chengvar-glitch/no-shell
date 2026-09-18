@@ -65,3 +65,33 @@ jobs:
 
       - name: 冒烟 —— SFTP 浏览与上传下载
         run: dart run tool/smoke_ssh.dart 127.0.0.1 22 ci-smoke --password "$SMOKE_PASS" --sftp
+
+      # 上面三步跑的是 tool/smoke_ssh.dart 的纯 Dart 链路；这一步跑 App 自己的
+      # 传输层（DartSsh2Transport）：认证、PTY、TOFU 指纹的记录 / 放行 / 拒绝、
+      # SFTP 通道复用同一条连接、关闭后终端回调摘干净。
+      - name: 冒烟 —— App 传输层（认证 / PTY / TOFU / SFTP）
+        env:
+          NOSHELL_SMOKE_HOST: 127.0.0.1
+          NOSHELL_SMOKE_USER: ci-smoke
+          NOSHELL_SMOKE_PORT: '22'
+          # 密码由上一步写进 $GITHUB_ENV，不落在 workflow 文件里。
+          NOSHELL_SMOKE_PASSWORD: ${{ env.SMOKE_PASS }}
+        run: flutter test test/transport_smoke_test.dart
+
+  # iOS 不在发布产物里（不上架），但它仍必须能编译：条件导出的桩、
+  # Info.plist 与插件注册的改动，只有真编一次才看得出来。
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 安装依赖
+        run: flutter pub get
+
+      - name: 编译 iOS（不签名）
+        run: flutter build ios --release --no-codesign

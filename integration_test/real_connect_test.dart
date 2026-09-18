@@ -37,7 +37,9 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  testWidgets('模拟器内连接真实服务器', (tester) async {
+  testWidgets('模拟器内连接真实服务器', timeout: const Timeout(Duration(minutes: 3)), (
+    tester,
+  ) async {
     // 模拟器进程不继承宿主环境变量，define 优先；macOS 直跑可退回环境变量。
     String pick({required String define, required String envKey}) =>
         define.isNotEmpty ? define : Platform.environment[envKey] ?? '';
@@ -50,8 +52,16 @@ void main() {
     final name = pick(define: _kDefineName, envKey: 'REAL_SSH_NAME').isNotEmpty
         ? pick(define: _kDefineName, envKey: 'REAL_SSH_NAME')
         : 'target';
-    if (host.isEmpty || user.isEmpty || pass.isEmpty) {
-      fail('缺少 REAL_SSH_HOST / REAL_SSH_USER / REAL_SSH_PASS');
+    // 缺前置一律跳过（而不是 fail）：这条要真机 + 真凭据，别人顺手把它
+    // 加进 CI 时应当安静跳过，不该变成一盏红灯。
+    final missing = [
+      if (host.isEmpty) 'REAL_SSH_HOST',
+      if (user.isEmpty) 'REAL_SSH_USER',
+      if (pass.isEmpty) 'REAL_SSH_PASS',
+    ];
+    if (missing.isNotEmpty) {
+      markTestSkipped('缺少 ${missing.join(' / ')}，跳过真实主机连接验证');
+      return;
     }
     final shotsDir = _kDefineShots.isNotEmpty
         ? _kDefineShots

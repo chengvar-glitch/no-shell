@@ -19,6 +19,12 @@ final class SecureCredentialStore implements CredentialStore {
 
   static String _key(String serverId) => '$_keyPrefix$serverId';
 
+  /// 诊断输出：只在 debug 构建里打。异常串是第三方插件给的、内容不受本仓库
+  /// 控制，release 下不该把与凭据相关的调试信息写进系统日志。
+  static void _log(String message) {
+    if (kDebugMode) debugPrint('CredentialStore.$message');
+  }
+
   /// 钥匙串条目不跟随备份迁移到新设备。
   ///
   /// Apple 端的默认值是 `unlocked`（`kSecAttrAccessibleWhenUnlocked`），
@@ -51,8 +57,9 @@ final class SecureCredentialStore implements CredentialStore {
       );
     } catch (error) {
       // 读不到按「无凭据」降级为弹窗输入；错误打到控制台供诊断，
-      // 不然用户会以为存档还在。
-      debugPrint('CredentialStore.read($serverId) failed: $error');
+      // 不然用户会以为存档还在。只在 debug 下打：异常串来自第三方插件，
+      // release 下不该让平台日志里出现与凭据相关的调试输出。
+      _log('read($serverId) failed: $error');
       return null;
     }
   }
@@ -70,7 +77,7 @@ final class SecureCredentialStore implements CredentialStore {
     } catch (error) {
       // 写失败不打断连接（本次会话仍可用内存凭据），但必须如实回报
       // 「没存上」，由界面提示用户——静默失败曾让「记住凭据」形同虚设。
-      debugPrint('CredentialStore.write($serverId) failed: $error');
+      _log('write($serverId) failed: $error');
       return false;
     }
   }

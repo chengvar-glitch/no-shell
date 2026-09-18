@@ -7,13 +7,17 @@ import 'package:no_shell/mobile/servers_tab.dart';
 import 'package:no_shell/mobile/settings_tab.dart';
 import 'package:no_shell/l10n/generated/app_localizations.dart';
 import 'package:no_shell/models.dart';
+import 'package:no_shell/mobile/server_detail_page.dart';
 import 'package:no_shell/settings.dart';
+import 'package:no_shell/ssh/host_key_store.dart';
+import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/jump_host.dart';
 import 'package:no_shell/store.dart';
 import 'package:no_shell/widgets/settings_controls.dart';
 
 import 'support/credential_store_fake.dart';
 import 'support/demo_servers.dart';
+import 'support/host_key_store_fake.dart';
 
 Finder navLabel(String label) =>
     find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
@@ -26,6 +30,7 @@ void main() {
     WidgetTester tester, {
     ServerStore? store,
     FakeCredentialStore? credentials,
+    FakeHostKeyStore? hostKeys,
     Size size = const Size(390, 844),
   }) async {
     tester.view.physicalSize = size;
@@ -38,6 +43,7 @@ void main() {
         // 未显式传 store 时注入示例数据，非空列表语义由测试自持。
         store: store ?? ServerStore(seed: demoServers),
         credentials: credentials ?? FakeCredentialStore(),
+        hostKeys: hostKeys,
         // 测试机可能真挂着 agent，注入「没有」保持确定性。
         agentKeysProbe: () async => false,
       ),
@@ -87,6 +93,50 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.textContaining('会话未建立', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets('详情页删除主机：凭据与指纹一并清理', (tester) async {
+    final credentials = FakeCredentialStore();
+    final hostKeys = FakeHostKeyStore();
+    final store = ServerStore(seed: [demoServers.first]);
+    await credentials.write(
+      demoServers.first.id,
+      const SshCredentials(password: 'pw'),
+    );
+    await hostKeys.save(
+      demoServers.first.host,
+      demoServers.first.port,
+      const HostKeyRecord(fingerprint: 'SHA256:old'),
+    );
+
+    await pumpMobile(
+      tester,
+      store: store,
+      credentials: credentials,
+      hostKeys: hostKeys,
+    );
+
+    await tester.tap(find.text('web-prod-01'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ServerDetailPage),
+        matching: find.byIcon(Icons.delete_outline_rounded),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '删除'));
+    await tester.pumpAndSettle();
+
+    expect(store.byId('srv-01'), isNull);
+    expect(credentials.deleteCount, 1, reason: '已存凭据要跟着主机一起清掉');
+    // 指纹按 host:port 存：不清的话同地址的新机器会被判成「密钥变了」。
+    expect(
+      hostKeys.records(demoServers.first.host, demoServers.first.port),
+      isEmpty,
+      reason: '删除主机要连指纹一起清',
+    );
   });
 
   testWidgets('新建连接表单可校验并保存', (tester) async {

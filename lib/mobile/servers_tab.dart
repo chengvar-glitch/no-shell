@@ -76,6 +76,7 @@ class _ServersTabState extends State<ServersTab> {
           store: widget.store,
           sessions: widget.sessions,
           credentials: widget.credentials,
+          hostKeys: widget.hostKeys,
           serverId: server.id,
         ),
       ),

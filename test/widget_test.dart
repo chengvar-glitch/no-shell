@@ -8,6 +8,7 @@ import 'package:no_shell/models.dart';
 import 'package:no_shell/store.dart';
 import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/sidebar.dart';
+import 'package:no_shell/widgets/status_badges.dart';
 import 'package:no_shell/widgets/window_caption.dart';
 
 import 'support/credential_store_fake.dart';
@@ -29,6 +30,10 @@ void main() {
     );
     await tester.pump();
   }
+
+  // 主题按亮度全局缓存，而 ThemeData 里含平台相关的 visualDensity 等取值：
+  // 不清理的话，先跑的用例会把结果固化给后面的用例（几何断言随顺序漂移）。
+  setUp(AppTheme.resetCache);
 
   RenderBox sidebarSlot(WidgetTester tester) => tester.renderObject<RenderBox>(
     find.byKey(const ValueKey('sidebar-slot')),
@@ -99,6 +104,126 @@ void main() {
     expect(find.text('已删除 web-prod-01'), findsOneWidget);
   });
 
+  testWidgets('别的主机变了侧边栏照样更新；选中那台的状态变化详情面板也跟得上', (tester) async {
+    // HomePage 现在只为「选中那台（及其跳板机）」整页重建，其余变更交给
+    // 侧边栏自己的 store 订阅——这条守住那个分工：两边都不能漏更新。
+    // store 由 NoShellApp 接管生命周期，这里不自行 dispose。
+    final store = ServerStore(seed: demoServers);
+    tester.platformDispatcher.localesTestValue = const [Locale('zh')];
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    await tester.pumpWidget(
+      NoShellApp(
+        store: store,
+        credentials: FakeCredentialStore(),
+        agentKeysProbe: () async => false,
+      ),
+    );
+    await tester.pump();
+
+    // 选中第一台，另一台随后「连上」。
+    await tester.tap(find.text('web-prod-01'));
+    await tester.pump();
+    final other = store.byId('srv-02')!;
+    store.upsert(other.copyWith(status: ServerStatus.connected));
+    await tester.pump();
+
+    List<ServerStatus> dotStatuses() => [
+      for (final dot in tester.widgetList<StatusDot>(
+        find.descendant(
+          of: find.byType(Sidebar),
+          matching: find.byType(StatusDot),
+        ),
+      ))
+        dot.status,
+    ];
+    expect(
+      dotStatuses(),
+      contains(ServerStatus.connected),
+      reason: '别的主机的状态变化必须体现在侧边栏上',
+    );
+
+    // 选中那台自己的状态变了：详情面板头部的胶囊要跟着翻。
+    expect(find.text('已连接'), findsNothing);
+    store.upsert(
+      store.byId('srv-01')!.copyWith(status: ServerStatus.connected),
+    );
+    await tester.pump();
+    expect(find.text('已连接'), findsWidgets, reason: '选中那台的状态变化必须让详情面板重建');
+  });
+
+  testWidgets('编辑主机：跳板机与端口转发规则都不会被顺手抹掉', (tester) async {
+    // 桌面端编辑弹窗是「从零构造 SshServer」（见 home_page._editOrCreate）：
+    // 弹窗里没显式带上的字段会静默丢空。移动端编辑页早有这条用例，桌面端
+    // 才是主战场，这里补上——漏 forwards 等于每编辑一次清空这台主机的转发。
+    const jumpId = 'srv-jump';
+    const target = SshServer(
+      id: 'srv-target',
+      group: '生产',
+      name: 'target-01',
+      host: '10.0.1.11',
+      username: 'deploy',
+      jumpServerId: jumpId,
+      forwards: [
+        PortForwardRule(
+          id: 'fwd-1',
+          mode: PortForwardMode.local,
+          localPort: 8080,
+          remoteHost: '127.0.0.1',
+          remotePort: 80,
+        ),
+      ],
+    );
+    const jump = SshServer(
+      id: jumpId,
+      group: '生产',
+      name: 'jump-01',
+      host: '10.0.1.12',
+      username: 'ops',
+    );
+    // store 由 NoShellApp 接管生命周期，这里不自行 dispose。
+    final store = ServerStore(seed: const [jump, target]);
+    tester.platformDispatcher.localesTestValue = const [Locale('zh')];
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    await tester.pumpWidget(
+      NoShellApp(
+        store: store,
+        credentials: FakeCredentialStore(),
+        agentKeysProbe: () async => false,
+      ),
+    );
+    await tester.pump();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(
+        find.descendant(
+          of: find.byType(Sidebar),
+          matching: find.text('target-01'),
+        ),
+      ),
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('编辑'));
+    await tester.pumpAndSettle();
+
+    // 只改个名字就保存：其余字段（跳板机、转发规则）必须原样留下。
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'target-01'),
+      'target-02',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+
+    final saved = store.byId('srv-target');
+    expect(saved?.name, 'target-02');
+    expect(saved?.jumpServerId, jumpId, reason: '编辑不该丢掉跳板机');
+    expect(saved?.forwards.map((rule) => rule.id), [
+      'fwd-1',
+    ], reason: '编辑不该清空端口转发规则');
+  });
+
   testWidgets('新建连接弹窗粘贴元数据后保存，密码写入凭据存储', (tester) async {
     final store = ServerStore(seed: const []);
     final credentials = FakeCredentialStore();
@@ -153,6 +278,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(sidebarSlot().size.width, 264);
     expect(find.byIcon(Icons.view_sidebar), findsNothing);
+  });
+
+  testWidgets('窗口宽度跨过断点：选中的主机 / 侧边栏折叠 / 当前 Tab 都留得住', (tester) async {
+    // 回归：640px 两侧是两棵类型不同的骨架，Element 会被整棵销毁重建。
+    // 这几个值只有放在骨架之外（应用入口持有的 ShellLayoutState）才留得住，
+    // 否则每拖一次窗口宽度，详情面板就跳回空态、Tab 跳回第一个。
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpDesktop(tester);
+
+    await tester.tap(find.text('web-prod-01'));
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.menu_open)); // 收起侧边栏
+    await tester.pumpAndSettle();
+    expect(find.text('10.0.1.11'), findsOneWidget);
+
+    NavigationBar navBar() =>
+        tester.widget<NavigationBar>(find.byType(NavigationBar));
+
+    // 收窄到移动端骨架，切到设置 Tab
+    tester.view.physicalSize = const Size(420, 900);
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsOneWidget);
+    await tester.tap(find.text('设置').last);
+    await tester.pumpAndSettle();
+    expect(navBar().selectedIndex, 2);
+
+    // 拖回宽屏：选中的主机还在，侧边栏仍是收起状态
+    tester.view.physicalSize = const Size(1280, 900);
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.text('10.0.1.11'), findsOneWidget);
+    expect(find.text('选择左侧主机开始'), findsNothing);
+    expect(sidebarSlot(tester).size.width, 0);
+    expect(find.byIcon(Icons.view_sidebar), findsOneWidget);
+
+    // 再收窄一次：移动端停在设置 Tab，不是跳回第一个
+    tester.view.physicalSize = const Size(420, 900);
+    await tester.pumpAndSettle();
+    expect(navBar().selectedIndex, 2);
   });
 
   testWidgets('侧边栏固定宽度且与内容区同色，界面上没有拖拽条', (tester) async {
@@ -217,10 +383,9 @@ void main() {
       await tester.tap(find.byIcon(Icons.menu_open));
       await tester.pumpAndSettle();
 
-      // 只断言不随主题密度漂移的几何：本文件里更早的用例以默认平台（Android）
-      // 先建过缓存主题（main.dart 的 static final ThemeData），visualDensity
-      // / 触达目标尺寸已被固化，按钮渲染高度会随先到平台变化；
+      // 只断言不随主题密度漂移的几何：按钮的渲染高度受 visualDensity 影响，
       // 而定位由外层 Padding 决定，恒为 left 96、top 中心线 27 - 半高 13。
+      // （主题缓存每个用例前都清过，见 main() 里的 setUp。）
       // find.ancestor 由近及远排列，最后一个才是我们加的定位 Padding。
       final padding = tester.widget<Padding>(
         find

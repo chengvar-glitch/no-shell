@@ -296,6 +296,21 @@ void main() {
 
       await tester.tap(find.text('清除记录的指纹并重连'));
       await tester.pumpAndSettle();
+      // 清除前必须确认一次：这一步等于把「疑似中间人」的警告换成一键信任。
+      // 点取消时记录与重连都不该发生。
+      expect(find.text('清除这台主机的指纹？'), findsOneWidget);
+      expect(_recordsOf(store, _server.host, _server.port), isNotEmpty);
+      expect(retried, 0);
+
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(_recordsOf(store, _server.host, _server.port), isNotEmpty);
+      expect(retried, 0);
+
+      await tester.tap(find.text('清除记录的指纹并重连'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('清除并重连'));
+      await tester.pumpAndSettle();
       expect(_recordsOf(store, _server.host, _server.port), isEmpty);
       expect(retried, 1);
     });

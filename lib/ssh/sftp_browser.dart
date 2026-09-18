@@ -46,6 +46,10 @@ final class SftpBrowserController extends ChangeNotifier {
   List<SftpEntry> _entries = const [];
   List<SftpEntry> _visible = const [];
 
+  /// [_entries] 的有序缓存（见 [_ordered]）。
+  List<SftpEntry> _orderedCache = const [];
+  bool _orderedStale = true;
+
   /// 当前列表（过滤前）所有文件的字节数，随载入算一次；
   /// 状态栏直接取用，不在每次通知时重新 fold 整份目录。
   int _totalBytes = 0;
@@ -184,6 +188,7 @@ final class SftpBrowserController extends ChangeNotifier {
       _sortField = field;
       _sortAscending = field != SftpSortField.modified;
     }
+    _orderedStale = true;
     _rebuildVisible();
     notifyListeners();
   }
@@ -355,6 +360,7 @@ final class SftpBrowserController extends ChangeNotifier {
       _path = target;
       _loadedPath = target;
       _entries = listing;
+      _orderedStale = true;
       if (keepSelection) {
         final names = {for (final entry in listing) entry.path};
         _selected.retainWhere(names.contains);
@@ -368,6 +374,7 @@ final class SftpBrowserController extends ChangeNotifier {
       // 路径栏如实反映「想打开哪里」，列表清空并把错误交给界面展示。
       _path = target;
       _entries = const [];
+      _orderedStale = true;
       _selected.clear();
       _rebuildVisible();
       _recomputeTotalBytes();
@@ -422,14 +429,23 @@ final class SftpBrowserController extends ChangeNotifier {
 
   void _rebuildVisible() {
     final query = _query.trim().toLowerCase();
-    final list = [
-      for (final entry in _entries)
+    // 先按当前排序键取一份有序序列，再过滤：过滤不改相对顺序，结果与
+    // 「先过滤再排序」完全一致，但连续输入时省掉了每个字符一次全量排序
+    // （大目录里是 O(n log n)，而筛选本身只要 O(n)）。
+    _visible = List.unmodifiable([
+      for (final entry in _ordered)
         if ((_showHidden || !entry.name.startsWith('.')) &&
             (query.isEmpty || entry.name.toLowerCase().contains(query)))
           entry,
-    ];
-    list.sort(_compare);
-    _visible = List.unmodifiable(list);
+    ]);
+  }
+
+  /// [_entries] 按当前排序键排好的一份缓存；目录内容或排序键变化时作废。
+  List<SftpEntry> get _ordered {
+    if (!_orderedStale) return _orderedCache;
+    _orderedCache = [..._entries]..sort(_compare);
+    _orderedStale = false;
+    return _orderedCache;
   }
 
   /// 载入结果落地后重算一次总量，状态栏只在目录变化时拿到新值。

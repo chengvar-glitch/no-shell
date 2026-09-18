@@ -16,7 +16,8 @@
 /// 2.5 秒——低端设备更久，界面会明显卡住。scrypt 取 N=32768/r=8/p=1
 /// （32 MiB）只要约 0.35 秒，抗爆破强度反而不低于六十万轮 PBKDF2。
 ///
-/// 派生刻意**不开 isolate**：scrypt 参数低到同步可接受；而 widget 测试跑在
+/// 派生按参数决定要不要 isolate：生产参数（N=32768）放在 `Isolate.run` 里跑，
+/// 0.35 秒的纯 CPU 计算不能冻住界面；测试注入的低参数同步算——widget 测试跑在
 /// fake-async 区域里，`Isolate.run` 的 Future 由真实事件循环完成，fake-async
 /// 看不见它，`pumpAndSettle` 会一直等到超时（已验证过）。
 ///
@@ -85,8 +86,9 @@ const _saltLength = 16;
 const _nonceLength = 12;
 const _macBits = 128;
 
-/// 下限保持在一万：更早的备份是五万轮，仍要解得开。
-/// scrypt 的 N 必须是 2 的幂；上限防呆，不让改过的文件吃掉几十 GB 内存。
+/// 上下限都是防呆：不下限到更低，是免得改过的文件用可忽略的代价被爆破；
+/// 上限不让一个改过的文件吃掉 1 GiB 内存（N=2^20 配 r=8 就是 1 GiB、512 倍
+/// 于标准参数的计算量）。scrypt 的 N 必须是 2 的幂。
 const _minScryptN = 1024;
 const _maxScryptN = 1 << 20;
 
@@ -151,8 +153,10 @@ Future<String> _encodeScrypt(
   final salt = _randomBytes(_saltLength);
   final nonce = _randomBytes(_nonceLength);
   final key = await _deriveInIsolate(password, salt, params);
+  // 明文里是各主机的密码：用完即抹（_seal 内部还会再拷一份，那份也在那里抹掉）。
+  final plain = utf8.encode('$_formatMarker\n$hostsText');
   try {
-    final sealed = _seal(key, nonce, utf8.encode('$_formatMarker\n$hostsText'));
+    final sealed = _seal(key, nonce, plain);
     return jsonEncode({
       'scheme': _scheme,
       'kdf': _kdfScrypt,
@@ -166,6 +170,7 @@ Future<String> _encodeScrypt(
     });
   } finally {
     key.fillRange(0, key.length, 0);
+    plain.fillRange(0, plain.length, 0);
   }
 }
 
@@ -190,7 +195,13 @@ Future<String> _decode(
   }
 
   // 明文带格式标记：即使密文来自别的用途，也要能识别出「这不是主机清单」。
-  final text = utf8.decode(plain, allowMalformed: true);
+  final String text;
+  try {
+    text = utf8.decode(plain, allowMalformed: true);
+  } finally {
+    // 解出来的明文里是各主机的密码，取出文本后立刻抹掉这份字节。
+    plain.fillRange(0, plain.length, 0);
+  }
   final breakAt = text.indexOf('\n');
   if (breakAt < 0 || text.substring(0, breakAt).trim() != _formatMarker) {
     throw const BackupFormatException(BackupProblem.notHostList);
@@ -331,7 +342,14 @@ Uint8List deriveScryptSync(
 ) {
   final derivator = Scrypt()
     ..init(ScryptParameters(params.n, params.r, params.p, _keyLength, salt));
-  return derivator.process(Uint8List.fromList(utf8.encode(password)));
+  // 口令的字节副本用完即抹掉：String 本身无法清零（Dart 的不可变字符串），
+  // 但这份副本可以，没必要让明文口令一直躺在堆上。
+  final bytes = Uint8List.fromList(utf8.encode(password));
+  try {
+    return derivator.process(bytes);
+  } finally {
+    bytes.fillRange(0, bytes.length, 0);
+  }
 }
 
 /// AES-256-GCM 加密，返回「密文 + 认证标签」。
@@ -339,10 +357,15 @@ Uint8List _seal(Uint8List key, Uint8List nonce, List<int> plain) {
   final cipher = GCMBlockCipher(AESEngine())
     ..init(true, AEADParameters(KeyParameter(key), _macBits, nonce, _empty));
   final input = Uint8List.fromList(plain);
-  final out = Uint8List(cipher.getOutputSize(input.length));
-  var written = cipher.processBytes(input, 0, input.length, out, 0);
-  written += cipher.doFinal(out, written);
-  return Uint8List.sublistView(out, 0, written);
+  try {
+    final out = Uint8List(cipher.getOutputSize(input.length));
+    var written = cipher.processBytes(input, 0, input.length, out, 0);
+    written += cipher.doFinal(out, written);
+    return Uint8List.sublistView(out, 0, written);
+  } finally {
+    // 这份明文副本里是各主机的密码，加密完就抹掉。
+    input.fillRange(0, input.length, 0);
+  }
 }
 
 /// AES-256-GCM 解密；标签校验失败抛 [InvalidCipherTextException]。

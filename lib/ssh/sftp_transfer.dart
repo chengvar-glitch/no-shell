@@ -86,7 +86,7 @@ final class SftpTransfer extends ChangeNotifier {
 
   /// 请求取消：排队中的任务直接结束，运行中的由执行体在下一个数据块处结束。
   void cancel() {
-    if (isFinished || _cancelRequested) return;
+    if (_disposed || isFinished || _cancelRequested) return;
     _cancelRequested = true;
     if (_state == SftpTransferState.queued) {
       _state = SftpTransferState.canceled;
@@ -103,8 +103,13 @@ final class SftpTransfer extends ChangeNotifier {
 
   /// 进度按整百分比节流；总量未知时按时间节流（每 250ms 至多一次），
   /// 既让速度 / 字节数持续刷新，又不至于每个数据块都重建整行。
+  ///
+  /// 上传的进度来自远端 writer 的写入确认：队列在传输途中被销毁（会话断开 /
+  /// 删主机 / 重连）时，最后那笔确认仍可能落在 dispose 之后，这里必须先挡住
+  /// ——否则就是对已 dispose 的通知器调 notifyListeners，debug 下直接断言
+  /// 失败，release 下把这次上传变成一个莫名其妙的错误。
   void _report(int done) {
-    if (done == _done) return;
+    if (_disposed || done == _done) return;
     final total = this.total;
     if (total <= 0) {
       _done = done;
@@ -126,6 +131,7 @@ final class SftpTransfer extends ChangeNotifier {
   }
 
   void _finish(SftpTransferState state) {
+    if (_disposed) return;
     _state = state;
     _finishedAt = DateTime.now();
     if (state == SftpTransferState.done && total > 0) _done = total;
@@ -141,6 +147,15 @@ final class SftpTransfer extends ChangeNotifier {
       _errorDetail = error.toString();
     }
     _finish(SftpTransferState.failed);
+  }
+
+  /// 已 dispose：之后不再改状态、不再通知（见 [_report] 的说明）。
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
 
@@ -230,7 +245,9 @@ final class SftpTransferQueue extends ChangeNotifier {
       // 同理：先写临时文件，成功了再改名到落点。桌面的「另存为」可以
       // 选中一个已存在的文件，直接覆写再失败会把那份旧文件毁掉。
       final temporaryPath = localFiles.temporaryPath(target.path);
-      final sink = localFiles.openWrite(temporaryPath);
+      // ownerOnly：临时文件与改名后的目标权限一致，而远端内容里可能是私钥
+      // 这类只该自己读的东西——下载落点不该是世界可读的。
+      final sink = localFiles.openWrite(temporaryPath, ownerOnly: true);
       var written = 0;
       var unflushed = 0;
       try {
@@ -341,9 +358,12 @@ final class SftpTransferQueue extends ChangeNotifier {
   }
 
   /// 把取消标记接入源流：命中即报错，远端 writer 随之停止。
+  /// 队列已销毁（会话断开 / 删主机 / 重连）时同样立刻收手，不再往远端灌数据。
   Stream<List<int>> _guarded(LocalUpload source, SftpTransfer transfer) async* {
     await for (final chunk in source.openRead()) {
-      if (transfer.isCancelRequested) throw const _TransferCanceled();
+      if (_disposed || transfer.isCancelRequested) {
+        throw const _TransferCanceled();
+      }
       yield chunk;
     }
   }
@@ -369,6 +389,9 @@ final class SftpTransferQueue extends ChangeNotifier {
     _disposed = true;
     _pending.clear();
     for (final transfer in _transfers) {
+      // 在跑的那条先标取消：源流随之收手，不会继续往远端灌数据；已经在飞的
+      // 写入确认由 transfer 自己的 disposed 守卫吃掉。
+      transfer._cancelRequested = true;
       transfer.dispose();
     }
     _transfers.clear();

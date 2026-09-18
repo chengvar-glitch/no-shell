@@ -12,42 +12,7 @@ import 'package:no_shell/store.dart';
 import 'package:xterm/core.dart';
 
 import 'support/forward_fakes.dart';
-
-/// 可编程假传输：成功时向终端写入欢迎语，可配置抛错 / 主动关闭。
-final class _FakeTransport with NoForwardingTransport {
-  _FakeTransport({this.error, this.closeAfterConnect = false});
-
-  /// 非 null 时 [attach] 抛出该错误，模拟连接 / 认证失败。
-  final Object? error;
-
-  /// 连接成功后立即触发远端关闭。
-  final bool closeAfterConnect;
-
-  bool disposed = false;
-  Terminal? attachedTerminal;
-
-  @override
-  Future<void> attach(
-    Terminal terminal, {
-    required void Function() onConnected,
-    required void Function() onClosed,
-  }) async {
-    // 模拟真实网络的异步握手，让 connecting 状态可被观察。
-    await Future<void>.delayed(Duration.zero);
-    if (error != null) throw error!;
-    attachedTerminal = terminal;
-    terminal.write('welcome');
-    onConnected();
-    if (closeAfterConnect) onClosed();
-  }
-
-  @override
-  Future<SftpFileSystem> openSftp() async =>
-      throw const SftpException(SftpErrorKind.unsupported, 'fake transport');
-
-  @override
-  void dispose() => disposed = true;
-}
+import 'support/transport_fakes.dart';
 
 /// 连接一直建不完的假传输：用来制造「还在 connecting 时用户就断开」的窗口。
 final class _HangingTransport with NoForwardingTransport {
@@ -102,7 +67,7 @@ void main() {
   group('SessionManager', () {
     test('open 后主机状态经历 connecting → connected，会话持有终端缓冲区', () async {
       final store = ServerStore(seed: [_server()]);
-      final transport = _FakeTransport();
+      final transport = FakeTransport();
       final sessions = _manager(store, [transport]);
 
       sessions.open(_server(), const SshCredentials(password: 'pw'));
@@ -121,7 +86,7 @@ void main() {
 
     test('重复 open 同一主机时复用活跃会话，不重复建连', () async {
       final store = ServerStore(seed: [_server()]);
-      final sessions = _manager(store, [_FakeTransport()]);
+      final sessions = _manager(store, [FakeTransport()]);
 
       final first = sessions.open(
         _server(),
@@ -138,7 +103,7 @@ void main() {
 
     test('close 移除会话、释放传输并把主机置回未连接', () async {
       final store = ServerStore(seed: [_server()]);
-      final transport = _FakeTransport();
+      final transport = FakeTransport();
       final sessions = _manager(store, [transport]);
       sessions.open(_server(), const SshCredentials(password: 'pw'));
       await pumpEventQueue();
@@ -186,7 +151,7 @@ void main() {
         sessionFactory: (server, credentials, _) => TerminalSession(
           server: server,
           credentials: credentials,
-          transport: _FakeTransport(),
+          transport: FakeTransport(),
         ),
       );
       addTearDown(sessions.dispose);
@@ -220,7 +185,7 @@ void main() {
     test('连接失败归类为错误状态，暴露错误种类', () async {
       final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [
-        _FakeTransport(error: SSHAuthFailError('Permission denied')),
+        FakeTransport(error: SSHAuthFailError('Permission denied')),
       ]);
 
       sessions.open(_server(), const SshCredentials(password: 'wrong'));
@@ -236,7 +201,7 @@ void main() {
     test('远端主动断开 → 会话变为 closed，主机回到未连接', () async {
       final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [
-        _FakeTransport(closeAfterConnect: true),
+        FakeTransport(closeAfterConnect: true),
       ]);
 
       sessions.open(_server(), const SshCredentials(password: 'pw'));
@@ -250,8 +215,8 @@ void main() {
     test('retry 用原凭据、以新传输重建会话并恢复连接', () async {
       final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [
-        _FakeTransport(error: SSHAuthFailError('Permission denied')),
-        _FakeTransport(),
+        FakeTransport(error: SSHAuthFailError('Permission denied')),
+        FakeTransport(),
       ]);
       sessions.open(_server(), const SshCredentials(password: 'pw'));
       await pumpEventQueue();
@@ -269,7 +234,7 @@ void main() {
     test('web 等不支持平台抛 UnsupportedError → unsupported 归类', () async {
       final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [
-        _FakeTransport(error: UnsupportedError('no tcp')),
+        FakeTransport(error: UnsupportedError('no tcp')),
       ]);
 
       sessions.open(_server(), const SshCredentials(password: 'pw'));
@@ -285,7 +250,7 @@ void main() {
   group('同一主机多开会话', () {
     test('openNew 每次都新建：编号按序、新会话成为当前、状态是聚合的', () async {
       final store = ServerStore(seed: [_server()]);
-      final sessions = _manager(store, [_FakeTransport(), _FakeTransport()]);
+      final sessions = _manager(store, [FakeTransport(), FakeTransport()]);
 
       final first = sessions.open(
         _server(),
@@ -315,7 +280,7 @@ void main() {
 
     test('open 仍复用活跃会话，不会因为多开而变成每次都新建', () async {
       final store = ServerStore(seed: [_server()]);
-      final sessions = _manager(store, [_FakeTransport(), _FakeTransport()]);
+      final sessions = _manager(store, [FakeTransport(), FakeTransport()]);
       final first = sessions.open(
         _server(),
         const SshCredentials(password: 'a'),
@@ -333,8 +298,8 @@ void main() {
 
     test('closeSession 只关一条，当前身份交给相邻的一条', () async {
       final store = ServerStore(seed: [_server()]);
-      final firstTransport = _FakeTransport();
-      final secondTransport = _FakeTransport();
+      final firstTransport = FakeTransport();
+      final secondTransport = FakeTransport();
       final sessions = _manager(store, [firstTransport, secondTransport]);
       final first = sessions.open(
         _server(),
@@ -366,8 +331,8 @@ void main() {
 
     test('closeAll 关掉该主机的全部会话并把主机置回未连接', () async {
       final store = ServerStore(seed: [_server()]);
-      final firstTransport = _FakeTransport();
-      final secondTransport = _FakeTransport();
+      final firstTransport = FakeTransport();
+      final secondTransport = FakeTransport();
       final sessions = _manager(store, [firstTransport, secondTransport]);
       sessions.open(_server(), const SshCredentials(password: 'a'));
       sessions.openNew(_server(), const SshCredentials(password: 'b'));
@@ -384,8 +349,8 @@ void main() {
     test('聚合状态：一条连上就算连上，全失败才算错误', () async {
       final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [
-        _FakeTransport(),
-        _FakeTransport(error: SSHAuthFailError('Permission denied')),
+        FakeTransport(),
+        FakeTransport(error: SSHAuthFailError('Permission denied')),
       ]);
       // 第一条连上、第二条认证失败。
       sessions.open(_server(), const SshCredentials(password: 'a'));
@@ -404,9 +369,9 @@ void main() {
     test('activate 切当前会话；编号永不复用', () async {
       final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [
-        _FakeTransport(),
-        _FakeTransport(),
-        _FakeTransport(),
+        FakeTransport(),
+        FakeTransport(),
+        FakeTransport(),
       ]);
       sessions.open(_server(), const SshCredentials(password: 'a'));
       await pumpEventQueue();
@@ -432,7 +397,7 @@ void main() {
 
     test('会话标题跟着远端 OSC 走，供界面区分同主机的多条会话', () async {
       final store = ServerStore(seed: [_server()]);
-      final transport = _FakeTransport();
+      final transport = FakeTransport();
       final sessions = _manager(store, [transport]);
       final session = sessions.open(
         _server(),

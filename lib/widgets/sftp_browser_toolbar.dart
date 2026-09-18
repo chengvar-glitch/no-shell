@@ -96,10 +96,14 @@ final class _Toolbar extends StatelessWidget {
           key: const ValueKey('sftp-busy-slot'),
           width: 14,
           height: 14,
+          // 间隔固定、只有内容变，转圈又是不定动画：包一层边界把逐帧重绘
+          // 收在这 14px 里，别带着整个工具条一起重画。
           child: busy
-              ? CircularProgressIndicator(
-                  strokeWidth: 1.8,
-                  color: theme.colorScheme.primary,
+              ? RepaintBoundary(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    color: theme.colorScheme.primary,
+                  ),
                 )
               : null,
         ),

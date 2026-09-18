@@ -13,6 +13,7 @@ import 'l10n/generated/app_localizations.dart';
 import 'mobile/mobile_shell.dart';
 import 'server_persistence.dart';
 import 'settings.dart';
+import 'shell_layout.dart';
 import 'settings_persistence.dart';
 import 'snippets.dart';
 import 'ssh/credential_store.dart';
@@ -180,9 +181,12 @@ class NoShellApp extends StatefulWidget {
 }
 
 class _NoShellAppState extends State<NoShellApp> with WindowListener {
-  // ThemeData 构建开销不小，AppTheme 内部已按亮度缓存。
-  static final _lightTheme = AppTheme.light();
-  static final _darkTheme = AppTheme.dark();
+  // ThemeData 构建开销不小，AppTheme 内部已按亮度缓存，所以这里即使每个
+  // 实例各取一次也只在首次真正构建。刻意不做 static：组件测试里一个进程会
+  // 挂载多个 App，static 会把第一个用例的平台相关取值（visualDensity 等）
+  // 固化给后面的用例，几何断言于是随用例顺序漂移。
+  late final ThemeData _lightTheme = AppTheme.light();
+  late final ThemeData _darkTheme = AppTheme.dark();
 
   late final ServerStore _store = widget.store ?? ServerStore();
   late final CredentialStore _credentials =
@@ -218,6 +222,10 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   /// 落盘节流：设置面板里连点配色 / 字号、逐字输入字体名都会频繁通知，
   /// 合并成一次写盘；退出前再补一次，保证「点完成 → 值一定落盘」。
   Timer? _saveTimer;
+
+  /// 跨骨架保留的界面状态：窗口宽度跨过 640px 时两套骨架整棵互换，
+  /// 选中项 / 侧边栏折叠 / 当前 Tab 只有放在这里才不会被重置。
+  final ShellLayoutState _layout = ShellLayoutState();
 
   @override
   void initState() {
@@ -334,6 +342,8 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
       home: LayoutBuilder(
         builder: (context, constraints) {
           // 窄屏走移动端底部导航骨架，宽屏保持桌面左右分栏。
+          // 两个骨架共用一份 _layout：跨断点时整棵树会被换掉，选中项 /
+          // 侧边栏折叠 / 当前 Tab 只有放在骨架外面才留得住。
           final isMobile = constraints.maxWidth < 640;
           return isMobile
               ? MobileShell(
@@ -347,6 +357,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
                   onLanguageChanged: _setLanguage,
                   allowLegacyHostKeys: _allowLegacyHostKeys,
                   onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
+                  layout: _layout,
                 )
               : HomePage(
                   store: _store,
@@ -360,6 +371,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
                   onSettingsClosed: _saveNow,
                   allowLegacyHostKeys: _allowLegacyHostKeys,
                   onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
+                  layout: _layout,
                 );
         },
       ),

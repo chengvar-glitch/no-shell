@@ -326,18 +326,6 @@ abstract class AppLocalizations {
   /// **'About'**
   String get about;
 
-  /// No description provided for @switchToDark.
-  ///
-  /// In en, this message translates to:
-  /// **'Switch to dark'**
-  String get switchToDark;
-
-  /// No description provided for @switchToLight.
-  ///
-  /// In en, this message translates to:
-  /// **'Switch to light'**
-  String get switchToLight;
-
   /// No description provided for @selectHostToStart.
   ///
   /// In en, this message translates to:
@@ -373,12 +361,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'More actions'**
   String get moreActions;
-
-  /// No description provided for @deleteHost.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete host'**
-  String get deleteHost;
 
   /// No description provided for @hostAddress.
   ///
@@ -589,6 +571,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Forget fingerprint and reconnect'**
   String get hostKeyForgetAndRetry;
+
+  /// No description provided for @hostKeyForgetConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget this host key?'**
+  String get hostKeyForgetConfirmTitle;
+
+  /// No description provided for @hostKeyForgetConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'After forgetting, the next connection will trust whatever key {host} presents. Only do this if you have verified the new fingerprint out of band — a mismatched fingerprint can also mean someone is intercepting this connection.'**
+  String hostKeyForgetConfirmBody(String host);
+
+  /// No description provided for @hostKeyForgetConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget and reconnect'**
+  String get hostKeyForgetConfirmAction;
 
   /// No description provided for @reconnect.
   ///
@@ -872,12 +872,6 @@ abstract class AppLocalizations {
   /// **'Default dark'**
   String get presetDefaultDark;
 
-  /// No description provided for @settingsSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Theme, terminal and language'**
-  String get settingsSubtitle;
-
   /// No description provided for @terminalPreview.
   ///
   /// In en, this message translates to:
@@ -1003,18 +997,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Modified'**
   String get sftpSortModified;
-
-  /// No description provided for @sftpSortAscending.
-  ///
-  /// In en, this message translates to:
-  /// **'Ascending'**
-  String get sftpSortAscending;
-
-  /// No description provided for @sftpSortDescending.
-  ///
-  /// In en, this message translates to:
-  /// **'Descending'**
-  String get sftpSortDescending;
 
   /// No description provided for @sftpCopyPath.
   ///
@@ -1183,12 +1165,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Done'**
   String get sftpDone;
-
-  /// No description provided for @sftpFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed'**
-  String get sftpFailed;
 
   /// No description provided for @sftpRemaining.
   ///
@@ -1526,18 +1502,6 @@ abstract class AppLocalizations {
   /// **'Only this rule is removed; other running forwards are untouched.'**
   String get portForwardDeleteBody;
 
-  /// No description provided for @portForwardStart.
-  ///
-  /// In en, this message translates to:
-  /// **'Start'**
-  String get portForwardStart;
-
-  /// No description provided for @portForwardStop.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop'**
-  String get portForwardStop;
-
   /// No description provided for @portForwardStatusStarting.
   ///
   /// In en, this message translates to:
@@ -1628,18 +1592,6 @@ abstract class AppLocalizations {
   /// **'The forward was not started'**
   String get portForwardErrorOther;
 
-  /// No description provided for @portForwardRuleIncomplete.
-  ///
-  /// In en, this message translates to:
-  /// **'This rule is incomplete — fill in the addresses and ports'**
-  String get portForwardRuleIncomplete;
-
-  /// No description provided for @portForwardMode.
-  ///
-  /// In en, this message translates to:
-  /// **'Type'**
-  String get portForwardMode;
-
   /// No description provided for @portForwardModeLocal.
   ///
   /// In en, this message translates to:
@@ -1717,6 +1669,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Please enter an address'**
   String get portForwardAddressRequired;
+
+  /// No description provided for @portForwardExposeWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'The listen address is not a loopback address: anyone on the same network can reach this tunnel (for dynamic forwarding that means an unauthenticated proxy).'**
+  String get portForwardExposeWarning;
+
+  /// No description provided for @portForwardExposeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This forward will be exposed to the network'**
+  String get portForwardExposeTitle;
+
+  /// No description provided for @portForwardExposeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen address {host} is not a loopback address — anyone on the same network can connect to it. Save anyway?'**
+  String portForwardExposeBody(String host);
+
+  /// No description provided for @portForwardExposeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Save anyway'**
+  String get portForwardExposeConfirm;
 
   /// No description provided for @jumpHost.
   ///

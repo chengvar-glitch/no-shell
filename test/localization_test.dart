@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/app_locale.dart';
@@ -9,6 +12,53 @@ import 'package:no_shell/store.dart';
 import 'support/demo_servers.dart';
 
 void main() {
+  group('arb 源文件', () {
+    // 文案的两种语言是两份文件，靠人记着「新增文案要同时补 en/zh」迟早会漏。
+    // 缺一个键，出错那端会静默回退成另一种语言（生成代码里每个 key 都有
+    // 回退分支），用户看到的是半中半英的界面——所以在这里钉住。
+    late Map<String, Object?> en;
+    late Map<String, Object?> zh;
+
+    setUpAll(() {
+      en = _loadArb('lib/l10n/app_en.arb');
+      zh = _loadArb('lib/l10n/app_zh.arb');
+    });
+
+    test('两种语言的键集合完全一致', () {
+      final enKeys = _messageKeys(en);
+      final zhKeys = _messageKeys(zh);
+      expect(enKeys.difference(zhKeys), isEmpty, reason: '这些键只有英文，中文界面会回退成英文');
+      expect(zhKeys.difference(enKeys), isEmpty, reason: '这些键只有中文，英文界面会回退成中文');
+    });
+
+    test('同一键的占位符集合两种语言一致', () {
+      for (final key in _messageKeys(en)) {
+        expect(
+          _placeholders(zh[key]),
+          _placeholders(en[key]),
+          reason: '$key 的占位符在两种语言间不一致（会在运行时抛异常 / 少插一个值）',
+        );
+      }
+    });
+
+    test('每个消息都有占位符声明（模板语言里以 @ 开头）', () {
+      for (final key in _messageKeys(en)) {
+        for (final value in _placeholders(en[key])) {
+          final meta = en['@$key'];
+          expect(meta, isNotNull, reason: '$key 用了 {value} 却没有 @$key 声明');
+          final declared =
+              (meta! as Map<String, Object?>)['placeholders']
+                  as Map<String, Object?>?;
+          expect(
+            declared?.keys,
+            contains(value),
+            reason: '$key 的 @$key 里没声明占位符 $value',
+          );
+        }
+      }
+    });
+  });
+
   group('AppLanguage', () {
     test('跟随系统映射为 null locale，交由框架按系统语言解析', () {
       expect(AppLanguage.system.locale, isNull);
@@ -175,3 +225,20 @@ void main() {
     });
   });
 }
+
+Map<String, Object?> _loadArb(String path) =>
+    jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+
+/// 消息键（去掉 `@` 开头的元数据与 `@@locale`）。
+Set<String> _messageKeys(Map<String, Object?> arb) => {
+  for (final key in arb.keys)
+    if (!key.startsWith('@')) key,
+};
+
+/// 值里出现过的占位符名（非字符串值一律按「没有占位符」处理）。
+Set<String> _placeholders(Object? value) => value is String
+    ? RegExp(r'\{(\w+)\}')
+          .allMatches(value)
+          .map((match) => match.group(1)!)
+          .toSet()
+    : const {};

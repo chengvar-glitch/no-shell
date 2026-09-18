@@ -278,4 +278,35 @@ void main() {
       expect(_clipboardText, isEmpty);
     });
   });
+
+  group('终端样式缓存', () {
+    testWidgets('偏好没变就复用同一个 TerminalStyle 实例', (tester) async {
+      final style = ValueNotifier(const TerminalStylePrefs());
+      await _pumpTerminal(tester, style);
+
+      TerminalView view() =>
+          tester.widget<TerminalView>(find.byType(TerminalView));
+      final first = view().textStyle;
+
+      // 父级重建（会话状态变化、尺寸变化都会走到这里）时必须还是同一个实例：
+      // xterm 的 painter / render 守卫都是身份比较，新建一个内容相同的实例会
+      // 重测字符宽度并清空 10240 条段落缓存，整个视口跟着重排版。
+      await tester.pump();
+      expect(
+        identical(view().textStyle, first),
+        isTrue,
+        reason: '重复 build 不该换实例',
+      );
+
+      // 偏好真的变了才允许换，否则界面不跟着动。
+      style.value = const TerminalStylePrefs(fontSize: 17);
+      await tester.pump();
+      final updated = view().textStyle;
+      expect(identical(updated, first), isFalse, reason: '字号变了必须换实例');
+
+      // 稳定之后继续复用同一个。
+      await tester.pump();
+      expect(identical(view().textStyle, updated), isTrue);
+    });
+  });
 }

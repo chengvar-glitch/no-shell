@@ -4,6 +4,7 @@ import '../app_locale.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../ssh/credential_store.dart';
 import '../ssh/host_key_store.dart';
+import '../shell_layout.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
 import 'servers_tab.dart';
@@ -24,6 +25,7 @@ class MobileShell extends StatefulWidget {
     required this.onLanguageChanged,
     this.allowLegacyHostKeys = false,
     this.onAllowLegacyHostKeysChanged,
+    this.layout,
   });
 
   final ServerStore store;
@@ -41,19 +43,25 @@ class MobileShell extends StatefulWidget {
   final bool allowLegacyHostKeys;
   final ValueChanged<bool>? onAllowLegacyHostKeysChanged;
 
+  /// 跨断点保留的界面状态；由应用入口持有，两套骨架共用一份。
+  /// 为空时（组件测试、单独挂载）本页自建一份，行为与从前一致。
+  final ShellLayoutState? layout;
+
   @override
   State<MobileShell> createState() => _MobileShellState();
 }
 
 class _MobileShellState extends State<MobileShell> {
-  int _tab = 0;
+  /// 当前 Tab 放在共享状态里：窗口宽度跨过断点时整套骨架会被换掉，
+  /// 留在 State 里就会跳回第一个 Tab。
+  late final ShellLayoutState _layout = widget.layout ?? ShellLayoutState();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: IndexedStack(
-        index: _tab,
+        index: _layout.tab,
         children: [
           ServersTab(
             store: widget.store,
@@ -79,8 +87,8 @@ class _MobileShellState extends State<MobileShell> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (index) => setState(() => _tab = index),
+        selectedIndex: _layout.tab,
+        onDestinationSelected: (index) => setState(() => _layout.tab = index),
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.dns_outlined),
