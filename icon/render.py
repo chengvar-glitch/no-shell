@@ -16,11 +16,15 @@ INK = "#EAF0FB"
 ACCENT = "#4C8DFF"
 
 # Adaptive icons only guarantee a 66dp circle on a 108dp canvas survives the
-# launcher mask; the PWA maskable spec guarantees 80%. Both are measured
-# against the artwork's bounding box corners, so the art centre is nudged
-# onto the canvas centre first (the cursor after the N makes it lopsided).
+# launcher mask; the PWA maskable spec guarantees 80%. Both are measured from
+# the canvas centre against the artwork's bounding box corners, so the artwork
+# is drawn centred on the canvas (its own centre is the canvas centre) and the
+# scaled variants scale about that same point.
 ART_CENTER = (512, 512)
-ANDROID_SCALE = 0.66   # 33/108 of the width, with slack for the fringe and rounding
+# 33/108 of the width, with slack for the antialiasing fringe and rounding.
+# The block cursor made the art wider, so the scale came down to keep the
+# mark the same visible size as before while staying inside the safe circle.
+ANDROID_SCALE = 0.64
 MASKABLE_SCALE = 0.86
 # macOS does not mask icons, so the squircle has to be drawn in: Apple's grid
 # is an 824px shape with a 185.4px radius, centred on a 1024px canvas. The art
@@ -205,13 +209,13 @@ def check():
     assert len(small.getcolors(maxcolors=256)) >= 3, "icon flattens to a blob at 16px"
 
     ink, accent = rgb(INK), rgb(ACCENT)
-    # N left leg, N diagonal, and the block cursor, each on its centreline
+    # N left leg, N diagonal, the block cursor, and the counter in between
     for xy, expected, what in (
-        ((208, 512), ink, "N left leg"),
-        ((418, 512), ink, "N diagonal"),
-        ((628, 400), ink, "N right leg"),
-        ((804, 720), accent, "cursor"),
-        ((512, 512), rgb(BG), "background"),
+        ((197, 512), ink, "N left leg"),
+        ((392, 512), ink, "N diagonal"),
+        ((587, 400), ink, "N right leg"),
+        ((790, 700), accent, "cursor"),
+        ((500, 512), rgb(BG), "background"),
     ):
         got = full.getpixel(xy)[:3]
         assert got == expected, f"{what} at {xy} is {got}, expected {expected}"
@@ -219,7 +223,7 @@ def check():
     ios = Image.open(OUT / "ios-1024.png")
     assert ios.mode == "RGB", f"App Store Connect rejects an alpha channel, got {ios.mode}"
     assert ios.getpixel((0, 0)) == rgb(BG), "iOS icon corners must stay filled, not transparent"
-    assert ios.getpixel((208, 512)) == ink, "iOS icon lost the letterform"
+    assert ios.getpixel((197, 512)) == ink, "iOS icon lost the letterform"
 
     # macOS gets no mask from the system, so the plate is drawn and the space
     # outside it must stay transparent, with the art riding inside it.
@@ -227,7 +231,7 @@ def check():
     assert mac.getpixel((0, 0))[3] == 0, "macOS icon must be transparent outside the squircle"
     assert mac.getpixel((24, 512))[3] == 0, "macOS icon needs the 100px margin on every side"
     assert mac.getpixel((150, 512))[:3] == rgb(BG), "macOS squircle plate is missing"
-    assert mac.getpixel((267, 512))[:3] == ink, "macOS icon lost the letterform"
+    assert mac.getpixel((259, 512))[:3] == ink, "macOS icon lost the letterform"
 
     assert contrast(INK, BG) >= 7.0, "letterform is not crisp enough on the background"
     assert contrast(ACCENT, BG) >= 3.0, "cursor lacks contrast on the background"

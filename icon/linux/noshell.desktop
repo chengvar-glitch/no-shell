@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=NoShell
+Comment=Terminal session manager
+Exec=noshell
+Icon=noshell
+Categories=Development;Utility;
+Terminal=false

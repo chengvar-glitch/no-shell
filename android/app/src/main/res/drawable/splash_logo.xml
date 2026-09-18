@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ 系统开屏图标（values-v31 的 windowSplashScreenAnimatedIcon）。
+     路径与 icon/art.svg 同源：N 是用户敲下的键，实心块是活着的 shell 光标。
+     改 logo：先改 art.svg，再把这里的 pathData / 颜色同步过来。
+
+     两个约束写在前面，都是踩过的坑：
+     1. 素材四周透明、不带底色。系统原生会把图标位裁成圆，HyperOS 等 OEM
+        不裁、按方形直出——任何色板都会变成一块"方块"（第一版开屏的教训）。
+     2. 系统只保证图标位内圈 2/3（192dp 圆）可见，外圈会被裁掉，所以整枚
+        标记收在 0.70：谁裁都切不到笔画。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <group
+        android:pivotX="512"
+        android:pivotY="512"
+        android:scaleX="0.70"
+        android:scaleY="0.70">
+        <path
+            android:pathData="M197,730 V294 L587,730 V294"
+            android:strokeColor="#EAF0FB"
+            android:strokeWidth="120"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"/>
+        <path
+            android:pathData="M718,234 H861 A26,26 0 0 1 887,260 V764 A26,26 0 0 1 861,790 H718 A26,26 0 0 1 692,764 V260 A26,26 0 0 1 718,234 Z"
+            android:fillColor="#4C8DFF"/>
+    </group>
+</vector>
