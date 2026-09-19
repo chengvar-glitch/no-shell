@@ -467,7 +467,7 @@ abstract class AppLocalizations {
   /// No description provided for @sessionDesktopHint.
   ///
   /// In en, this message translates to:
-  /// **'No session yet — click \"Connect\" at the top right to start an SSH session and use the terminal.\n'**
+  /// **'No session yet — double-click a host in the sidebar or click \"Connect\" at the top right to start an SSH session and use the terminal.\n'**
   String get sessionDesktopHint;
 
   /// No description provided for @sessionMobileHint.

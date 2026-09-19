@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../app_locale.dart';
@@ -22,6 +23,7 @@ class Sidebar extends StatefulWidget {
     required this.sessions,
     required this.selectedId,
     required this.onSelect,
+    required this.onQuickConnect,
     required this.onCreate,
     required this.onCreateInGroup,
     required this.onEdit,
@@ -41,6 +43,10 @@ class Sidebar extends StatefulWidget {
   final SessionManager sessions;
   final String? selectedId;
   final ValueChanged<SshServer> onSelect;
+
+  /// 双击主机行的直连入口：选中、落终端 Tab、没连上就发起连接。
+  /// 已连接时只跳转不断开——双击是「给我终端」，不是连接开关。
+  final ValueChanged<SshServer> onQuickConnect;
   final VoidCallback onCreate;
   final ValueChanged<String> onCreateInGroup;
   final ValueChanged<SshServer> onEdit;
@@ -535,6 +541,7 @@ class _SidebarState extends State<Sidebar> {
             server: server,
             selected: server.id == widget.selectedId,
             onTap: () => widget.onSelect(server),
+            onDoubleTap: () => widget.onQuickConnect(server),
             onToggleConnect: () => widget.onToggleConnect(server),
             onContextMenu: (offset) => _showContextMenu(server, offset),
           );
@@ -763,6 +770,7 @@ class _ServerTile extends StatefulWidget {
     required this.server,
     required this.selected,
     required this.onTap,
+    required this.onDoubleTap,
     required this.onToggleConnect,
     required this.onContextMenu,
   });
@@ -770,6 +778,7 @@ class _ServerTile extends StatefulWidget {
   final SshServer server;
   final bool selected;
   final VoidCallback onTap;
+  final VoidCallback onDoubleTap;
   final VoidCallback onToggleConnect;
   final ValueChanged<Offset> onContextMenu;
 
@@ -779,6 +788,23 @@ class _ServerTile extends StatefulWidget {
 
 class _ServerTileState extends State<_ServerTile> {
   bool _hovered = false;
+
+  /// 双击检测自己做，不挂 InkWell.onDoubleTap：同一块 InkWell 同时注册
+  /// onTap 与 onDoubleTap 时，单击会被双击手势在竞技场里扣住 300ms
+  /// （kDoubleTapTimeout）才放行，单击选中跟着变得迟钝。这里让 onTap
+  /// 即点即发，两次点击的间隔自己量——落在双击窗口内就升级成「直连」。
+  DateTime? _lastTapAt;
+
+  void _handleTap() {
+    final now = DateTime.now();
+    final last = _lastTapAt;
+    _lastTapAt = now;
+    if (last != null && now.difference(last) < kDoubleTapTimeout) {
+      widget.onDoubleTap();
+    } else {
+      widget.onTap();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -801,7 +827,7 @@ class _ServerTileState extends State<_ServerTile> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
           child: InkWell(
-            onTap: widget.onTap,
+            onTap: _handleTap,
             borderRadius: BorderRadius.circular(8),
             hoverColor: theme.rowHover,
             child: AnimatedContainer(

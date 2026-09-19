@@ -120,7 +120,7 @@
   "notesOptional": "Notes (optional)",
   "pasteMetadata": "Paste metadata (optional)",
   "pasteMetadataHint": "name: serverName\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password",
-  "sessionDesktopHint": "No session yet — click \"Connect\" at the top right to start an SSH session and use the terminal.\n",
+  "sessionDesktopHint": "No session yet — double-click a host in the sidebar or click \"Connect\" at the top right to start an SSH session and use the terminal.\n",
   "sessionMobileHint": "No session yet — tap \"Connect now\" at the bottom to start an SSH session and use the terminal.\n",
   "connectAuthTitle": "Connect to \"{name}\"",
   "@connectAuthTitle": {

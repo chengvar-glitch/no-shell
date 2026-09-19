@@ -15,6 +15,11 @@ final class ShellLayoutState {
   /// 桌面端侧边栏是否整块收起。
   bool sidebarCollapsed = false;
 
+  /// 桌面端详情面板当前选中的 Tab 下标（概览 / 终端 / SFTP / 转发）。
+  /// 双击主机行直连终端时由连接入口改写，详情面板双向跟随：用户自己点
+  /// Tab 也写回这里，跨骨架切换（拖窗口过 640px 断点）后 Tab 不跳回概览。
+  int detailTab = 0;
+
   /// 移动端底部导航当前下标。
   int tab = 0;
 }

@@ -33,6 +33,8 @@ class ServerDetailPanel extends StatelessWidget {
     required this.onCreate,
     this.sidebarCollapsed = false,
     this.onToggleSidebar,
+    this.detailTab = kOverviewTabIndex,
+    this.onDetailTabChanged,
   });
 
   final SshServer? server;
@@ -45,6 +47,11 @@ class ServerDetailPanel extends StatelessWidget {
   final VoidCallback onCreate;
   final bool sidebarCollapsed;
   final VoidCallback? onToggleSidebar;
+
+  /// 外部想要的 Tab 下标（双击直连落终端）；用户自己切 Tab 经
+  /// [onDetailTabChanged] 写回持有方，双向各走一条路。
+  final int detailTab;
+  final ValueChanged<int>? onDetailTabChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -64,9 +71,16 @@ class ServerDetailPanel extends StatelessWidget {
       onConnect: () => onConnect(selected),
       sidebarCollapsed: sidebarCollapsed,
       onToggleSidebar: onToggleSidebar,
+      detailTab: detailTab,
+      onDetailTabChanged: onDetailTabChanged,
     );
   }
 }
+
+/// 详情面板四个 Tab 的固定下标（概览 / 终端 / SFTP / 转发）。
+/// 双击主机行直连等外部入口要把面板带到终端，跨文件按下标取。
+const kOverviewTabIndex = 0;
+const kTerminalTabIndex = 1;
 
 /// 无主机选中（空态）时的展开入口：macOS 上红绿灯浮在内容左上角，按钮与
 /// 它们同一行、位于其右侧；其余非自绘标题条平台排在面板左上角。
@@ -218,6 +232,8 @@ class _ServerDetail extends StatefulWidget {
     required this.onConnect,
     required this.sidebarCollapsed,
     required this.onToggleSidebar,
+    required this.detailTab,
+    this.onDetailTabChanged,
   });
 
   final SshServer server;
@@ -227,6 +243,8 @@ class _ServerDetail extends StatefulWidget {
   final VoidCallback onConnect;
   final bool sidebarCollapsed;
   final VoidCallback? onToggleSidebar;
+  final int detailTab;
+  final ValueChanged<int>? onDetailTabChanged;
 
   @override
   State<_ServerDetail> createState() => _ServerDetailState();
@@ -294,6 +312,8 @@ class _ServerDetailState extends State<_ServerDetail>
     );
     final tabs = _DetailTabs(
       labels: [l10n.overview, l10n.terminal, l10n.sftp, l10n.portForwarding],
+      tabIndex: widget.detailTab,
+      onTabChanged: widget.onDetailTabChanged,
       children: [
         OverviewTab(
           server: server,
@@ -564,13 +584,23 @@ class _HeaderTags extends StatelessWidget {
   }
 }
 
-/// 四个 Tab 的标签栏与内容体：当前 Tab 索引收敛在这里，
-/// 切换时只重建标签栏与承载内容的 Stack，四个 Tab 子树实例保持不变。
+/// 四个 Tab 的标签栏与内容体。当前 Tab 下标由外部持有（ShellLayoutState.detailTab，
+/// 双击直连要能把面板带到终端），这里双向跟随：外部改写时控制器跳过去，
+/// 用户自己点 Tab 经 [onTabChanged] 写回去——写回不回流 setState，不构成环。
 class _DetailTabs extends StatefulWidget {
-  const _DetailTabs({required this.labels, required this.children});
+  const _DetailTabs({
+    required this.labels,
+    required this.children,
+    required this.tabIndex,
+    this.onTabChanged,
+  });
 
   final List<String> labels;
   final List<Widget> children;
+
+  /// 外部想要的 Tab 下标；越界按概览处理（防御，正常只有 0…3）。
+  final int tabIndex;
+  final ValueChanged<int>? onTabChanged;
 
   @override
   State<_DetailTabs> createState() => _DetailTabsState();
@@ -580,15 +610,33 @@ class _DetailTabsState extends State<_DetailTabs>
     with SingleTickerProviderStateMixin {
   late final TabController _controller = TabController(
     length: widget.children.length,
+    initialIndex: _wantedIndex,
     vsync: this,
   )..addListener(_onTabChanged);
-  int _index = 0;
 
-  // 切换动画期间会多次通知，只在 index 真正变化时重建。
-  void _onTabChanged() {
-    if (_controller.index != _index) {
-      setState(() => _index = _controller.index);
+  /// 上一次画出来的下标：动画期间控制器会连发多次通知，用它收敛成一次重建。
+  int _rendered = -1;
+
+  int get _wantedIndex =>
+      widget.tabIndex.clamp(0, widget.children.length - 1).toInt();
+
+  @override
+  void didUpdateWidget(_DetailTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 外部入口（双击直连）改写下标时跳过去；值相同（含用户点完写回后的
+    // 常规重建）不动，避免把用户刚点开的 Tab 又拽回去。
+    if (widget.tabIndex != oldWidget.tabIndex &&
+        widget.tabIndex != _controller.index) {
+      _controller.animateTo(_wantedIndex);
     }
+  }
+
+  // 切换动画期间会多次通知，只在下标真正变化时重建。
+  void _onTabChanged() {
+    if (_controller.index == _rendered) return;
+    _rendered = _controller.index;
+    setState(() {});
+    widget.onTabChanged?.call(_controller.index);
   }
 
   @override
@@ -609,7 +657,10 @@ class _DetailTabsState extends State<_DetailTabs>
           onTap: (_) => FocusScope.of(context).unfocus(),
         ),
         Expanded(
-          child: _DetailTabView(index: _index, children: widget.children),
+          child: _DetailTabView(
+            index: _controller.index,
+            children: widget.children,
+          ),
         ),
       ],
     );

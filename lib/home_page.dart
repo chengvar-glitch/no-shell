@@ -161,6 +161,20 @@ class _HomePageState extends State<HomePage> {
     store: widget.store,
   );
 
+  /// 双击主机行的直连入口：选中、详情面板落到终端 Tab、没连上就发起连接。
+  /// 已连接（含连接中）时只跳转——双击是「给我终端」，不是连接开关，
+  /// 复用 [_toggleConnect] 会把连着的主机断开，正好反着用户的意图。
+  void _quickConnect(SshServer server) {
+    setState(() {
+      _layout.selectedId = server.id;
+      _layout.detailTab = kTerminalTabIndex;
+    });
+    final active = widget.sessions
+        .sessionsOf(server.id)
+        .any((session) => session.isActive);
+    if (!active) unawaited(_toggleConnect(server));
+  }
+
   /// 在同一台主机上再开一条会话（⊕ / ⌘T / 侧边栏右键菜单同一入口）。
   Future<void> _newSession(SshServer server) => newSessionFlow(
     context,
@@ -278,6 +292,7 @@ class _HomePageState extends State<HomePage> {
               selectedId: _selectedId,
               onSelect: (server) =>
                   setState(() => _layout.selectedId = server.id),
+              onQuickConnect: _quickConnect,
               onCreate: () => _editOrCreate(),
               onCreateInGroup: (group) => _editOrCreate(null, group),
               onEdit: (server) => _editOrCreate(server),
@@ -300,6 +315,9 @@ class _HomePageState extends State<HomePage> {
               onCreate: () => _editOrCreate(),
               sidebarCollapsed: collapsed,
               onToggleSidebar: _toggleSidebar,
+              // Tab 下标归 _layout 持有：双击直连改写它，用户切 Tab 写回它。
+              detailTab: _layout.detailTab,
+              onDetailTabChanged: (index) => _layout.detailTab = index,
             ),
           ),
         ),

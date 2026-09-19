@@ -216,7 +216,8 @@ class AppLocalizationsZh extends AppLocalizations {
       '名称: serverName\n地址: 127.0.0.1\n端口: 22\n用户: root\n密码: password';
 
   @override
-  String get sessionDesktopHint => '会话未建立 —— 点击右上角「连接」建立 SSH 会话后即可使用终端。\n';
+  String get sessionDesktopHint =>
+      '会话未建立 —— 双击左侧主机或点击右上角「连接」建立 SSH 会话后即可使用终端。\n';
 
   @override
   String get sessionMobileHint => '会话未建立 —— 点击底部「立即连接」建立 SSH 会话后即可使用终端。\n';

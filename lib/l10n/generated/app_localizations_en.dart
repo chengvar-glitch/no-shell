@@ -220,7 +220,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sessionDesktopHint =>
-      'No session yet — click \"Connect\" at the top right to start an SSH session and use the terminal.\n';
+      'No session yet — double-click a host in the sidebar or click \"Connect\" at the top right to start an SSH session and use the terminal.\n';
 
   @override
   String get sessionMobileHint =>
