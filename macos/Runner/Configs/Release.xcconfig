@@ -5,3 +5,10 @@
 // 不再产出 universal 二进制，Release 产物体积减半。
 ARCHS=arm64
 ONLY_ACTIVE_ARCH=YES
+
+// 签名身份：默认 ad-hoc（与 CI / 新 clone 行为一致）。本机开发可创建 local.xcconfig
+//（gitignore，配置脚本见 tool/setup_dev_codesign.sh）覆盖为稳定证书身份——ad-hoc
+// 二进制每次重签哈希都变，钥匙串会把新构建当陌生应用，读「记住凭据」时反复弹授权框。
+// include 放在默认值之后：local.xcconfig 里的赋值才能胜出。
+CODE_SIGN_IDENTITY = -
+#include? "local.xcconfig"

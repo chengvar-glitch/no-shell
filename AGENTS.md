@@ -16,6 +16,7 @@
 - SSH 链路冒烟：`dart run tool/smoke_ssh.dart <host> <port> <user> --password <密码>`（或 `--identity <PEM路径>`，或 `--agent` 走本机 SSH agent 的密钥认证，密钥需先 `ssh-add` 装入 `SSH_AUTH_SOCK` 指向的 agent），追加 `--shell` 验证 PTY、`--sftp` 验证 SFTP 浏览与上传下载链路；凭据只经命令行传入
 - 转发 / 跳板机冒烟：`NOSHELL_SMOKE_HOST=<host> NOSHELL_SMOKE_PASSWORD=<密码> flutter test test/forward_smoke_test.dart`（可选 `NOSHELL_SMOKE_USER` / `NOSHELL_SMOKE_PORT`）。它必须跑 App 自己的会话层（models 依赖 Flutter），所以只能在测试 VM 里跑而不是 `dart run`；没给环境变量时整组自动跳过，`flutter test` 照常全绿
 - Agent 认证冒烟：`SSH_AUTH_SOCK=<agent套接字> NOSHELL_SMOKE_HOST=<host> flutter test test/agent_smoke_test.dart`（可选 `NOSHELL_SMOKE_USER` / `NOSHELL_SMOKE_PORT`；不传密码，认证完全交给 agent 里的密钥）。与转发冒烟同样的跳过约定
+- macOS 本机稳定签名（一次性）：`./tool/setup_dev_codesign.sh`——生成自签代码签名证书并设为信任锚（需输一次登录密码），写入 gitignore 的 `macos/Runner/Configs/local.xcconfig`。动机与机制见编辑约定的「macOS 签名」条
 
 ## 环境与依赖约束
 
@@ -56,10 +57,10 @@
 - `assets/fonts/` — 随包内置的终端字体（`jetbrains_mono/`、`fira_code/` 各含 Regular + Bold 与 `OFL.txt`，合计约 1.2 MB），由 `pubspec.yaml` 的 `fonts:` 声明、`assets:` 声明许可文本。族名一律带 `NoShell ` 前缀（如 `NoShell JetBrains Mono`）：与系统字体彻底解耦，引擎必定命中随包文件
 - `test/` — widget、mobile、session_manager、localization、persistence（序列化与持久化）、groups（分组建模 / 排序 / 落盘迁移与两端交互）、credentials_dialog、connect_flow、host_key（TOFU 决策与处置入口）、host_transfer（主机文本格式解析）、host_backup（备份信封与导入 / 导出流程）、sftp（browser / adapter / tab 三组）、window_caption（自绘标题条）、font_assets（内置字体与 pubspec / 许可 / FontManifest 的接线校验）、port_forward（规则模型 + 三种模式的运行时）、port_forward_panel（转发页交互）、jump_host（链路解析 / 候选过滤 / 逐跳失败归类 / 连接流程弹窗）、ssh_agent（agent 协议 / 身份映射 / 会话归类）测试；`forward_smoke_test.dart` / `agent_smoke_test.dart` 是需要真实主机的冒烟（无环境变量时自动跳过）；`test/support/` 放共享假实现（含 `FakeCredentialStore`、`forward_fakes.dart` 里的假通道 / 假网关 / 假转发传输）
 - `integration_test/` — 驱动真实应用的集成测试：`screenshots_test.dart` 为 README 截图生成器（演示链路走本地一次性服务端，输出 `docs/screenshots/`），`mobile_connect_test.dart` 在模拟器 / 真机上跑移动端「连接 → 终端 → SFTP → 断开」全流程。两者都要真机或模拟器，不进 CI；缺前置时自动跳过
-- `tool/` — 开发脚本（`smoke_ssh.dart` 冒烟脚本，`dev_sftp_server.py` 是配套的一次性本地 SFTP + 假 shell 服务端，只绑 127.0.0.1、账号 smoke/smoke，供 `--sftp` / `--shell` 冒烟与截图使用）
+- `tool/` — 开发脚本（`smoke_ssh.dart` 冒烟脚本，`dev_sftp_server.py` 是配套的一次性本地 SFTP + 假 shell 服务端，只绑 127.0.0.1、账号 smoke/smoke，供 `--sftp` / `--shell` 冒烟与截图使用；`setup_dev_codesign.sh` 为 macOS 本机开发证书签名的一次性配置脚本）
 - `docs/screenshots/` — README 截图，由 `integration_test/screenshots_test.dart` 生成，禁止放入真实主机信息
 - `icon/` — 应用图标：`art.svg` 是唯一样式来源，`render.py` 生成 `png/` 全套尺寸；iOS / macOS / Windows / Android / Web 由 `dart run flutter_launcher_icons`（配置在 `pubspec.yaml`）写入平台目录，Linux 走 `icon/png/linux/*.png`，由 `release.yml` 装成 hicolor 主题
-- `android/` `ios/` `macos/` `linux/` `windows/` `web/` — 六个平台的原生宿主工程；`analysis_options.yaml` 已排除这些目录。macOS **未开 App Sandbox**：沙盒下钥匙串访问组必须通过 application-identifier（团队签名）校验，而项目无 Apple 团队（ad-hoc，TeamIdentifier=not set），$(AppIdentifierPrefix) 展开为空，flutter_secure_storage 读写一律 -34018；同时 macOS 侧 `MacOsOptions.usesDataProtectionKeychain` 必须为 false（数据保护钥匙串同样要求团队签名）。恢复沙盒的前提是接入 DEVELOPMENT_TEAM 并逐项重验凭据链路
+- `android/` `ios/` `macos/` `linux/` `windows/` `web/` — 六个平台的原生宿主工程；`analysis_options.yaml` 已排除这些目录。macOS **未开 App Sandbox**：沙盒下钥匙串访问组必须通过 application-identifier（团队签名）校验，而项目无 Apple 团队（ad-hoc，TeamIdentifier=not set），$(AppIdentifierPrefix) 展开为空，flutter_secure_storage 读写一律 -34018；同时 macOS 侧 `MacOsOptions.usesDataProtectionKeychain` 必须为 false（数据保护钥匙串同样要求团队签名）。恢复沙盒的前提是接入 DEVELOPMENT_TEAM 并逐项重验凭据链路（本机开发的证书签名与钥匙串授权弹窗问题见编辑约定「macOS 签名」条）
 
 ## 编辑约定
 
@@ -68,6 +69,7 @@
 - 所有面向用户的文案必须经 `AppLocalizations` 获取，禁止硬编码字符串；新增文案需同时补齐 en/zh 两个 arb
 - 平台兼容：代码需同时兼容全部六个平台；web 无原生 TCP，SSH 连接会抛 `UnsupportedError`，依赖 `TerminalErrorKind.unsupported` 归类处理，不得移除该路径
 - Android 签名：release 包签名由 `android/key.properties`（gitignore，不入库）决定——文件缺失（新 clone、未配 Secrets 的 CI）回退 debug 签名，保证 `flutter run --release` 与静态检查照常可用；文件存在但缺字段则直接构建失败，不静默降级。keystore 在 `android/app/upload-keystore.jks`，**它与口令丢了就永远无法覆盖升级已发布的包**，必须单独备份到仓库之外。CI 从 4 个 Secrets 还原（`ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`）。此前 release 用 runner 现生成的 debug 签名，装过旧版的手机因此报「无法安装」——不要退回该状态
+- macOS 签名：默认 ad-hoc（`CODE_SIGN_IDENTITY = -` 在 `macos/Runner/Configs/{Debug,Release}.xcconfig`，其末尾的 `#include? "local.xcconfig"` 为可选本机覆盖，include 必须放在默认值**之后**才能让覆盖胜出）。ad-hoc 二进制每次重签 cdhash 都变，而钥匙串条目 ACL 只信任「创建它的那份二进制」——每次重新构建后读「记住凭据」都会弹「想要使用登录钥匙串」授权框（每台主机一条、逐条弹，点「始终允许」只管到下次构建）。本机跑一次 `./tool/setup_dev_codesign.sh` 配置自签证书后经 local.xcconfig 覆盖为证书身份，跨构建稳定、不再弹；旧凭据条目在新身份首次访问时还会弹最后一轮，点「始终允许」即永久安静。Runner target 级**不设** `CODE_SIGN_STYLE`（pbxproj 里三个配置的 Automatic 已摘掉，否则 target 级会压住 local.xcconfig 的 Manual）；CI / 新 clone 没有 local.xcconfig，保持 ad-hoc 不变
 - 字体：
   - 终端字体只允许两种来源：随包内置的族，或通用族名 `monospace`。禁止把「系统里可能存在的具体族名」交给渲染——Linux 上 fontconfig 对任何请求名都会返回替代品（可能是比例字体），而终端按固定格子绘字（格宽由 `mmmmmmmmmm` 量出），字形一比例网格就散架；更糟的是主名「命中」了替代品，`fontFamilyFallback` 就永远轮不到
   - 内置族名一律带 `NoShell ` 前缀：与系统字体彻底解耦，引擎必定命中随包文件

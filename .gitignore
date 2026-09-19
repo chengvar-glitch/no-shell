@@ -53,3 +53,6 @@ app.*.map.json
 
 # ZCode 本地会话目录
 .zcode/
+
+# macOS 本机开发签名覆盖（证书在个人登录钥匙串里，见 tool/setup_dev_codesign.sh）
+macos/Runner/Configs/local.xcconfig
