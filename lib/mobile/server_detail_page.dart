@@ -10,7 +10,8 @@ import '../ssh/host_key_store.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
 import '../widgets/port_forward_panel.dart' show PortForwardPanel;
-import '../widgets/server_detail.dart' show OverviewTab, TerminalTab;
+import '../widgets/server_detail.dart'
+    show OverviewTab, TerminalIdleStyle, TerminalTab;
 import '../widgets/session_log_dialog.dart';
 import '../widgets/session_selection.dart';
 import '../widgets/sftp_browser.dart' show SftpTab;
@@ -183,6 +184,8 @@ class _ServerDetailPageState extends State<ServerDetailPage>
                           session: session,
                           sessions: widget.sessions,
                           idleHint: l10n.sessionMobileHint,
+                          // 未连接时不摆黑终端块，与 SFTP Tab 同一形态的空态。
+                          idleStyle: TerminalIdleStyle.plain,
                           onRetry: session == null
                               ? null
                               : () => widget.sessions.retry(session),

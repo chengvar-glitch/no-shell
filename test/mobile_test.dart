@@ -87,12 +87,15 @@ void main() {
     expect(find.text('连接「db-primary」'), findsNothing);
     expect(find.text('立即连接'), findsOneWidget);
 
-    // 终端 Tab 在未建立会话时展示引导文案。
+    // 终端 Tab 在未建立会话时展示与 SFTP Tab 同形态的引导空态，
+    // 不再画黑终端预览（`$ ssh` 假命令行与左下角账号尾注都不出现）。
     await tester.tap(
       find.descendant(of: find.byType(TabBar), matching: find.text('终端')),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('会话未建立', findRichText: true), findsOneWidget);
+    expect(find.byIcon(Icons.terminal_rounded), findsOneWidget);
+    expect(find.textContaining('会话未建立'), findsOneWidget);
+    expect(find.textContaining('ssh ·'), findsNothing);
   });
 
   testWidgets('详情页删除主机：凭据与指纹一并清理', (tester) async {

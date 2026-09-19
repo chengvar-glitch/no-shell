@@ -13,6 +13,7 @@ import '../ssh/sftp_transfer.dart';
 import '../ssh/terminal_session.dart';
 import '../theme.dart';
 import 'confirm_dialog.dart';
+import 'session_idle_view.dart';
 
 part 'sftp_browser_actions.dart';
 part 'sftp_browser_list.dart';
@@ -147,7 +148,8 @@ class _SftpTabState extends State<SftpTab> {
     final session = widget.session;
     final idleHint = widget.idleHint ?? '';
     if (session == null || !session.isActive) {
-      return _IdleState(
+      return SessionIdleView(
+        icon: Icons.folder_open_rounded,
         title: AppLocalizations.of(context).sftp,
         hint: idleHint,
         onRetry: widget.onRetry,
@@ -171,63 +173,6 @@ class _SftpTabState extends State<SftpTab> {
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
     showToast(context, _sftpErrorText(l10n, error));
-  }
-}
-
-/// 未建立会话时的引导画面。
-final class _IdleState extends StatelessWidget {
-  const _IdleState({required this.title, required this.hint, this.onRetry});
-
-  final String title;
-  final String hint;
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.folder_open_rounded,
-              size: 34,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              hint,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12.5,
-                height: 1.6,
-                color: theme.secondaryText,
-              ),
-            ),
-            if (onRetry != null) ...[
-              const SizedBox(height: 18),
-              FilledButton.tonalIcon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded, size: 17),
-                label: Text(l10n.reconnect),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
   }
 }
 

@@ -14,6 +14,7 @@ import '../ssh/terminal_view.dart';
 import '../store.dart';
 import '../theme.dart';
 import 'port_forward_panel.dart';
+import 'session_idle_view.dart';
 import 'session_log_dialog.dart';
 import 'session_menu.dart';
 import 'session_selection.dart';
@@ -897,7 +898,20 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
-/// 终端视图：有会话时渲染真实 SSH 终端，否则展示静态引导画面。
+/// 终端 Tab 未连接时空态的形态：两端刻意不同。
+/// 桌面端保持终端样式预览（占位与连上后是同一个盒子、同一套字号配色，
+/// 频繁的「点连接 → 连上」过渡不跳变）；移动端换成与 SFTP Tab 一致的
+/// 图标 + 提示空态——手机屏上其余 Tab 都是主题化空态，黑终端块在浅色
+/// 主题下过于突兀，`$ ssh` 假命令行也容易被误读成正在连接。
+enum TerminalIdleStyle {
+  /// 终端样式预览画面（桌面端）。
+  preview,
+
+  /// 图标 + 标题 + 提示的普通空态（移动端）。
+  plain,
+}
+
+/// 终端视图：有会话时渲染真实 SSH 终端，否则按 [idleStyle] 展示空态。
 /// 桌面端详情面板与移动端详情页共用；传入 [sessions] 时终端浮层里
 /// 会带上自动重连的倒计时与「停止」入口。
 final class TerminalTab extends StatelessWidget {
@@ -908,11 +922,12 @@ final class TerminalTab extends StatelessWidget {
     this.sessions,
     this.onRetry,
     this.idleHint,
+    this.idleStyle = TerminalIdleStyle.preview,
   });
 
   final SshServer server;
 
-  /// 当前主机的 SSH 会话；为空表示尚未建立，展示引导画面。
+  /// 当前主机的 SSH 会话；为空表示尚未建立，展示空态。
   final TerminalSession? session;
 
   /// 会话管理器；为空（部分测试）时终端不展示自动重连状态。
@@ -924,9 +939,20 @@ final class TerminalTab extends StatelessWidget {
   /// 未连接时的提示文案，桌面端与移动端入口措辞不同。
   final String? idleHint;
 
+  /// 未连接时空态的形态，见 [TerminalIdleStyle]。
+  final TerminalIdleStyle idleStyle;
+
   @override
   Widget build(BuildContext context) {
     final session = this.session;
+    final l10n = AppLocalizations.of(context);
+    if (session == null && idleStyle == TerminalIdleStyle.plain) {
+      return SessionIdleView(
+        icon: Icons.terminal_rounded,
+        title: l10n.terminal,
+        hint: idleHint ?? l10n.sessionMobileHint,
+      );
+    }
     // 只监听终端样式偏好：配色 / 字体变化时仅终端面板重建。
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
