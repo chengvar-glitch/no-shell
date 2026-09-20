@@ -96,6 +96,10 @@ jobs:
         if: matrix.target == 'linux'
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          # rpm 的 Version 字段里不能出现 `-`（`-` 是 Version 与 Release 的
+          # 分隔符），预发布 tag（v4.1.6-test.1）原样塞进去 rpmbuild 直接报错，
+          # 进而整条 release 流水线挂掉；换成 `.` 后语义不变（4.1.6.test.1）。
+          RPM_VERSION="${VERSION//-/.}"
           BUNDLE=build/linux/x64/release/bundle
 
           rm -rf .deb-pkg
@@ -140,7 +144,7 @@ jobs:
           mkdir -p .rpm-build/BUILD .rpm-build/RPMS .rpm-build/SPECS .rpm-build/SOURCES .rpm-build/SRPMS
           cat > .rpm-build/SPECS/noshell.spec <<SPEC
           Name:           noshell
-          Version:        $VERSION
+          Version:        $RPM_VERSION
           Release:        1
           Summary:        NoShell — cross-platform SSH connection manager
           License:        Proprietary
@@ -257,4 +261,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          # 带 `-` 的 tag（v4.1.6-test.1）算预发布：标成 prerelease 才不会
+          # 顶掉「最新正式版」，App 内更新检查（只查 releases/latest）也会
+          # 自动跳过它——这正是「打个非正式版本自己测」想要的语义。
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: dist/NoShell-*
