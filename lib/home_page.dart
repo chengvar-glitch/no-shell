@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_locale.dart';
+import 'host_portable.dart';
 import 'host_transfer.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'models.dart';
@@ -14,6 +15,7 @@ import 'ssh/session_manager.dart';
 import 'shell_layout.dart';
 import 'store.dart';
 import 'update_check.dart';
+import 'widgets/confirm_dialog.dart';
 import 'widgets/host_form.dart';
 import 'widgets/server_detail.dart';
 import 'widgets/settings_dialog.dart';
@@ -222,6 +224,21 @@ class _HomePageState extends State<HomePage> {
     credentials: widget.credentials,
   );
 
+  /// 右键菜单的「复制主机信息」：文本格式与导出一致，密码取该主机已记住的
+  /// 凭据——没记住就留一行空的「密码: 」，让用户看得出是没存而不是复制漏了。
+  /// 密码本身不进任何提示文案。
+  Future<void> _copyHostInfo(SshServer server) async {
+    final l10n = AppLocalizations.of(context);
+    final saved = widget.credentials.supported
+        ? await widget.credentials.read(server.id)
+        : null;
+    await Clipboard.setData(
+      ClipboardData(text: encodeServerText(server, password: saved?.password)),
+    );
+    if (!mounted) return;
+    showToast(context, l10n.copied(server.name));
+  }
+
   Future<void> _deleteServer(SshServer server) async {
     final l10n = AppLocalizations.of(context);
     final index = await confirmAndDeleteHost(
@@ -308,6 +325,7 @@ class _HomePageState extends State<HomePage> {
               onCreateInGroup: (group) => _editOrCreate(null, group),
               onEdit: (server) => _editOrCreate(server),
               onDelete: _deleteServer,
+              onCopyHostInfo: _copyHostInfo,
               onToggleConnect: _toggleConnect,
               onCreateSession: _newSession,
               onToggleSidebar: _toggleSidebar,

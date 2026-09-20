@@ -98,6 +98,7 @@
   "moreActions": "More actions",
   "hostAddress": "Host address",
   "copyAddress": "Copy address",
+  "copyHostInfo": "Copy host info",
   "copy": "Copy",
   "copied": "Copied {value}",
   "@copied": {

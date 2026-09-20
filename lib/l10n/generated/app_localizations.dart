@@ -374,6 +374,12 @@ abstract class AppLocalizations {
   /// **'Copy address'**
   String get copyAddress;
 
+  /// No description provided for @copyHostInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy host info'**
+  String get copyHostInfo;
+
   /// No description provided for @copy.
   ///
   /// In en, this message translates to:

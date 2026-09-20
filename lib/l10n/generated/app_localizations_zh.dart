@@ -167,6 +167,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copyAddress => '复制地址';
 
   @override
+  String get copyHostInfo => '复制主机信息';
+
+  @override
   String get copy => '复制';
 
   @override

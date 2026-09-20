@@ -121,6 +121,40 @@ void main() {
     });
   });
 
+  group('单台主机复制文本', () {
+    SshServer server({String group = '生产'}) => SshServer(
+      id: 'a',
+      group: group,
+      name: 'fofo',
+      host: '192.0.2.10',
+      port: 2222,
+      username: 'root',
+    );
+
+    test('五行固定格式：密码行始终在，分组不输出', () {
+      expect(
+        encodeServerText(server(), password: 'demo-pass-123'),
+        '名称: fofo\n'
+        '地址: 192.0.2.10\n'
+        '端口: 2222\n'
+        '用户: root\n'
+        '密码: demo-pass-123\n',
+      );
+    });
+
+    test('没记住密码时留一行空密码，复制的文本照样能解析回来', () {
+      final text = encodeServerText(server());
+
+      expect(text.contains('密码: \n'), isTrue);
+      expect(text.contains('分组:'), isFalse);
+      final drafts = parseHostsText(text, defaultGroup: '导入');
+      expect(drafts.single.host, '192.0.2.10');
+      expect(drafts.single.port, 2222);
+      expect(drafts.single.username, 'root');
+      expect(drafts.single.password, isNull);
+    });
+  });
+
   group('ServerStore.importServers', () {
     test('新增去重：与列表、与批次内部重复都跳过，无新增不通知', () {
       final store = ServerStore(

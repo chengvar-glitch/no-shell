@@ -30,6 +30,7 @@ class Sidebar extends StatefulWidget {
     required this.onCreateInGroup,
     required this.onEdit,
     required this.onDelete,
+    required this.onCopyHostInfo,
     required this.onToggleConnect,
     required this.onCreateSession,
     required this.onToggleSidebar,
@@ -54,6 +55,9 @@ class Sidebar extends StatefulWidget {
   final ValueChanged<String> onCreateInGroup;
   final ValueChanged<SshServer> onEdit;
   final ValueChanged<SshServer> onDelete;
+
+  /// 复制这台主机的连接信息文本（含已记住的密码），由宿主页面读凭据。
+  final ValueChanged<SshServer> onCopyHostInfo;
   final ValueChanged<SshServer> onToggleConnect;
   final ValueChanged<SshServer> onCreateSession;
   final VoidCallback onToggleSidebar;
@@ -157,6 +161,17 @@ class _SidebarState extends State<Sidebar> {
             ),
           ),
         PopupMenuItem(
+          value: 'copy',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.copy_rounded, size: 16),
+              const SizedBox(width: 8),
+              Text(l10n.copyHostInfo, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
           value: 'edit',
           height: 36,
           child: Row(
@@ -205,6 +220,8 @@ class _SidebarState extends State<Sidebar> {
         widget.onToggleConnect(server);
       case 'new-session':
         widget.onCreateSession(server);
+      case 'copy':
+        widget.onCopyHostInfo(server);
       case 'edit':
         widget.onEdit(server);
       case 'move':

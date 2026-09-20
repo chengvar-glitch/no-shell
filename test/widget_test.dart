@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:no_shell/main.dart';
 import 'package:no_shell/models.dart';
+import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/store.dart';
 import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/sidebar.dart';
@@ -102,6 +104,67 @@ void main() {
 
     expect(find.text('web-prod-01'), findsNothing);
     expect(find.text('已删除 web-prod-01'), findsOneWidget);
+  });
+
+  testWidgets('右键菜单复制主机信息：密码取已记住的凭据，提示不含密码', (tester) async {
+    var clipboardText = '';
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          clipboardText = call.arguments['text'] as String? ?? '';
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    final credentials = FakeCredentialStore();
+    await credentials.write(
+      'srv-01',
+      const SshCredentials(password: 'demo-pass-123'),
+    );
+    tester.platformDispatcher.localesTestValue = const [Locale('zh')];
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    await tester.pumpWidget(
+      NoShellApp(
+        store: ServerStore(seed: demoServers),
+        credentials: credentials,
+        agentKeysProbe: () async => false,
+      ),
+    );
+    await tester.pump();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(
+        find.descendant(
+          of: find.byType(Sidebar),
+          matching: find.text('web-prod-01'),
+        ),
+      ),
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('复制主机信息'));
+    await tester.pumpAndSettle();
+
+    expect(
+      clipboardText,
+      '名称: web-prod-01\n'
+      '地址: 10.0.1.11\n'
+      '端口: 22\n'
+      '用户: deploy\n'
+      '密码: demo-pass-123\n',
+    );
+    // 提示只报主机名：剪贴板里那串密码不该再出现在界面上。
+    expect(find.text('已复制 web-prod-01'), findsOneWidget);
   });
 
   testWidgets('别的主机变了侧边栏照样更新；选中那台的状态变化详情面板也跟得上', (tester) async {

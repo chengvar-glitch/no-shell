@@ -108,16 +108,31 @@ String encodeHostsText(Iterable<HostExportEntry> entries) {
   final buffer = StringBuffer();
   for (final (server: server, password: password) in entries) {
     if (buffer.isNotEmpty) buffer.writeln();
-    buffer
-      ..writeln('名称: ${server.name}')
-      ..writeln('地址: ${server.host}')
-      ..writeln('端口: ${server.port}')
-      ..writeln('用户: ${server.username}');
+    _writeServerFields(buffer, server);
     final passwordText = password;
     if (passwordText != null) buffer.writeln('密码: $passwordText');
     if (server.group.isNotEmpty) buffer.writeln('分组: ${server.group}');
   }
   return buffer.toString();
+}
+
+/// 单台主机的复制文本：字段顺序与 [encodeHostsText] 一致，但「密码」行
+/// 始终输出（[password] 为 null 时留空），也不带分组——它面向的是「把这台
+/// 主机的连接信息粘贴出去」，粘贴的内容照样能被 [parseHostsText] 认出来。
+String encodeServerText(SshServer server, {String? password}) {
+  final buffer = StringBuffer();
+  _writeServerFields(buffer, server);
+  buffer.writeln('密码: ${password ?? ''}');
+  return buffer.toString();
+}
+
+/// 两台编码器共用的前四行（名称 / 地址 / 端口 / 用户），只此一份。
+void _writeServerFields(StringBuffer buffer, SshServer server) {
+  buffer
+    ..writeln('名称: ${server.name}')
+    ..writeln('地址: ${server.host}')
+    ..writeln('端口: ${server.port}')
+    ..writeln('用户: ${server.username}');
 }
 
 const _keyName = 'name';

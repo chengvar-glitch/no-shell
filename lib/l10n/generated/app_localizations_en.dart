@@ -170,6 +170,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copyAddress => 'Copy address';
 
   @override
+  String get copyHostInfo => 'Copy host info';
+
+  @override
   String get copy => 'Copy';
 
   @override
