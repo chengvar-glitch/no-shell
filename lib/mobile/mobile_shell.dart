@@ -7,6 +7,8 @@ import '../ssh/host_key_store.dart';
 import '../shell_layout.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
+import '../update_check.dart';
+import '../widgets/settings_controls.dart';
 import 'servers_tab.dart';
 import 'settings_tab.dart';
 import 'terminal_tab.dart';
@@ -26,6 +28,8 @@ class MobileShell extends StatefulWidget {
     this.allowLegacyHostKeys = false,
     this.onAllowLegacyHostKeysChanged,
     this.layout,
+    this.updateCheck,
+    this.openReleasePage,
   });
 
   final ServerStore store;
@@ -46,6 +50,12 @@ class MobileShell extends StatefulWidget {
   /// 跨断点保留的界面状态；由应用入口持有，两套骨架共用一份。
   /// 为空时（组件测试、单独挂载）本页自建一份，行为与从前一致。
   final ShellLayoutState? layout;
+
+  /// 版本检测；为 null 时不显示更新入口，底部设置 Tab 也不挂红点。
+  final UpdateCheckService? updateCheck;
+
+  /// 打开发布页的能力；不传时走系统实现。
+  final Future<bool> Function(Uri uri)? openReleasePage;
 
   @override
   State<MobileShell> createState() => _MobileShellState();
@@ -82,6 +92,8 @@ class _MobileShellState extends State<MobileShell> {
               archiveUnreadable: widget.store.archiveUnreadable,
               allowLegacyHostKeys: widget.allowLegacyHostKeys,
               onAllowLegacyHostKeysChanged: widget.onAllowLegacyHostKeysChanged,
+              updateCheck: widget.updateCheck,
+              openReleasePage: widget.openReleasePage,
             ),
           ),
         ],
@@ -101,10 +113,46 @@ class _MobileShellState extends State<MobileShell> {
             label: l10n.terminal,
           ),
           NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            selectedIcon: const Icon(Icons.settings_rounded),
+            icon: _SettingsNavIcon(
+              icon: Icons.settings_outlined,
+              updateCheck: widget.updateCheck,
+            ),
+            selectedIcon: _SettingsNavIcon(
+              icon: Icons.settings_rounded,
+              updateCheck: widget.updateCheck,
+            ),
             label: l10n.navSettings,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 设置 Tab 图标：有新版本时右上角挂一个红点，并且**只订阅检测状态**——
+/// 整条底部导航不该因为一次版本查询重建。
+class _SettingsNavIcon extends StatelessWidget {
+  const _SettingsNavIcon({required this.icon, this.updateCheck});
+
+  final IconData icon;
+  final UpdateCheckService? updateCheck;
+
+  @override
+  Widget build(BuildContext context) {
+    final service = updateCheck;
+    if (service == null) return Icon(icon);
+    return ListenableBuilder(
+      listenable: service,
+      builder: (context, _) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(icon),
+          if (service.updateAvailable)
+            const Positioned(
+              right: -2,
+              top: -2,
+              child: UpdateAvailableDot(size: 8),
+            ),
         ],
       ),
     );

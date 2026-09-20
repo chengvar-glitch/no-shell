@@ -8,6 +8,7 @@ import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_locale.dart';
+import 'app_version.dart';
 import 'fps_hud.dart';
 import 'home_page.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -22,22 +23,25 @@ import 'ssh/host_key_store.dart';
 import 'ssh/session_manager.dart';
 import 'store.dart';
 import 'theme.dart';
+import 'update_check.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _registerBundledFontLicenses();
   await _setupDesktopWindow();
   // 启动即载入已保存的主机列表与偏好，避免先闪一帧空列表 / 默认主题
-  // 再被替换；三者互不依赖，并行读盘。
+  // 再被替换；三者互不依赖，并行读盘。版本号顺带一起读，界面里随即
+  // 显示的是真实版本，而不是编译期常量。
   final store = ServerStore(persistence: SharedPreferencesServerPersistence());
   final settings = SharedPreferencesSettingsPersistence();
   final snippets = SnippetStore(
     persistence: SharedPreferencesSnippetPersistence(),
   );
-  final (_, savedSettings, _) = await (
+  final (_, savedSettings, _, _) = await (
     store.load(),
     settings.load(),
     snippets.load(),
+    loadAppVersion(),
   ).wait;
   runApp(
     NoShellApp(
@@ -45,8 +49,26 @@ Future<void> main() async {
       settings: settings,
       initialSettings: savedSettings,
       snippetStore: snippets,
+      // 版本检测只在真机进入：组件测试不注入这条通道，也就不会联网。
+      updateCheckClient: HttpUpdateCheckClient(),
+      updateCheckPersistence: const SharedPreferencesUpdateCheckPersistence(),
     ),
   );
+}
+
+/// 没有注入查询通道时的替身：**不联网**，如实报「查不到发布版」。
+///
+/// 组件测试默认走这里，所以测试里不会有真实的网络请求；用户在设置页
+/// 点「检查」也只会看到一句查不到，而不是一个静默失败的按钮。
+///
+/// 认的是 [ReleaseLookupException.notFound] 而不是新造一种错误：对用户
+/// 来说这两种情况的可操作性完全一样（去发布页看看），文案不必分叉。
+class _NoUpdateCheckClient implements UpdateCheckClient {
+  const _NoUpdateCheckClient();
+
+  @override
+  Future<ReleaseInfo> fetchLatestRelease() =>
+      Future.error(const ReleaseLookupException(ReleaseLookupError.notFound));
 }
 
 /// 把随包内置字体的 OFL 文本注册进许可清单：SIL OFL 要求分发字体时随附许可，
@@ -152,6 +174,9 @@ class NoShellApp extends StatefulWidget {
     this.agentKeysProbe,
     this.snippetStore,
     this.autoReconnect = true,
+    this.updateCheckClient,
+    this.updateCheckPersistence,
+    this.openReleasePage,
   });
 
   /// 测试或嵌入方可注入；缺省时主机列表不落盘，凭据走平台安全存储，
@@ -176,6 +201,16 @@ class NoShellApp extends StatefulWidget {
   /// 会话意外断开后是否自动重连（指数退避）。默认打开；测试可关闭，
   /// 免得假传输的「连接后立即断开」凭空长出重连会话。
   final bool autoReconnect;
+
+  /// 版本检测的查询通道；为 null 时**不联网**（测试与嵌入方的默认）。
+  /// 真机由 `main()` 注入真实实现，组件测试注入假实现。
+  final UpdateCheckClient? updateCheckClient;
+
+  /// 「有新版本」的落盘通道；为 null 时只在内存里记（测试默认如此）。
+  final UpdateCheckPersistence? updateCheckPersistence;
+
+  /// 打开发布页的能力；不传时走系统实现（web 桩返回打不开）。
+  final Future<bool> Function(Uri uri)? openReleasePage;
 
   @override
   State<NoShellApp> createState() => _NoShellAppState();
@@ -228,10 +263,21 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   /// 选中项 / 侧边栏折叠 / 当前 Tab 只有放在这里才不会被重置。
   final ShellLayoutState _layout = ShellLayoutState();
 
+  /// 版本检测：查到「有新版」时在设置入口挂一个红点，设置页里给出
+  /// 「前往下载」。没注入查询通道（测试默认）时走「不联网」实现。
+  late final UpdateCheckService _updateCheck = UpdateCheckService(
+    client: widget.updateCheckClient ?? const _NoUpdateCheckClient(),
+    persistence: widget.updateCheckPersistence,
+  );
+
   @override
   void initState() {
     super.initState();
     _terminalStyle.addListener(_scheduleSave);
+    // 启动后静默查一次：先读上次记录的「有新版」结论（不联网就有提示），
+    // 再排一次联网查询。两者都不阻塞启动，失败也只是不提示。
+    unawaited(_updateCheck.load());
+    _updateCheck.scheduleStartupCheck();
     if (kFpsHudEnabled) {
       // 无头取证探针：宿主拿不到屏幕录制权限时，靠 stdout 判断点击是否
       // 命中（选中了哪台主机、会话建没建、走到哪个阶段）。release 无此代码。
@@ -310,6 +356,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
     _store.dispose();
     _snippets.dispose();
     _terminalStyle.dispose();
+    _updateCheck.dispose();
     super.dispose();
   }
 
@@ -380,6 +427,8 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
                 allowLegacyHostKeys: _allowLegacyHostKeys,
                 onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
                 layout: _layout,
+                updateCheck: _updateCheck,
+                openReleasePage: widget.openReleasePage,
               )
             : HomePage(
                 store: _store,
@@ -394,6 +443,8 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
                 allowLegacyHostKeys: _allowLegacyHostKeys,
                 onAllowLegacyHostKeysChanged: _setAllowLegacyHostKeys,
                 layout: _layout,
+                updateCheck: _updateCheck,
+                openReleasePage: widget.openReleasePage,
               );
       },
     );

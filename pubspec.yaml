@@ -1,7 +1,7 @@
 name: no_shell
 description: "NoShell — cross-platform SSH connection manager with terminal, SFTP and secure credential storage."
 publish_to: 'none'
-version: 4.1.3+1
+version: 4.1.4+1
 
 environment:
   sdk: ^3.13.3
@@ -18,6 +18,9 @@ dependencies:
     sdk: flutter
   flutter_secure_storage: ^11.1.1
   intl: any
+  # 读宿主包信息拿真实版本号（界面展示 + 版本检测的比较基准）。
+  # 此前版本号是手写常量：pubspec 到 4.1.3 了，「关于」里还显示 4.0.1。
+  package_info_plus: ^10.2.1
   path_provider: ^2.1.6
   pointycastle: ^4.0.0
   screen_retriever: ^0.2.2
@@ -37,6 +40,9 @@ dev_dependencies:
   # 凭据存储的失败契约测试要替换平台实现（钥匙串不可用时是返回 false 还是
   # 抛异常），插件本身只把它当传递依赖，这里显式声明。
   flutter_secure_storage_platform_interface: ^2.1.0
+  # 版本检测的用例要替换包信息平台实现，验证「版本号来自宿主包信息」
+  # 这条链路；同样是插件只当传递依赖、测试直接 import 的包。
+  package_info_plus_platform_interface: ^4.1.0
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
 

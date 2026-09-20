@@ -197,7 +197,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agentAuthHint =>
-      'Authenticate with keys held by your local SSH agent (macOS / Linux). Load your key with ssh-add first — the connection fails when the agent is not running or has no keys.';
+      'Use a key from your local SSH agent; load it with ssh-add first.';
 
   @override
   String get lastConnected => 'Last connected';
@@ -230,10 +230,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String connectAuthTitle(String name) {
     return 'Connect to \"$name\"';
   }
-
-  @override
-  String get authMemoryHint =>
-      'Credentials are used for this connection; check \"Remember credentials\" to store them securely.';
 
   @override
   String get rememberCredentials => 'Remember credentials';
@@ -285,7 +281,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get credentialsDialogHint =>
-      'Stored securely once saved and used automatically on the next connection.';
+      'Saved encrypted and reused automatically.';
 
   @override
   String get fieldPassphrase => 'Key passphrase (optional)';
@@ -346,7 +342,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fieldName => 'Name';
 
   @override
-  String get nameHint => 'e.g. web-prod-01';
+  String get nameHint => 'name';
 
   @override
   String get nameRequired => 'Please enter a name';
@@ -364,13 +360,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get portInvalid => '1-65535';
 
   @override
-  String get usernameHint => 'e.g. root';
+  String get usernameHint => 'username';
 
   @override
   String get usernameRequired => 'Please enter a username';
 
   @override
-  String get groupHint => 'e.g. Production';
+  String get groupHint => 'group';
 
   @override
   String get groupNew => 'New group';
@@ -856,7 +852,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupPasswordWarning =>
-      'Without this password the backup cannot be restored. Please keep it safe.';
+      'Lose the password and the backup cannot be restored.';
 
   @override
   String get backupCreateConfirm => 'Export';
@@ -875,18 +871,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get connectionSection => 'Connection';
 
   @override
-  String get allowLegacyHostKeys => 'Allow legacy ssh-rsa hosts';
-
-  @override
   String get allowLegacyHostKeysHint =>
-      'Turn on only for old devices that offer nothing but an ssh-rsa (SHA-1) host key, such as switches and embedded gear. Modern servers are unaffected.';
+      'Only needed by old gear (switches and the like) that offers nothing but an ssh-rsa (SHA-1) host key.';
 
   @override
   String get archiveUnreadableTitle => 'Saved host list could not be read';
 
   @override
   String get archiveUnreadableHint =>
-      'The saved data is unreadable, so it has been left untouched and changes in this session are not being saved. Re-import a .nsbak backup to get your hosts back.';
+      'The saved data is unreadable and has been left untouched; changes in this session are not saved. Re-import a .nsbak backup to recover.';
 
   @override
   String hostKeyChangedMsgWithFingerprint(String keyType, String fingerprint) {
@@ -1170,9 +1163,71 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copyOnSelect => 'Copy on Select';
 
   @override
-  String get copyOnSelectHint =>
-      'Automatically copy terminal text to the clipboard when you select it.';
+  String get linkOpenFailed => 'Could not open link';
 
   @override
-  String get linkOpenFailed => 'Could not open link';
+  String get updateSection => 'Updates';
+
+  @override
+  String get updateRowTitle => 'Check for updates';
+
+  @override
+  String updateRowSubtitle(String version) {
+    return 'Current version v$version';
+  }
+
+  @override
+  String get updateCheck => 'Check';
+
+  @override
+  String get updateChecking => 'Checking…';
+
+  @override
+  String updateAvailableSubtitle(String version) {
+    return 'Version $version is available';
+  }
+
+  @override
+  String get updateDownload => 'Get it';
+
+  @override
+  String get updateUpToDate => 'You are on the latest version';
+
+  @override
+  String updateCurrentVersionHint(String version) {
+    return 'Current version v$version';
+  }
+
+  @override
+  String updateResultDate(String date, String version) {
+    return 'Released $date · you have v$version';
+  }
+
+  @override
+  String get updateNotesToggle => 'Release notes';
+
+  @override
+  String get updateRetry => 'Retry';
+
+  @override
+  String get updateFailedNetwork =>
+      'Could not reach the release server. Check your network and try again.';
+
+  @override
+  String get updateFailedNotFound => 'No published release was found';
+
+  @override
+  String get updateFailedServer =>
+      'The release server returned an error. Try again later.';
+
+  @override
+  String get updateFailedMalformed =>
+      'The release information could not be read';
+
+  @override
+  String get updateFailedUnsupported =>
+      'Update check is not available on this platform';
+
+  @override
+  String get updateOpenFailed => 'Could not open the release page';
 }

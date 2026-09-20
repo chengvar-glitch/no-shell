@@ -54,7 +54,7 @@
   "authPassword": "密码",
   "authKey": "SSH 密钥",
   "authAgent": "Agent",
-  "agentAuthHint": "使用本机 SSH agent 里的密钥认证（macOS / Linux）。请先 ssh-add 装入密钥，agent 未运行或没有密钥时会连接失败。",
+  "agentAuthHint": "用本机 SSH agent 里的密钥；先 ssh-add 装入。",
   "lastConnected": "最近连接",
   "group": "分组",
   "notes": "备注",
@@ -71,7 +71,6 @@
       }
     }
   },
-  "authMemoryHint": "凭据用于本次连接；勾选「记住凭据」后加密保存，下次免输。",
   "rememberCredentials": "记住凭据",
   "fieldPrivateKey": "私钥内容（PEM）",
   "privateKeyHint": "-----BEGIN OPENSSH PRIVATE KEY-----",
@@ -107,7 +106,7 @@
       }
     }
   },
-  "credentialsDialogHint": "保存后加密存储，下次连接自动使用。",
+  "credentialsDialogHint": "将加密保存，下次自动使用。",
   "fieldPassphrase": "私钥口令（可选）",
   "credentialsRequired": "请输入密码或粘贴私钥",
   "connectingTo": "正在连接 {account} …",
@@ -138,15 +137,15 @@
   "hostKeyForgetConfirmAction": "清除并重连",
   "reconnect": "重连",
   "fieldName": "名称",
-  "nameHint": "例：web-prod-01",
+  "nameHint": "名称",
   "nameRequired": "请输入名称",
   "fieldHost": "主机",
   "hostHint": "IP 或域名",
   "hostRequired": "请输入主机",
   "portInvalid": "1-65535",
-  "usernameHint": "例：root",
+  "usernameHint": "用户名",
   "usernameRequired": "请输入用户名",
-  "groupHint": "例：生产环境",
+  "groupHint": "分组名",
   "groupNew": "新建分组",
   "groupRename": "重命名分组",
   "groupDelete": "删除分组",
@@ -359,16 +358,15 @@
   "backupPasswordConfirm": "再次输入口令",
   "backupPasswordRequired": "请输入备份口令",
   "backupPasswordMismatch": "两次输入的口令不一致",
-  "backupPasswordWarning": "没有这个口令就无法恢复备份，请妥善保管。",
+  "backupPasswordWarning": "口令丢了就无法恢复这份备份。",
   "backupCreateConfirm": "导出",
   "backupOpenConfirm": "导入",
   "backupWrongPassword": "备份口令不正确，未导入任何主机",
   "backupUnreadable": "无法读取该文件，请确认它是主机备份",
   "connectionSection": "连接",
-  "allowLegacyHostKeys": "允许连接旧式 ssh-rsa 主机",
-  "allowLegacyHostKeysHint": "仅用于只提供 ssh-rsa（SHA-1）主机密钥的老设备，例如交换机与嵌入式设备。现代服务器不受影响。",
+  "allowLegacyHostKeysHint": "老旧设备（交换机等）才需要：它们只给 ssh-rsa（SHA-1）主机密钥。",
   "archiveUnreadableTitle": "已保存的主机列表读不出来",
-  "archiveUnreadableHint": "磁盘上的存档解析失败，已原样保留、未被覆盖；本次会话的改动不会落盘。可导入一份 .nsbak 备份把主机找回来。",
+  "archiveUnreadableHint": "存档解析失败，已原样保留；本次会话的改动不会落盘。可导入 .nsbak 备份找回。",
   "hostKeyChangedMsgWithFingerprint": "主机密钥校验失败：服务器出示的是 {keyType} {fingerprint}，与首次连接时记录的不一致。若服务器确实是重建过，可清除记录的指纹后重连；否则请警惕中间人攻击。",
   "@hostKeyChangedMsgWithFingerprint": {
     "placeholders": {
@@ -559,6 +557,54 @@
   "paste": "粘贴",
   "selectAll": "全选",
   "copyOnSelect": "选中即复制",
-  "copyOnSelectHint": "在终端中选中文字后自动复制到剪贴板。",
-  "linkOpenFailed": "无法打开链接"
+  "linkOpenFailed": "无法打开链接",
+  "updateSection": "更新",
+  "updateRowTitle": "检查更新",
+  "updateRowSubtitle": "当前版本 v{version}",
+  "@updateRowSubtitle": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateCheck": "检查",
+  "updateChecking": "检查中…",
+  "updateAvailableSubtitle": "有新版本 {version}",
+  "@updateAvailableSubtitle": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownload": "前往下载",
+  "updateUpToDate": "已是最新版本",
+  "updateCurrentVersionHint": "当前版本 v{version}",
+  "@updateCurrentVersionHint": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateResultDate": "发布于 {date} · 当前版本 v{version}",
+  "@updateResultDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateNotesToggle": "更新说明",
+  "updateRetry": "重试",
+  "updateFailedNetwork": "连不上发布服务器，请检查网络后重试",
+  "updateFailedNotFound": "没有查到已发布的版本",
+  "updateFailedServer": "发布服务器返回错误，请稍后重试",
+  "updateFailedMalformed": "读不出发布信息",
+  "updateFailedUnsupported": "当前平台不支持检测更新",
+  "updateOpenFailed": "无法打开发布页"
 }

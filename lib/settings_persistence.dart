@@ -6,13 +6,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app_locale.dart';
 import 'settings.dart';
 
+/// 当前落盘的「默认值版本」。**改动任一偏好的出厂默认值时把它 +1**，
+/// 老用户的存档才会被按新默认读取一次（用户自己改过的项除外，
+/// 见 [AppSettings.fromJson]）。
+///
+/// 它不是存档格式的版本：字段增删不必动它，它只回答「这份存档是在哪一代
+/// 默认值下写出来的」。需要它的原因：老版本每次保存设置都会把当时的默认值
+/// 写进 JSON，于是字段既不是缺的、也不代表用户选过——只靠「缺字段就用新默认」
+/// 的兜底，改默认值对老用户永远不会生效（`copyOnSelect` 踩过这个坑：
+/// 默认从关改成开后，用户界面里仍然是关的）。
+const int kDefaultsVersion = 2;
+
+/// 引入默认值版本标记**之前**那一代的编号（老存档读出来就是它）。
+/// 比它旧的存档里，`copyOnSelect` 存着的是那时的出厂默认，不是用户的选择。
+const int kLegacyDefaultsVersion = 1;
+
 /// 落盘的偏好快照：主题 / 语言 + 终端样式（配色、字体、字号）+ 连接兼容性。
 ///
 /// 只存枚举名而不是索引：以后往枚举中间插值也不会把存档读串。
 /// 单个字段读不出来只退回该字段的默认值，不让一条脏数据带走整份偏好。
+/// 不认得的字段读时忽略、下次保存即被抹掉。
 ///
-/// 不认得的字段读时忽略、下次保存即被抹掉——存档格式处于开发阶段，
-/// 不做版本号也不做旧字段迁移。
+/// 唯一的例外是 [kDefaultsVersion] 标记：它区分「老版本顺手写下的默认值」
+/// 与「用户自己的选择」——见那个常量的说明。
 @immutable
 class AppSettings {
   const AppSettings({
@@ -46,6 +62,7 @@ class AppSettings {
   );
 
   Map<String, Object?> toJson() => {
+    'defaultsVersion': kDefaultsVersion,
     'themeMode': themeMode.name,
     'language': language.name,
     'terminalPreset': terminalStyle.preset.name,
@@ -55,35 +72,48 @@ class AppSettings {
     'allowLegacyHostKeys': allowLegacyHostKeys,
   };
 
-  factory AppSettings.fromJson(Map<String, Object?> json) => AppSettings(
-    themeMode: _enumByName(
-      ThemeMode.values,
-      json['themeMode'],
-      ThemeMode.system,
-    ),
-    language: _enumByName(
-      AppLanguage.values,
-      json['language'],
-      AppLanguage.system,
-    ),
-    terminalStyle: TerminalStylePrefs(
-      preset: _enumByName(
-        TerminalPreset.values,
-        json['terminalPreset'],
-        TerminalPreset.githubDark,
+  factory AppSettings.fromJson(Map<String, Object?> json) {
+    // 老存档没有这个标记，按「上一代默认值」处理；一旦保存过就会带上当前值。
+    final savedDefaultsVersion = switch (json['defaultsVersion']) {
+      final int value => value,
+      _ => 0,
+    };
+    return AppSettings(
+      themeMode: _enumByName(
+        ThemeMode.values,
+        json['themeMode'],
+        ThemeMode.system,
       ),
-      font: _enumByName(
-        TerminalFont.values,
-        json['terminalFont'],
-        TerminalFont.jetBrainsMono,
+      language: _enumByName(
+        AppLanguage.values,
+        json['language'],
+        AppLanguage.system,
       ),
-      fontSize: TerminalStylePrefs.clampFontSize(json['terminalFontSize']),
+      terminalStyle: TerminalStylePrefs(
+        preset: _enumByName(
+          TerminalPreset.values,
+          json['terminalPreset'],
+          TerminalPreset.githubDark,
+        ),
+        font: _enumByName(
+          TerminalFont.values,
+          json['terminalFont'],
+          TerminalFont.jetBrainsMono,
+        ),
+        fontSize: TerminalStylePrefs.clampFontSize(json['terminalFontSize']),
+        // 没带标记的存档（标记出现之前存的）一律给新默认（打开，即
+        // `TerminalStylePrefs()` 的出厂值）：里面那个 false 是那时的出厂默认，
+        // 不是用户按过的值——不这样，改默认值对老用户就永远不生效。代价是
+        // 老存档里用户自己关过的开关也会被打开一次。
+        // 带上标记之后，存档里的值就是用户的选择，此后原样读回、不再被覆盖。
+        copyOnSelect: savedDefaultsVersion >= kDefaultsVersion
+            ? json['terminalCopyOnSelect'] == true
+            : const TerminalStylePrefs().copyOnSelect,
+      ),
       // 缺字段（旧存档）即默认关闭。
-      copyOnSelect: json['terminalCopyOnSelect'] == true,
-    ),
-    // 缺字段（旧存档）即默认关闭。
-    allowLegacyHostKeys: json['allowLegacyHostKeys'] == true,
-  );
+      allowLegacyHostKeys: json['allowLegacyHostKeys'] == true,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

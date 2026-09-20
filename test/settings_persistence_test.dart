@@ -77,6 +77,8 @@ void main() {
     expect(dirty.terminalStyle.font, TerminalFont.jetBrainsMono);
     expect(dirty.terminalStyle.fontSize, TerminalStylePrefs.maxFontSize);
 
+    // 空 JSON 等同于「上一代默认值」的存档：一律按当今默认读
+    // （copyOnSelect 的旧值迁移见下面那组用例）。
     expect(AppSettings.fromJson(const {}), const AppSettings());
   });
 
@@ -252,9 +254,10 @@ void main() {
     });
 
     test('copyOnSelect 参与 == 判定', () {
+      // 默认是打开，所以要拿显式 false 来造「不一样」。
       expect(
         const TerminalStylePrefs() ==
-            const TerminalStylePrefs(copyOnSelect: true),
+            const TerminalStylePrefs(copyOnSelect: false),
         isFalse,
       );
       expect(
@@ -265,28 +268,59 @@ void main() {
     });
   });
 
-  group('copyOnSelect（选中即复制）落盘', () {
-    test('JSON 往返保留取值', () {
-      const on = AppSettings(
-        terminalStyle: TerminalStylePrefs(copyOnSelect: true),
+  group('copyOnSelect（选中即复制）的默认值迁移', () {
+    const key = 'terminalCopyOnSelect';
+
+    test('往返保留取值（含用户显式关掉）', () {
+      const off = AppSettings(
+        terminalStyle: TerminalStylePrefs(copyOnSelect: false),
       );
       expect(
-        AppSettings.fromJson(on.toJson()).terminalStyle.copyOnSelect,
-        isTrue,
+        AppSettings.fromJson(off.toJson()).terminalStyle.copyOnSelect,
+        isFalse,
+        reason: '用户自己关的必须读回来',
       );
       expect(
         AppSettings.fromJson(const AppSettings().toJson())
             .terminalStyle
             .copyOnSelect,
-        isFalse,
+        isTrue,
+        reason: '出厂默认是打开',
       );
     });
 
-    test('缺字段（旧存档）默认关闭', () {
+    test('老存档里那个 false 是旧默认，不是用户的选择：按新默认打开', () {
+      // 关键区别：老版本每次保存设置都会把这个字段写成当时的默认值 false，
+      // 所以「字段存在且为 false」既可能是用户的显式选择，也可能是版本默认。
+      // 没有 defaultsVersion 标记的存档属于后者，得按新默认读一次。
+      expect(
+        AppSettings.fromJson(const {key: false}).terminalStyle.copyOnSelect,
+        isTrue,
+        reason: '无标记的 false 是旧默认 → 跟随新默认',
+      );
       expect(
         AppSettings.fromJson(const {}).terminalStyle.copyOnSelect,
-        isFalse,
+        isTrue,
+        reason: '连字段都没有 → 同样跟随新默认',
       );
+    });
+
+    test('带上标记之后，用户的显式 false 不会再被默认值改动覆盖', () {
+      // 升级后用户把开关关掉 → 保存时带上当前标记 → 之后再怎么改默认值，
+      // 这个 false 都原样保留。
+      const saved = {key: false, 'defaultsVersion': kDefaultsVersion};
+      expect(AppSettings.fromJson(saved).terminalStyle.copyOnSelect, isFalse);
+      // 反过来，用户开着也一样读回来。
+      expect(
+        AppSettings.fromJson({key: true, 'defaultsVersion': kDefaultsVersion})
+            .terminalStyle
+            .copyOnSelect,
+        isTrue,
+      );
+    });
+
+    test('保存时会写上默认值版本，供下次判断', () {
+      expect(const AppSettings().toJson()['defaultsVersion'], kDefaultsVersion);
     });
   });
 }

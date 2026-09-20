@@ -121,10 +121,12 @@ void main() {
     await tester.pump();
 
     // 选中第一台，另一台随后「连上」。
+    // 状态要走 markConnected，不能 upsert 一个带 status 的实例：upsert 刻意
+    // 忽略 status（沿用原值）——那是为了「编辑主机后胶囊不再误报未连接」
+    // 而定的规矩，运行时状态只由会话层经这些 mark* 方法写。
     await tester.tap(find.text('web-prod-01'));
     await tester.pump();
-    final other = store.byId('srv-02')!;
-    store.upsert(other.copyWith(status: ServerStatus.connected));
+    store.markConnected('srv-02');
     await tester.pump();
 
     List<ServerStatus> dotStatuses() => [
@@ -144,9 +146,7 @@ void main() {
 
     // 选中那台自己的状态变了：详情面板头部的胶囊要跟着翻。
     expect(find.text('已连接'), findsNothing);
-    store.upsert(
-      store.byId('srv-01')!.copyWith(status: ServerStatus.connected),
-    );
+    store.markConnected('srv-01');
     await tester.pump();
     expect(find.text('已连接'), findsWidgets, reason: '选中那台的状态变化必须让详情面板重建');
   });

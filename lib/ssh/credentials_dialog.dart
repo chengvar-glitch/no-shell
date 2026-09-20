@@ -206,12 +206,14 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.lockRemember
-                  ? l10n.credentialsDialogHint
-                  : l10n.authMemoryHint,
-              style: TextStyle(fontSize: 12, color: theme.secondaryText),
-            ),
+            // 只有「锁定记住」这一种弹窗需要说明：用户得知道这次输入的
+            // 凭据会被存下来。普通弹窗里「记住凭据」勾选框已经把话说完了，
+            // 再来一句「凭据只用于本次连接」是重复。
+            if (widget.lockRemember)
+              Text(
+                l10n.credentialsDialogHint,
+                style: TextStyle(fontSize: 12, color: theme.secondaryText),
+              ),
             if (widget.viaJumpHost) ...[
               const SizedBox(height: 8),
               Row(

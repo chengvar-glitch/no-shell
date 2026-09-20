@@ -28,6 +28,7 @@ NoShell — a cross-platform SSH connection manager with terminal, SFTP file bro
 - **Host management** — groups, tags, notes and last-connected time; export the host list as a text backup and import with automatic Chinese/English key recognition, deduplicated by host + port + user; the new/edit connection form also accepts that same text pasted as metadata to prefill its fields, which stay editable by hand
 - **Bilingual UI** — English and Chinese, following the system or pinned manually
 - **Themes & terminal styles** — light / dark themes follow the system; terminal color presets, bundled monospace fonts (JetBrains Mono / Fira Code, shipped with the app — nothing to install) and font size are configurable
+- **Version check** — queries the release page silently a few seconds after launch (and on demand from Settings), flags a new version on the settings entry and opens the release page in one click; the version shown comes from the installed package, so it never disagrees with the build you are running
 
 ## Screenshots
 
@@ -141,6 +142,7 @@ Platform capabilities go through conditional exports (web falls back to stubs); 
 - Private keys and passwords live only in the system keystore; without "remember credentials" they stay in memory
 - Host public-key fingerprints are recorded locally following TOFU; on mismatch the connection is refused and the old record is only cleared after explicit confirmation
 - Host key fingerprints are not secrets and are stored alongside the host list; real credentials must never enter code, tests or the repository
+- The version check is the only feature that reaches out to the network on its own: a few seconds after launch it asks GitHub for this project's latest release. The request carries no hosts, credentials or usage data, and nothing else is ever sent
 
 ## License
 

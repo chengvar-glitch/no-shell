@@ -8,7 +8,9 @@ import '../models.dart';
 import '../ssh/session_manager.dart';
 import '../store.dart';
 import '../theme.dart';
+import '../update_check.dart';
 import 'group_controls.dart';
+import 'settings_controls.dart';
 import 'status_badges.dart';
 import 'app_icon_mark.dart';
 import 'window_caption.dart';
@@ -34,6 +36,7 @@ class Sidebar extends StatefulWidget {
     required this.onOpenSettings,
     required this.onImportHosts,
     required this.onExportHosts,
+    this.updateCheck,
   });
 
   final ServerStore store;
@@ -57,6 +60,9 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onImportHosts;
   final VoidCallback onExportHosts;
+
+  /// 版本检测；为 null 时底部设置入口不挂「有新版本」红点。
+  final UpdateCheckService? updateCheck;
 
   @override
   State<Sidebar> createState() => _SidebarState();
@@ -568,11 +574,7 @@ class _SidebarState extends State<Sidebar> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.settings_outlined,
-                    size: 18,
-                    color: theme.secondaryText,
-                  ),
+                  _SettingsEntryIcon(updateCheck: widget.updateCheck),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -594,6 +596,41 @@ class _SidebarState extends State<Sidebar> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 设置入口的图标：有新版本时右上角挂一个红点。
+/// 只订阅检测状态——侧边栏主机列表不该因为一次版本查询重建。
+class _SettingsEntryIcon extends StatelessWidget {
+  const _SettingsEntryIcon({this.updateCheck});
+
+  final UpdateCheckService? updateCheck;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final icon = Icon(
+      Icons.settings_outlined,
+      size: 18,
+      color: theme.secondaryText,
+    );
+    final service = updateCheck;
+    if (service == null) return icon;
+    return ListenableBuilder(
+      listenable: service,
+      builder: (context, _) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          icon,
+          if (service.updateAvailable)
+            const Positioned(
+              right: -3,
+              top: -3,
+              child: UpdateAvailableDot(size: 8),
+            ),
+        ],
+      ),
     );
   }
 }

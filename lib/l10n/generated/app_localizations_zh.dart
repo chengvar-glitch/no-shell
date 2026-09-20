@@ -193,8 +193,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authAgent => 'Agent';
 
   @override
-  String get agentAuthHint =>
-      '使用本机 SSH agent 里的密钥认证（macOS / Linux）。请先 ssh-add 装入密钥，agent 未运行或没有密钥时会连接失败。';
+  String get agentAuthHint => '用本机 SSH agent 里的密钥；先 ssh-add 装入。';
 
   @override
   String get lastConnected => '最近连接';
@@ -226,9 +225,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String connectAuthTitle(String name) {
     return '连接「$name」';
   }
-
-  @override
-  String get authMemoryHint => '凭据用于本次连接；勾选「记住凭据」后加密保存，下次免输。';
 
   @override
   String get rememberCredentials => '记住凭据';
@@ -279,7 +275,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get credentialsDialogHint => '保存后加密存储，下次连接自动使用。';
+  String get credentialsDialogHint => '将加密保存，下次自动使用。';
 
   @override
   String get fieldPassphrase => '私钥口令（可选）';
@@ -337,7 +333,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get fieldName => '名称';
 
   @override
-  String get nameHint => '例：web-prod-01';
+  String get nameHint => '名称';
 
   @override
   String get nameRequired => '请输入名称';
@@ -355,13 +351,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get portInvalid => '1-65535';
 
   @override
-  String get usernameHint => '例：root';
+  String get usernameHint => '用户名';
 
   @override
   String get usernameRequired => '请输入用户名';
 
   @override
-  String get groupHint => '例：生产环境';
+  String get groupHint => '分组名';
 
   @override
   String get groupNew => '新建分组';
@@ -827,7 +823,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backupPasswordMismatch => '两次输入的口令不一致';
 
   @override
-  String get backupPasswordWarning => '没有这个口令就无法恢复备份，请妥善保管。';
+  String get backupPasswordWarning => '口令丢了就无法恢复这份备份。';
 
   @override
   String get backupCreateConfirm => '导出';
@@ -845,18 +841,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get connectionSection => '连接';
 
   @override
-  String get allowLegacyHostKeys => '允许连接旧式 ssh-rsa 主机';
-
-  @override
   String get allowLegacyHostKeysHint =>
-      '仅用于只提供 ssh-rsa（SHA-1）主机密钥的老设备，例如交换机与嵌入式设备。现代服务器不受影响。';
+      '老旧设备（交换机等）才需要：它们只给 ssh-rsa（SHA-1）主机密钥。';
 
   @override
   String get archiveUnreadableTitle => '已保存的主机列表读不出来';
 
   @override
   String get archiveUnreadableHint =>
-      '磁盘上的存档解析失败，已原样保留、未被覆盖；本次会话的改动不会落盘。可导入一份 .nsbak 备份把主机找回来。';
+      '存档解析失败，已原样保留；本次会话的改动不会落盘。可导入 .nsbak 备份找回。';
 
   @override
   String hostKeyChangedMsgWithFingerprint(String keyType, String fingerprint) {
@@ -1122,8 +1115,67 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copyOnSelect => '选中即复制';
 
   @override
-  String get copyOnSelectHint => '在终端中选中文字后自动复制到剪贴板。';
+  String get linkOpenFailed => '无法打开链接';
 
   @override
-  String get linkOpenFailed => '无法打开链接';
+  String get updateSection => '更新';
+
+  @override
+  String get updateRowTitle => '检查更新';
+
+  @override
+  String updateRowSubtitle(String version) {
+    return '当前版本 v$version';
+  }
+
+  @override
+  String get updateCheck => '检查';
+
+  @override
+  String get updateChecking => '检查中…';
+
+  @override
+  String updateAvailableSubtitle(String version) {
+    return '有新版本 $version';
+  }
+
+  @override
+  String get updateDownload => '前往下载';
+
+  @override
+  String get updateUpToDate => '已是最新版本';
+
+  @override
+  String updateCurrentVersionHint(String version) {
+    return '当前版本 v$version';
+  }
+
+  @override
+  String updateResultDate(String date, String version) {
+    return '发布于 $date · 当前版本 v$version';
+  }
+
+  @override
+  String get updateNotesToggle => '更新说明';
+
+  @override
+  String get updateRetry => '重试';
+
+  @override
+  String get updateFailedNetwork => '连不上发布服务器，请检查网络后重试';
+
+  @override
+  String get updateFailedNotFound => '没有查到已发布的版本';
+
+  @override
+  String get updateFailedServer => '发布服务器返回错误，请稍后重试';
+
+  @override
+  String get updateFailedMalformed => '读不出发布信息';
+
+  @override
+  String get updateFailedUnsupported => '当前平台不支持检测更新';
+
+  @override
+  String get updateOpenFailed => '无法打开发布页';
 }

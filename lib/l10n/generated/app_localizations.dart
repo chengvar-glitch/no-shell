@@ -425,7 +425,7 @@ abstract class AppLocalizations {
   /// No description provided for @agentAuthHint.
   ///
   /// In en, this message translates to:
-  /// **'Authenticate with keys held by your local SSH agent (macOS / Linux). Load your key with ssh-add first — the connection fails when the agent is not running or has no keys.'**
+  /// **'Use a key from your local SSH agent; load it with ssh-add first.'**
   String get agentAuthHint;
 
   /// No description provided for @lastConnected.
@@ -481,12 +481,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connect to \"{name}\"'**
   String connectAuthTitle(String name);
-
-  /// No description provided for @authMemoryHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Credentials are used for this connection; check \"Remember credentials\" to store them securely.'**
-  String get authMemoryHint;
 
   /// No description provided for @rememberCredentials.
   ///
@@ -575,7 +569,7 @@ abstract class AppLocalizations {
   /// No description provided for @credentialsDialogHint.
   ///
   /// In en, this message translates to:
-  /// **'Stored securely once saved and used automatically on the next connection.'**
+  /// **'Saved encrypted and reused automatically.'**
   String get credentialsDialogHint;
 
   /// No description provided for @fieldPassphrase.
@@ -677,7 +671,7 @@ abstract class AppLocalizations {
   /// No description provided for @nameHint.
   ///
   /// In en, this message translates to:
-  /// **'e.g. web-prod-01'**
+  /// **'name'**
   String get nameHint;
 
   /// No description provided for @nameRequired.
@@ -713,7 +707,7 @@ abstract class AppLocalizations {
   /// No description provided for @usernameHint.
   ///
   /// In en, this message translates to:
-  /// **'e.g. root'**
+  /// **'username'**
   String get usernameHint;
 
   /// No description provided for @usernameRequired.
@@ -725,7 +719,7 @@ abstract class AppLocalizations {
   /// No description provided for @groupHint.
   ///
   /// In en, this message translates to:
-  /// **'e.g. Production'**
+  /// **'group'**
   String get groupHint;
 
   /// No description provided for @groupNew.
@@ -1457,7 +1451,7 @@ abstract class AppLocalizations {
   /// No description provided for @backupPasswordWarning.
   ///
   /// In en, this message translates to:
-  /// **'Without this password the backup cannot be restored. Please keep it safe.'**
+  /// **'Lose the password and the backup cannot be restored.'**
   String get backupPasswordWarning;
 
   /// No description provided for @backupCreateConfirm.
@@ -1490,16 +1484,10 @@ abstract class AppLocalizations {
   /// **'Connection'**
   String get connectionSection;
 
-  /// No description provided for @allowLegacyHostKeys.
-  ///
-  /// In en, this message translates to:
-  /// **'Allow legacy ssh-rsa hosts'**
-  String get allowLegacyHostKeys;
-
   /// No description provided for @allowLegacyHostKeysHint.
   ///
   /// In en, this message translates to:
-  /// **'Turn on only for old devices that offer nothing but an ssh-rsa (SHA-1) host key, such as switches and embedded gear. Modern servers are unaffected.'**
+  /// **'Only needed by old gear (switches and the like) that offers nothing but an ssh-rsa (SHA-1) host key.'**
   String get allowLegacyHostKeysHint;
 
   /// No description provided for @archiveUnreadableTitle.
@@ -1511,7 +1499,7 @@ abstract class AppLocalizations {
   /// No description provided for @archiveUnreadableHint.
   ///
   /// In en, this message translates to:
-  /// **'The saved data is unreadable, so it has been left untouched and changes in this session are not being saved. Re-import a .nsbak backup to get your hosts back.'**
+  /// **'The saved data is unreadable and has been left untouched; changes in this session are not saved. Re-import a .nsbak backup to recover.'**
   String get archiveUnreadableHint;
 
   /// No description provided for @hostKeyChangedMsgWithFingerprint.
@@ -1976,17 +1964,119 @@ abstract class AppLocalizations {
   /// **'Copy on Select'**
   String get copyOnSelect;
 
-  /// No description provided for @copyOnSelectHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Automatically copy terminal text to the clipboard when you select it.'**
-  String get copyOnSelectHint;
-
   /// No description provided for @linkOpenFailed.
   ///
   /// In en, this message translates to:
   /// **'Could not open link'**
   String get linkOpenFailed;
+
+  /// No description provided for @updateSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get updateSection;
+
+  /// No description provided for @updateRowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get updateRowTitle;
+
+  /// No description provided for @updateRowSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Current version v{version}'**
+  String updateRowSubtitle(String version);
+
+  /// No description provided for @updateCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check'**
+  String get updateCheck;
+
+  /// No description provided for @updateChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking…'**
+  String get updateChecking;
+
+  /// No description provided for @updateAvailableSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version} is available'**
+  String updateAvailableSubtitle(String version);
+
+  /// No description provided for @updateDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Get it'**
+  String get updateDownload;
+
+  /// No description provided for @updateUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'You are on the latest version'**
+  String get updateUpToDate;
+
+  /// No description provided for @updateCurrentVersionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Current version v{version}'**
+  String updateCurrentVersionHint(String version);
+
+  /// No description provided for @updateResultDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Released {date} · you have v{version}'**
+  String updateResultDate(String date, String version);
+
+  /// No description provided for @updateNotesToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Release notes'**
+  String get updateNotesToggle;
+
+  /// No description provided for @updateRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get updateRetry;
+
+  /// No description provided for @updateFailedNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach the release server. Check your network and try again.'**
+  String get updateFailedNetwork;
+
+  /// No description provided for @updateFailedNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No published release was found'**
+  String get updateFailedNotFound;
+
+  /// No description provided for @updateFailedServer.
+  ///
+  /// In en, this message translates to:
+  /// **'The release server returned an error. Try again later.'**
+  String get updateFailedServer;
+
+  /// No description provided for @updateFailedMalformed.
+  ///
+  /// In en, this message translates to:
+  /// **'The release information could not be read'**
+  String get updateFailedMalformed;
+
+  /// No description provided for @updateFailedUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Update check is not available on this platform'**
+  String get updateFailedUnsupported;
+
+  /// No description provided for @updateOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the release page'**
+  String get updateOpenFailed;
 }
 
 class _AppLocalizationsDelegate

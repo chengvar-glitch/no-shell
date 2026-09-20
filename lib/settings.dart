@@ -319,7 +319,7 @@ class TerminalStylePrefs {
     this.preset = TerminalPreset.githubDark,
     this.font = TerminalFont.jetBrainsMono,
     this.fontSize = defaultFontSize,
-    this.copyOnSelect = false,
+    this.copyOnSelect = true,
   });
 
   /// 字号默认值与范围（逻辑像素）。界面只做 ± 步进，边界收在这里。
@@ -337,7 +337,11 @@ class TerminalStylePrefs {
   ///
   /// 行为偏好而非样式，跟着本类走是因为 [TerminalStyleScope] 已经打通
   /// 「设置处直写 → 全局下发 → 节流落盘」整条链路，为单个开关再造一条
-  /// 作用域不值得。默认关闭：每次选中都动剪贴板会覆盖用户已复制的内容。
+  /// 作用域不值得。
+  ///
+  /// **默认打开**：终端里选中一段文字几乎总是为了复制它，多按一次 ⌘C
+  /// 是纯多余的动作（iTerm2 / Windows Terminal 亦是此默认）。代价是选中
+  /// 就会覆盖剪贴板里原有的内容，想关掉在设置里有开关。
   final bool copyOnSelect;
 
   TerminalTheme get theme => preset.theme;

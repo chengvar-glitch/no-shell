@@ -13,6 +13,7 @@ import 'ssh/host_key_store.dart';
 import 'ssh/session_manager.dart';
 import 'shell_layout.dart';
 import 'store.dart';
+import 'update_check.dart';
 import 'widgets/host_form.dart';
 import 'widgets/server_detail.dart';
 import 'widgets/settings_dialog.dart';
@@ -34,6 +35,8 @@ class HomePage extends StatefulWidget {
     this.allowLegacyHostKeys = false,
     this.onAllowLegacyHostKeysChanged,
     this.layout,
+    this.updateCheck,
+    this.openReleasePage,
   });
 
   final ServerStore store;
@@ -57,6 +60,12 @@ class HomePage extends StatefulWidget {
   /// 跨断点保留的界面状态；由应用入口持有，两套骨架共用一份。
   /// 为空时（组件测试、单独挂载）本页自建一份，行为与从前一致。
   final ShellLayoutState? layout;
+
+  /// 版本检测；为 null 时不显示更新入口，侧边栏设置入口也不挂红点。
+  final UpdateCheckService? updateCheck;
+
+  /// 打开发布页的能力；不传时走系统实现。
+  final Future<bool> Function(Uri uri)? openReleasePage;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -145,6 +154,8 @@ class _HomePageState extends State<HomePage> {
       archiveUnreadable: widget.store.archiveUnreadable,
       allowLegacyHostKeys: widget.allowLegacyHostKeys,
       onAllowLegacyHostKeysChanged: widget.onAllowLegacyHostKeysChanged,
+      updateCheck: widget.updateCheck,
+      openReleasePage: widget.openReleasePage,
     );
     if (!mounted) return;
     widget.onSettingsClosed?.call();
@@ -303,6 +314,7 @@ class _HomePageState extends State<HomePage> {
               onOpenSettings: _openSettings,
               onImportHosts: _importHosts,
               onExportHosts: _exportHosts,
+              updateCheck: widget.updateCheck,
             ),
             // 详情面板自带窗口标题条（Windows/Linux 上是它里面的第一行，
             // 且服务器头部就排在这一行里），侧边栏因此可以整块顶到窗口最上沿。

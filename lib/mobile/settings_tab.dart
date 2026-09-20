@@ -4,6 +4,7 @@ import '../app_locale.dart';
 import '../app_version.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../theme.dart';
+import '../update_check.dart';
 import '../widgets/about_dialog.dart';
 import '../widgets/app_icon_mark.dart';
 import '../widgets/settings_controls.dart';
@@ -21,6 +22,8 @@ class SettingsTab extends StatelessWidget {
     this.archiveUnreadable = false,
     this.allowLegacyHostKeys = false,
     this.onAllowLegacyHostKeysChanged,
+    this.updateCheck,
+    this.openReleasePage,
   });
 
   final ThemeMode themeMode;
@@ -34,6 +37,12 @@ class SettingsTab extends StatelessWidget {
   /// 连接老设备时是否允许 ssh-rsa（SHA-1）主机密钥。
   final bool allowLegacyHostKeys;
   final ValueChanged<bool>? onAllowLegacyHostKeysChanged;
+
+  /// 版本检测；为 null 时不显示「更新」分区。
+  final UpdateCheckService? updateCheck;
+
+  /// 打开发布页的能力；不传时走系统实现。
+  final Future<bool> Function(Uri uri)? openReleasePage;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +75,10 @@ class SettingsTab extends StatelessWidget {
           ConnectionSettingsSection(
             allowLegacyHostKeys: allowLegacyHostKeys,
             onChanged: onAllowLegacyHostKeysChanged,
+          ),
+          UpdateSettingsRow(
+            updateCheck: updateCheck,
+            openReleasePage: openReleasePage,
           ),
           // 信息行不成组：没有分区标题，两张卡片之间只留一段间距。
           SettingsCard(

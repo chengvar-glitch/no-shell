@@ -5,6 +5,7 @@ import '../app_version.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../settings.dart';
 import '../theme.dart';
+import '../update_check.dart';
 import 'about_dialog.dart';
 import 'app_icon_mark.dart';
 import 'settings_controls.dart';
@@ -22,6 +23,8 @@ Future<void> showSettingsDialog(
   bool archiveUnreadable = false,
   bool allowLegacyHostKeys = false,
   ValueChanged<bool>? onAllowLegacyHostKeysChanged,
+  UpdateCheckService? updateCheck,
+  Future<bool> Function(Uri uri)? openReleasePage,
 }) {
   return showDialog<void>(
     context: context,
@@ -33,6 +36,8 @@ Future<void> showSettingsDialog(
       archiveUnreadable: archiveUnreadable,
       initialAllowLegacyHostKeys: allowLegacyHostKeys,
       onAllowLegacyHostKeysChanged: onAllowLegacyHostKeysChanged,
+      updateCheck: updateCheck,
+      openReleasePage: openReleasePage,
     ),
   );
 }
@@ -46,6 +51,8 @@ final class _SettingsDialog extends StatefulWidget {
     required this.archiveUnreadable,
     required this.initialAllowLegacyHostKeys,
     required this.onAllowLegacyHostKeysChanged,
+    this.updateCheck,
+    this.openReleasePage,
   });
 
   final ThemeMode initialThemeMode;
@@ -59,6 +66,12 @@ final class _SettingsDialog extends StatefulWidget {
   /// 连接老设备时是否允许 ssh-rsa（SHA-1）主机密钥。
   final bool initialAllowLegacyHostKeys;
   final ValueChanged<bool>? onAllowLegacyHostKeysChanged;
+
+  /// 版本检测；为 null 时不显示「更新」分区。
+  final UpdateCheckService? updateCheck;
+
+  /// 打开发布页的能力；不传时走系统实现。
+  final Future<bool> Function(Uri uri)? openReleasePage;
 
   @override
   State<_SettingsDialog> createState() => _SettingsDialogState();
@@ -127,6 +140,10 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
                         widget.onAllowLegacyHostKeysChanged?.call(value);
                       },
                     ),
+                    UpdateSettingsRow(
+                      updateCheck: widget.updateCheck,
+                      openReleasePage: widget.openReleasePage,
+                    ),
                   ],
                 ),
               ),
@@ -143,7 +160,8 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
     ThemeData theme,
     AppLocalizations l10n,
   ) {
-    // 减重成一行标题：应用身份在侧边栏品牌区已经有了，版本号收进「关于」。
+    // 减重成一行标题：应用身份在侧边栏品牌区已经有了，版本号归「更新」分区
+    // 那一行与「关于」对话框，这里不再重复。
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
       child: Row(

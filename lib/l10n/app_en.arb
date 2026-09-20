@@ -113,7 +113,7 @@
   "authPassword": "Password",
   "authKey": "SSH key",
   "authAgent": "Agent",
-  "agentAuthHint": "Authenticate with keys held by your local SSH agent (macOS / Linux). Load your key with ssh-add first — the connection fails when the agent is not running or has no keys.",
+  "agentAuthHint": "Use a key from your local SSH agent; load it with ssh-add first.",
   "lastConnected": "Last connected",
   "group": "Group",
   "notes": "Notes",
@@ -130,7 +130,6 @@
       }
     }
   },
-  "authMemoryHint": "Credentials are used for this connection; check \"Remember credentials\" to store them securely.",
   "rememberCredentials": "Remember credentials",
   "fieldPrivateKey": "Private key (PEM)",
   "privateKeyHint": "-----BEGIN OPENSSH PRIVATE KEY-----",
@@ -166,7 +165,7 @@
       }
     }
   },
-  "credentialsDialogHint": "Stored securely once saved and used automatically on the next connection.",
+  "credentialsDialogHint": "Saved encrypted and reused automatically.",
   "fieldPassphrase": "Key passphrase (optional)",
   "credentialsRequired": "Please enter a password or paste a key",
   "connectingTo": "Connecting to {account}…",
@@ -197,15 +196,15 @@
   "hostKeyForgetConfirmAction": "Forget and reconnect",
   "reconnect": "Reconnect",
   "fieldName": "Name",
-  "nameHint": "e.g. web-prod-01",
+  "nameHint": "name",
   "nameRequired": "Please enter a name",
   "fieldHost": "Host",
   "hostHint": "IP or domain",
   "hostRequired": "Please enter a host",
   "portInvalid": "1-65535",
-  "usernameHint": "e.g. root",
+  "usernameHint": "username",
   "usernameRequired": "Please enter a username",
-  "groupHint": "e.g. Production",
+  "groupHint": "group",
   "groupNew": "New group",
   "groupRename": "Rename group",
   "groupDelete": "Delete group",
@@ -484,16 +483,15 @@
   "backupPasswordConfirm": "Repeat password",
   "backupPasswordRequired": "Please enter a backup password",
   "backupPasswordMismatch": "The two passwords do not match",
-  "backupPasswordWarning": "Without this password the backup cannot be restored. Please keep it safe.",
+  "backupPasswordWarning": "Lose the password and the backup cannot be restored.",
   "backupCreateConfirm": "Export",
   "backupOpenConfirm": "Import",
   "backupWrongPassword": "Wrong backup password, nothing was imported",
   "backupUnreadable": "This file cannot be read as a host backup",
   "connectionSection": "Connection",
-  "allowLegacyHostKeys": "Allow legacy ssh-rsa hosts",
-  "allowLegacyHostKeysHint": "Turn on only for old devices that offer nothing but an ssh-rsa (SHA-1) host key, such as switches and embedded gear. Modern servers are unaffected.",
+  "allowLegacyHostKeysHint": "Only needed by old gear (switches and the like) that offers nothing but an ssh-rsa (SHA-1) host key.",
   "archiveUnreadableTitle": "Saved host list could not be read",
-  "archiveUnreadableHint": "The saved data is unreadable, so it has been left untouched and changes in this session are not being saved. Re-import a .nsbak backup to get your hosts back.",
+  "archiveUnreadableHint": "The saved data is unreadable and has been left untouched; changes in this session are not saved. Re-import a .nsbak backup to recover.",
   "hostKeyChangedMsgWithFingerprint": "Host key verification failed — the server presented {keyType} {fingerprint}, which does not match what was recorded at first connection. If the server was rebuilt on purpose, forget the recorded fingerprint and reconnect; otherwise beware of a man-in-the-middle attack.",
   "@hostKeyChangedMsgWithFingerprint": {
     "placeholders": {
@@ -684,6 +682,54 @@
   "paste": "Paste",
   "selectAll": "Select All",
   "copyOnSelect": "Copy on Select",
-  "copyOnSelectHint": "Automatically copy terminal text to the clipboard when you select it.",
-  "linkOpenFailed": "Could not open link"
+  "linkOpenFailed": "Could not open link",
+  "updateSection": "Updates",
+  "updateRowTitle": "Check for updates",
+  "updateRowSubtitle": "Current version v{version}",
+  "@updateRowSubtitle": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateCheck": "Check",
+  "updateChecking": "Checking…",
+  "updateAvailableSubtitle": "Version {version} is available",
+  "@updateAvailableSubtitle": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownload": "Get it",
+  "updateUpToDate": "You are on the latest version",
+  "updateCurrentVersionHint": "Current version v{version}",
+  "@updateCurrentVersionHint": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateResultDate": "Released {date} · you have v{version}",
+  "@updateResultDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateNotesToggle": "Release notes",
+  "updateRetry": "Retry",
+  "updateFailedNetwork": "Could not reach the release server. Check your network and try again.",
+  "updateFailedNotFound": "No published release was found",
+  "updateFailedServer": "The release server returned an error. Try again later.",
+  "updateFailedMalformed": "The release information could not be read",
+  "updateFailedUnsupported": "Update check is not available on this platform",
+  "updateOpenFailed": "Could not open the release page"
 }

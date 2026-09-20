@@ -252,8 +252,24 @@ void main() {
       expect(_clipboardText, startsWith('banner'));
     });
 
-    testWidgets('默认关闭，选中不写剪贴板', (tester) async {
+    testWidgets('默认就是打开的，选中即落剪贴板', (tester) async {
+      // 出厂默认打开：终端里选中文字几乎总是为了复制它。
       final style = ValueNotifier(const TerminalStylePrefs());
+      await _pumpTerminal(tester, style);
+
+      Actions.invoke(
+        _terminalContext(tester),
+        const SelectAllTextIntent(SelectionChangedCause.keyboard),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump();
+      expect(_clipboardText, startsWith('banner'));
+    });
+
+    testWidgets('关掉之后选中不写剪贴板', (tester) async {
+      final style = ValueNotifier(
+        const TerminalStylePrefs(copyOnSelect: false),
+      );
       await _pumpTerminal(tester, style);
 
       Actions.invoke(
