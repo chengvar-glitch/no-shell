@@ -11,10 +11,18 @@ abstract final class AppPalette {
   static const pageLight = Color(0xFFF6F7F9);
   static const panelLight = Color(0xFFFFFFFF);
 
+  // 状态色：深色取 GitHub dark 的亮色值，浅色取 GitHub light 的深色值。
+  // 深色那组直接铺在白底上只有 2.5:1 左右（连非文字元素的 3:1 都不到），
+  // 所以浅色主题必须换用为白底设计的深色值。
   static const success = Color(0xFF3FB950);
   static const warning = Color(0xFFD29922);
   static const danger = Color(0xFFF85149);
   static const idle = Color(0xFF8B949E);
+
+  static const successLight = Color(0xFF1A7F37);
+  static const warningLight = Color(0xFF9A6700);
+  static const dangerLight = Color(0xFFCF222E);
+  static const idleLight = Color(0xFF57606A);
 
   static const seed = Color(0xFF4C8DFF);
 }
@@ -109,12 +117,17 @@ extension AppThemeX on ThemeData {
 
   Color get secondaryText => colorScheme.onSurface.withValues(alpha: 0.62);
 
-  Color statusColor(ServerStatus status) => switch (status) {
-    ServerStatus.connected => AppPalette.success,
-    ServerStatus.connecting => AppPalette.warning,
-    ServerStatus.error => AppPalette.danger,
-    ServerStatus.idle => AppPalette.idle,
-  };
+  Color statusColor(ServerStatus status) {
+    final dark = brightness == Brightness.dark;
+    return switch (status) {
+      ServerStatus.connected =>
+        dark ? AppPalette.success : AppPalette.successLight,
+      ServerStatus.connecting =>
+        dark ? AppPalette.warning : AppPalette.warningLight,
+      ServerStatus.error => dark ? AppPalette.danger : AppPalette.dangerLight,
+      ServerStatus.idle => dark ? AppPalette.idle : AppPalette.idleLight,
+    };
+  }
 }
 
 abstract final class AppTheme {

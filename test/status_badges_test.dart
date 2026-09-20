@@ -59,6 +59,26 @@ void main() {
     });
   });
 
+  group('状态圆点对比度', () {
+    // 圆点是原始状态色直接铺底，没有胶囊那层压深补偿；按 WCAG 非文字
+    // 元素 3:1 要求。浅色曾用 GitHub dark 的亮色值，白底上只有 2.5:1 左右。
+    for (final entry in {
+      '浅色': AppTheme.light(),
+      '深色': AppTheme.dark(),
+    }.entries) {
+      test('${entry.key}主题原始状态色铺在页面底色上 ≥ 3:1', () {
+        final page = AppColors.of(entry.value.brightness).pageBackground;
+        for (final status in ServerStatus.values) {
+          expect(
+            _contrast(entry.value.statusColor(status), page),
+            greaterThanOrEqualTo(3.0),
+            reason: '${status.name} 的圆点色在${entry.key}页面上太淡',
+          );
+        }
+      });
+    }
+  });
+
   group('StatusPill', () {
     Future<void> pump(WidgetTester tester, Widget pill) => tester.pumpWidget(
       MaterialApp(

@@ -34,7 +34,10 @@ class StatusDot extends StatelessWidget {
 /// （曾经是 3.2:1），而这里没有 BuildContext 也能算——见
 /// `test/status_badges_test.dart` 的对比度断言。
 ///
-/// 浅色底上把状态色压深（→ 5.2:1），深色底上提亮同样的量（本来就有 6:1 以上）。
+/// 浅色主题的状态色本身已是深色值（见 [AppPalette]），圆点直接铺底就过
+/// 非文字元素的 3:1；胶囊文字要过的是 13% 状态色叠出来的底上的 AA，比纯白
+/// 深一截，所以浅色底还得再往黑压一档。深色底上提亮同样的量（本来就有
+/// 6:1 以上）。
 ({Color background, Color foreground}) pillColors(
   ThemeData theme,
   ServerStatus status,
@@ -44,7 +47,7 @@ class StatusDot extends StatelessWidget {
     background: color.withValues(alpha: 0.13),
     foreground: theme.brightness == Brightness.dark
         ? Color.lerp(color, Colors.white, 0.3)!
-        : Color.lerp(color, Colors.black, 0.42)!,
+        : Color.lerp(color, Colors.black, 0.25)!,
   );
 }
 
