@@ -283,7 +283,9 @@ class ServerStore extends ChangeNotifier {
     if (index == -1) {
       _servers.add(server);
     } else {
-      _servers[index] = server;
+      // status 是会话层维护的运行时状态，编辑表单从零拼的实例不带它，更新时沿用原值，
+      // 否则改个备注就把已连接的主机打回「未连接」。
+      _servers[index] = server.copyWith(status: _servers[index].status);
     }
     _changed();
   }

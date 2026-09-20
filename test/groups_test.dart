@@ -117,6 +117,21 @@ void main() {
     });
   });
 
+  group('ServerStore 编辑', () {
+    test('upsert 更新保留运行时状态，编辑已连接主机不打回未连接', () {
+      final store = ServerStore(seed: [_server('a', '生产')]);
+      store.markConnected('a');
+
+      store.upsert(_server('a', '生产').copyWith(notes: '改了备注'));
+
+      expect(store.byId('a')?.status, ServerStatus.connected);
+      expect(store.byId('a')?.notes, '改了备注');
+      // 新增路径不受影响：新实例按自带状态落库。
+      store.upsert(_server('b', '生产'));
+      expect(store.byId('b')?.status, ServerStatus.idle);
+    });
+  });
+
   group('分组落盘', () {
     setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
