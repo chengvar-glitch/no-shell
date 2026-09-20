@@ -245,6 +245,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pickKeyFileFailedMsg => '无法读取所选的密钥文件。';
 
   @override
+  String get pickKeyFileFailedHelp => '改用文件管理器打开密钥文件、复制全部内容，再粘贴到上面的输入框。';
+
+  @override
+  String get pickKeyFileFailedAndroidHelp =>
+      '小米 / 澎湃（HyperOS）的「安全访问」选择器会按文件类型过滤，可能不显示没有扩展名的密钥文件（如 id_rsa）。可以先把密钥重命名加上 .txt 再选，或改用文件管理器打开、复制内容粘贴到上面的输入框。NoShell 只读取你选中的这一个文件，不申请整机存储的访问权限。';
+
+  @override
   String get rememberedCredentials => '记住的凭据';
 
   @override

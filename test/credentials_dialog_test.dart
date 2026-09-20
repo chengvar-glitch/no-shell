@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/l10n/generated/app_localizations.dart';
@@ -223,7 +224,12 @@ void main() {
     expect(find.byType(SnackBar), findsNothing);
   });
 
-  testWidgets('密钥方式：读取失败 → 提示且保留已贴内容', (tester) async {
+  testWidgets('密钥方式：读取失败 → 说明框给出替代做法，且保留已贴内容', (tester) async {
+    // 显式钉住非 Android：测试环境把 defaultTargetPlatform 强行报成 android
+    // （FLUTTER_TEST，见 foundation/_platform_io.dart），不钉住就测不到
+    // 「其余平台」的那条文案。
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     pickPrivateKeyFile = (confirmLabel) async => throw StateError('boom');
     addTearDown(() => pickPrivateKeyFile = pickPrivateKeyFileViaSelector);
     await _pumpDialog(tester);
@@ -233,9 +239,37 @@ void main() {
     await tester.enterText(find.byType(TextFormField).first, '---PASTED---');
     await tester.tap(find.text('选择密钥文件'));
     await tester.pumpAndSettle();
+    // 说明框已经建好，先把平台恢复，免得 foundation 变量被动过被兜底断言抓走。
+    debugDefaultTargetPlatformOverride = null;
 
+    // 凭据弹窗之上再叠一个说明框：用户得读到「怎么办」，不能一闪而过。
+    expect(find.byType(AlertDialog), findsNWidgets(2));
     expect(find.text('无法读取所选的密钥文件。'), findsOneWidget);
+    expect(find.textContaining('复制全部内容'), findsOneWidget);
     expect(find.widgetWithText(TextFormField, '---PASTED---'), findsOneWidget);
+
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, '---PASTED---'), findsOneWidget);
+  });
+
+  testWidgets('密钥方式：Android 上失败说明框点名澎湃「安全访问」并声明权限边界', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    pickPrivateKeyFile = (confirmLabel) async => throw StateError('boom');
+    addTearDown(() => pickPrivateKeyFile = pickPrivateKeyFileViaSelector);
+    await _pumpDialog(tester);
+
+    await tester.tap(find.text('SSH 密钥'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('选择密钥文件'));
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(find.textContaining('安全访问'), findsOneWidget);
+    expect(find.textContaining('不申请整机存储的访问权限'), findsOneWidget);
   });
 
   testWidgets('lockRemember：无「记住凭据」开关，标题与确认键可定制，恒为 remember', (tester) async {
@@ -257,5 +291,47 @@ void main() {
 
     expect(harness.captured?.credentials.password, 'new-secret');
     expect(harness.captured?.remember, isTrue);
+  });
+
+  group('密钥文件类型过滤', () {
+    test('Android 一次给足三个 MIME，才会带上 EXTRA_MIME_TYPES', () {
+      final groups = keyFileTypeGroups(
+        platform: TargetPlatform.android,
+        isWeb: false,
+      );
+
+      expect(groups, hasLength(1));
+      final mimeTypes = groups.single.mimeTypes;
+      expect(
+        mimeTypes,
+        containsAll(<String>['*/*', 'application/octet-stream', 'text/plain']),
+      );
+      // file_selector 的 Android 端只在过滤条件 ≥2 项时才写 EXTRA_MIME_TYPES；
+      // 收成一项（哪怕就是 `*/*`）等于什么都没做。
+      expect(mimeTypes, hasLength(3));
+      expect(groups.single.extensions, isNull);
+      expect(groups.single.uniformTypeIdentifiers, isNull);
+    });
+
+    test('其余平台一律不过滤：macOS / iOS 只认 extensions / UTI', () {
+      for (final platform in <TargetPlatform>[
+        TargetPlatform.macOS,
+        TargetPlatform.iOS,
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+        TargetPlatform.fuchsia,
+      ]) {
+        expect(
+          keyFileTypeGroups(platform: platform, isWeb: false),
+          isEmpty,
+          reason: '$platform 不该收到 MIME 过滤',
+        );
+      }
+      // web 走的是浏览器 input，Android 的那套 MIME 集合对它没有意义。
+      expect(
+        keyFileTypeGroups(platform: TargetPlatform.android, isWeb: true),
+        isEmpty,
+      );
+    });
   });
 }

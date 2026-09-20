@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-/// 版本号的兜底值（只含 `x.y.z`，不含构建号）。
+/// 版本号的兜底值（形如 `x.y.z` 或预发布的 `x.y.z-标签`，不含构建号）。
 ///
 /// 它**不是**版本号的来源，只是读不到平台信息时的垫底：真正的版本号由
 /// [loadAppVersion] 在启动时从宿主包信息读出。发版时这个值与
 /// `pubspec.yaml` 的 `version:` 一起改——两者不一致时以 pubspec 为准
 /// （那才是实际打进包里的），这里只是「万一平台通道不可用」的显示值。
-const String kFallbackAppVersion = '4.1.5';
+const String kFallbackAppVersion = '4.1.6-test.1';
 
 /// 当前版本号（`x.y.z`，不含构建号）；界面展示与版本比较都用它。
 ///

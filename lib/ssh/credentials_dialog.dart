@@ -1,10 +1,11 @@
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../theme.dart';
-import '../widgets/confirm_dialog.dart' show showToast;
+import '../widgets/confirm_dialog.dart' show showInfoDialog;
 import '../widgets/host_form.dart' show AuthMethodSelector;
 import 'ssh_credentials.dart';
 
@@ -24,13 +25,46 @@ const _maxKeyFileLength = 1 << 20;
 Future<PickedKeyFile?> Function(String confirmLabel) pickPrivateKeyFile =
     pickPrivateKeyFileViaSelector;
 
-/// 生产实现：不加类型过滤——私钥文件通常没有扩展名（id_rsa / id_ed25519），
-/// 按扩展名过滤会把它们藏起来；读不出文本（超限 / 平台不支持）时抛错，
-/// 由弹窗统一提示「无法读取」，绝不与「用户取消」（返回 null）混同。
+/// 密钥选择器的类型过滤：**只有 Android 需要，且是为了放宽而不是收窄**。
+///
+/// 没有扩展名的私钥（id_rsa / id_ed25519）在 Android 上 MIME 是
+/// `application/octet-stream`。小米 / 澎湃（HyperOS）的「安全访问」选择器
+/// 按 MIME 分类展示文件，不声明这一类时它会被归进不列出的分类，
+/// 表现为「选择器打得开，但看不到、也点不中密钥文件」。
+///
+/// 为什么一次给三个 MIME 而不是只给 `*/*`：`file_selector` 的 Android 端
+/// 在过滤条件只有一项时会走 `intent.setType(...)` 分支、**不写**
+/// `EXTRA_MIME_TYPES`（见 file_selector_android 的 setMimeTypes）；要到两项
+/// 以上才会带上 `EXTRA_MIME_TYPES`，而澎湃正是看这个数组决定放开全部文件。
+/// 所以 `*/*` 必须和另外两项一起给（同类修法见 lx-music-mobile #1136）。
+///
+/// 其余平台保持不过滤：macOS / iOS 只认 extensions / UTI，塞 mimeTypes 会被
+/// 判成不支持的过滤条件直接抛错；桌面与 web 也一直是不限制类型的。
+List<XTypeGroup> keyFileTypeGroups({
+  required TargetPlatform platform,
+  bool isWeb = kIsWeb,
+}) {
+  if (isWeb || platform != TargetPlatform.android) return const [];
+  return const [
+    XTypeGroup(
+      label: 'SSH key',
+      mimeTypes: ['*/*', 'application/octet-stream', 'text/plain'],
+    ),
+  ];
+}
+
+/// 生产实现：不按扩展名收窄——私钥文件通常没有扩展名（id_rsa / id_ed25519），
+/// 按扩展名过滤会把它们藏起来；Android 上只额外声明宽松的 MIME 集合，
+/// 好让澎湃的「安全访问」选择器别再按类型藏文件（见 [keyFileTypeGroups]）。
+/// 读不出文本（超限 / 平台不支持）时抛错，由弹窗统一提示「无法读取」，
+/// 绝不与「用户取消」（返回 null）混同。
 Future<PickedKeyFile?> pickPrivateKeyFileViaSelector(
   String confirmLabel,
 ) async {
-  final file = await openFile(confirmButtonText: confirmLabel);
+  final file = await openFile(
+    acceptedTypeGroups: keyFileTypeGroups(platform: defaultTargetPlatform),
+    confirmButtonText: confirmLabel,
+  );
   if (file == null) return null;
   if (await file.length() > _maxKeyFileLength) {
     throw StateError('key file too large: ${file.name}');
@@ -174,15 +208,24 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
   }
 
   /// 选密钥文件并把内容灌进私钥输入框。取消（null）什么都不动；
-  /// 读不出来（超限 / 平台不支持）提示后留在原状，不清用户已贴的内容。
+  /// 读不出来（超限 / 平台不支持 / 澎湃「安全访问」拦截）弹说明框并留在
+  /// 原状，不清用户已贴的内容——这里必须让用户读到「怎么办」，一闪而过的
+  /// 轻提示做不到。
   Future<void> _pickKeyFile() async {
     final l10n = AppLocalizations.of(context);
+    final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     final PickedKeyFile? picked;
     try {
       picked = await pickPrivateKeyFile(l10n.pickKeyFile);
     } catch (_) {
       if (!mounted) return;
-      showToast(context, l10n.pickKeyFileFailedMsg);
+      await showInfoDialog(
+        context,
+        title: l10n.pickKeyFileFailedMsg,
+        body: android
+            ? l10n.pickKeyFileFailedAndroidHelp
+            : l10n.pickKeyFileFailedHelp,
+      );
       return;
     }
     if (picked == null || !mounted) return;

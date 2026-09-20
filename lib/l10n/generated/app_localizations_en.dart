@@ -250,6 +250,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pickKeyFileFailedMsg => 'Could not read the selected key file.';
 
   @override
+  String get pickKeyFileFailedHelp =>
+      'Open the key file in a file manager, copy all of its contents, and paste them into the field above.';
+
+  @override
+  String get pickKeyFileFailedAndroidHelp =>
+      'Xiaomi HyperOS\'s Secure Access picker filters by file type, so it may hide key files that have no extension (such as id_rsa). Rename the key to add a .txt suffix and choose it again, or open it in a file manager, copy its contents, and paste them above. NoShell only reads the one file you choose; it does not ask for access to all of your storage.';
+
+  @override
   String get rememberedCredentials => 'Remembered credentials';
 
   @override

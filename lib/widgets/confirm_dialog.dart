@@ -44,6 +44,31 @@ Future<bool> showConfirmDialog(
   return confirmed ?? false;
 }
 
+/// 说明框：只有「完成」一个动作，用于用户需要**读完**的提示
+/// （失败原因 + 替代做法），一闪而过的 [showToast] 承担不了。
+Future<void> showInfoDialog(
+  BuildContext context, {
+  required String title,
+  required String body,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      final l10n = AppLocalizations.of(dialogContext);
+      return AlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.done),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 /// 轻提示：统一样式与排队行为（先收起当前一条再弹新的）。
 void showToast(BuildContext context, String message) {
   ScaffoldMessenger.of(context)
