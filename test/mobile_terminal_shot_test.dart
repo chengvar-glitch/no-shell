@@ -36,13 +36,18 @@ final bool _generate = Platform.environment['NOSHELL_SHOT'] == '1';
 ///
 /// **要两个**：Droid Sans Fallback 只有 CJK 字形（英文照样是方块），
 /// 拉丁字母得靠 Roboto。同一个族里叠着注册，缺字形时引擎会往后找。
-const String _latinFontPath =
+/// 路径可以按本机情况用环境变量覆盖（换台机器跑生成命令时用得上）：
+/// `NOSHELL_SHOT_LATIN_FONT` / `NOSHELL_SHOT_CJK_FONT` / `NOSHELL_SHOT_ICON_FONT`。
+final String _latinFontPath =
+    Platform.environment['NOSHELL_SHOT_LATIN_FONT'] ??
     '/opt/flutter/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf';
-const String _cjkFontPath =
+final String _cjkFontPath =
+    Platform.environment['NOSHELL_SHOT_CJK_FONT'] ??
     '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf';
 
 /// 图标字体：测试环境不带它，不喂一份工具栏那几颗按钮就是空方块。
-const String _iconFontPath =
+final String _iconFontPath =
+    Platform.environment['NOSHELL_SHOT_ICON_FONT'] ??
     '/opt/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf';
 
 /// 界面文案在截图里用的族名。刻意不走「注册成 Roboto」那条路：测试环境的
@@ -85,6 +90,21 @@ Future<void> _loadFont(String family, Future<ByteData> bytes) async {
 
 Future<ByteData> _fileBytes(String path) =>
     File(path).readAsBytes().then(ByteData.sublistView);
+
+/// 字体找不到时**直接失败**，不要静默跳过：跳过的话命令照样退出成功，
+/// 只是产出三张满屏方块的图，不盯着看根本发现不了。换台机器时用文件头上
+/// 那三个环境变量指到本机对应的字体。
+String _requireFont(String path) {
+  if (!File(path).existsSync()) {
+    fail(
+      '缺少字体：$path\n'
+      '截图必须加载真字体，否则界面文案全是方块。'
+      '用 NOSHELL_SHOT_LATIN_FONT / NOSHELL_SHOT_CJK_FONT / '
+      'NOSHELL_SHOT_ICON_FONT 指到本机对应的文件。',
+    );
+  }
+  return path;
+}
 
 Widget _host(Widget child, ValueNotifier<TerminalStylePrefs> style) {
   final base = AppTheme.light();
@@ -141,17 +161,11 @@ void main() {
     );
     // 界面字体：拉丁 + CJK 叠在同一个族里。
     final ui = FontLoader(_uiFamily);
-    if (File(_latinFontPath).existsSync()) {
-      ui.addFont(_fileBytes(_latinFontPath));
-    }
-    if (File(_cjkFontPath).existsSync()) {
-      ui.addFont(_fileBytes(_cjkFontPath));
-    }
+    ui.addFont(_fileBytes(_requireFont(_latinFontPath)));
+    ui.addFont(_fileBytes(_requireFont(_cjkFontPath)));
     await ui.load();
-    // 图标字体。
-    if (File(_iconFontPath).existsSync()) {
-      await _loadFont('MaterialIcons', _fileBytes(_iconFontPath));
-    }
+    // 图标字体（缺了只会让工具栏那几颗按钮变成空方块）。
+    await _loadFont('MaterialIcons', _fileBytes(_requireFont(_iconFontPath)));
   });
 
   testWidgets('移动端终端：快捷键条', (tester) async {

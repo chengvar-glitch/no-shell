@@ -758,6 +758,84 @@ void main() {
       }
     });
 
+    testWidgets('开着时一次轻点只发一遍按下 / 抬起', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final (session, transport) = await _pumpTerminal(
+          tester,
+          output: 'hello world\n',
+        );
+        remoteTurnsOnMouse(session);
+        await tester.pump();
+        await tester.tap(find.text('鼠标'));
+        await tester.pump();
+        transport.sent.clear();
+
+        // 轻点一下：只该有我们这一条路径（xterm 那层 tap 转发已被挂起），
+        // 否则远端收到 down,down,up,up —— vim / tmux 会当成双击。
+        await _touch(tester, _firstCell(tester) + const Offset(2, 2));
+        await _settleWindows(tester);
+
+        expect(transport.sent, hasLength(2), reason: '一遍按下 + 一遍抬起');
+        expect(transport.sent.first, startsWith('\x1b[<0;'));
+        expect(transport.sent.last, endsWith('m'));
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('远端关掉鼠标上报后自动退出鼠标模式，拖动恢复滚动', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final (session, transport) = await _pumpTerminal(
+          tester,
+          output: '${List.generate(200, (i) => 'line $i').join('\n')}\n',
+        );
+        remoteTurnsOnMouse(session);
+        await tester.pump();
+        await tester.tap(find.text('鼠标'));
+        await tester.pump();
+
+        // 远端不再上报（`:q` 退出 vim、tmux 关掉 mouse）。
+        session.terminal.write('\x1b[?1002l');
+        await tester.pump();
+        transport.sent.clear();
+
+        final position = tester
+            .state<ScrollableState>(
+              find
+                  .descendant(
+                    of: find.byType(TerminalView),
+                    matching: find.byType(Scrollable),
+                  )
+                  .first,
+            )
+            .position;
+        position.jumpTo(position.maxScrollExtent / 2);
+        await tester.pump();
+        final before = position.pixels;
+
+        // 往上拖：模式已经自动退出，这一次拖动该滚画面而不是发鼠标事件。
+        // 两段移动：头一段只用来越过滚动的判定阈值（DragStartBehavior.start
+        // 会把越过阈值之前的那段位移丢掉），第二段才是真正要滚的距离。
+        final drag = await tester.startGesture(
+          tester.getCenter(find.byType(TerminalView)),
+          kind: PointerDeviceKind.touch,
+        );
+        await drag.moveBy(const Offset(0, 30));
+        await tester.pump();
+        await drag.moveBy(const Offset(0, 120));
+        await tester.pump();
+        await drag.up();
+        await tester.pump();
+
+        expect(transport.sent, isEmpty, reason: '远端没人接鼠标事件了');
+        expect(position.pixels, lessThan(before), reason: '拖动该滚画面');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
     testWidgets('没开鼠标模式时拖动不转发（照旧滚画面）', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       try {
@@ -884,6 +962,42 @@ void main() {
         await tester.pump();
 
         expect(style.value.fontSize, TerminalStylePrefs.minFontSize);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('外接鼠标按过之后，单指触摸不会被当成捏合', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final style = ValueNotifier(const TerminalStylePrefs());
+        addTearDown(style.dispose);
+        await _pumpTerminal(tester, style: style, output: 'hello\n');
+        final at = tester.getCenter(find.byType(TerminalView));
+
+        // iPad 触控板 / Android 外接鼠标：按下再抬起，抬起走的是鼠标分支。
+        final mouse = await tester.startGesture(
+          at,
+          kind: PointerDeviceKind.mouse,
+          buttons: kPrimaryButton,
+        );
+        await mouse.up();
+        await tester.pump();
+
+        // 此后单指触摸：表里若留着那根鼠标指针，这里就会被当成两指捏合。
+        final touch = await tester.startGesture(
+          at,
+          kind: PointerDeviceKind.touch,
+        );
+        await touch.moveBy(const Offset(80, 0));
+        await tester.pump();
+        expect(find.textContaining('字号'), findsNothing, reason: '这不是捏合');
+        await touch.up();
+        await tester.pump();
+        // 放掉 xterm 双击判定挂的 300ms 计时器。
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(style.value.fontSize, TerminalStylePrefs.defaultFontSize);
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

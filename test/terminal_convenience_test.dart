@@ -607,6 +607,33 @@ void main() {
       }
     });
 
+    testWidgets('远端清屏之后点「下一个」不越界，并如实报无结果', (tester) async {
+      final style = ValueNotifier(const TerminalStylePrefs());
+      final (session, _) = await _pumpTerminal(
+        tester,
+        style,
+        output: 'alpha beta\nbeta again\n',
+      );
+
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.search_rounded));
+      await tester.pump();
+      await search(tester, 'beta');
+      expect(find.text('1/2'), findsOneWidget);
+
+      // 缓冲区被清空：先前的命中行号（绝对行号）全部作废。不重搜就会拿
+      // 旧行号去 createAnchor，而它直接索引 lines[y]——越界即 RangeError。
+      session.terminal.buffer.clear();
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('下一个'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('无结果'), findsOneWidget);
+      expect(highlightCount(tester), 0);
+    });
+
     testWidgets('命中在回滚里时把画面滚过去', (tester) async {
       final style = ValueNotifier(const TerminalStylePrefs());
       // 输出要长过视口，命中才落在当前视野之外。

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -168,8 +169,13 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   bool _searching = false;
   String _query = '';
 
-  /// 命中位置（绝对行号，随输出滚动会过期；高亮用的是锚点，不受影响）。
+  /// 命中位置（**绝对行号**，会随缓冲区变化过期：远端 `clear`、reflow
+  /// 合并行、切会话都算）。所以：输出时按 300ms 节流重算（[_scheduleSearchRefresh]）、
+  /// 步进前重算一次（[_stepMatch]）、画高亮时兜住越界（[_paintHighlights]）。
   List<TerminalMatch> _matches = const [];
+
+  /// 命中的重算节流器。
+  Timer? _searchRefreshTimer;
   int _matchIndex = 0;
 
   /// 挂在控制器上的高亮对象：重新查找或收起查找栏时必须逐个 dispose，
@@ -195,10 +201,14 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 正在拖的手柄：true 是起点、false 是终点；没在拖时为 null。
   bool? _handleGrabbed;
 
-  /// 鼠标模式（触屏）：开着时把拖动当作远端的鼠标拖动发过去，而不是滚动
-  /// 本地画面。只在远端自己开了鼠标上报时才有东西可发（vim 的
-  /// `set mouse=a`、tmux 的 `mouse on`），所以键条上那一颗在别处是灰的。
+  /// 鼠标模式开关（用户按下的那个）。真正生效与否看 [_mouseModeActive]。
   bool _trackpad = false;
+
+  /// 鼠标模式是否**真的在生效**：开关打开 **且** 远端现在确实在收鼠标
+  /// 事件（vim 的 `set mouse=a`、tmux 的 `mouse on`）。两个条件缺一不可
+  /// ——少了后者，用户在一个普通 shell 里打开它，就既不滚画面也发不出
+  /// 鼠标事件，等于把终端锁死。
+  bool get _mouseModeActive => _trackpad && _remoteMouse.value;
 
   /// 正在转发的鼠标拖动：为真时移动与抬手都要发给远端。
   bool _mouseDragging = false;
@@ -240,8 +250,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     // 远端输出会顶动画面：指针底下的链接可能已经换了一条，选区手柄的位置
     // 也跟着挪。
     widget.session.terminal.addListener(_onTerminalOutput);
-    // 挂上来时远端可能已经开着鼠标上报（另一条会话切过来），先对一次表。
-    _syncRemoteMouse();
+    // 挂上来时远端可能已经开着鼠标上报（另一条会话切过来），先对一次表
+    // ——此刻还在 initState，不能触发重建。
+    _syncRemoteMouse(allowRebuild: false);
   }
 
   @override
@@ -251,9 +262,17 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     // 视图被复用到另一条会话上：监听要跟着搬，否则下划线盯着旧终端算。
     oldWidget.session.terminal.removeListener(_onTerminalOutput);
     widget.session.terminal.addListener(_onTerminalOutput);
+    // 搜索结果是按**旧会话的缓冲区行号**记的，换会话必须整个丢掉：
+    // 留着的话计数是旧的，点「下一个」还会拿旧行号去新缓冲区建锚点。
+    _clearHighlights();
+    _searchField.clear();
+    _searching = false;
+    _query = '';
+    _matches = const [];
+    _matchIndex = 0;
     _pointer = null;
     _refreshLinkHover();
-    _syncRemoteMouse();
+    _syncRemoteMouse(allowRebuild: false);
   }
 
   @override
@@ -261,11 +280,16 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _copyOnSelectTimer?.cancel();
     _longPressTimer?.cancel();
     _linkTapTimer?.cancel();
+    _searchRefreshTimer?.cancel();
+    // 顺序要紧：先摘掉选区的监听（highlight.dispose() 会回调控制器，那时
+    // _onSelectionChanged 还可能重新挂一个复制计时器），再清高亮，控制器
+    // 本身留到最后 dispose——往已 dispose 的控制器里通知会直接断言失败。
+    _controller.removeListener(_onSelectionChanged);
+    _clearHighlights();
     _focusNode.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _atBottom.dispose();
-    _clearHighlights();
     _searchField.dispose();
     _searchFocus.dispose();
     _overlayRevision.dispose();
@@ -275,9 +299,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _fontPreview.dispose();
     _hoveredLink.dispose();
     _linkRepaint.dispose();
-    _controller
-      ..removeListener(_onSelectionChanged)
-      ..dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -285,13 +307,32 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _refreshLinkHover();
     if (_isTouchPlatform && _hasSelection) _overlayRevision.value++;
     _syncRemoteMouse();
+    _scheduleSearchRefresh();
   }
 
   /// 远端是否开着鼠标上报。终端每次输出都会通知，这里做无变化守卫，
   /// 只有真的翻转时才让键条上那一颗键重建。
-  void _syncRemoteMouse() {
+  void _syncRemoteMouse({bool allowRebuild = true}) {
     final wantsMouse = widget.session.terminal.mouseMode != MouseMode.none;
-    if (_remoteMouse.value != wantsMouse) _remoteMouse.value = wantsMouse;
+    if (_remoteMouse.value == wantsMouse) return;
+    _remoteMouse.value = wantsMouse;
+    // 开关开着时远端不再上报（`:q` 退出 vim、tmux 关掉 mouse）：模式已经
+    // 没有意义，替用户关掉——否则那颗键会因「远端不上报」而置灰，
+    // 用户连关都关不掉。
+    if (!_trackpad) return;
+    if (allowRebuild) {
+      setState(() => _setTrackpad(false));
+    } else {
+      _setTrackpad(false);
+    }
+  }
+
+  /// 开 / 关鼠标模式。顺带把包内那层 tap 转发停掉：不然一次轻点会发两遍
+  /// 鼠标按下与抬起（xterm 自己转发一次、我们这里又一次），远端看来就是
+  /// 双击——tmux 会因此选词。
+  void _setTrackpad(bool value) {
+    _trackpad = value;
+    _controller.setSuspendPointerInput(value);
   }
 
   /// 修饰键起落：只在状态真的变了时重算，键盘每敲一下都过这里。
@@ -318,16 +359,29 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   void _adjustFontSize(int delta) {
     final notifier = TerminalStyleScope.of(context).notifier;
-    notifier.value = notifier.value.withFontSize(
-      notifier.value.fontSize + delta,
+    _applyFontSize(
+      notifier.value.withFontSize(notifier.value.fontSize + delta),
     );
   }
 
   void _resetFontSize() {
     final notifier = TerminalStyleScope.of(context).notifier;
-    notifier.value = notifier.value.copyWith(
-      fontSize: TerminalStylePrefs.defaultFontSize,
+    _applyFontSize(
+      notifier.value.copyWith(fontSize: TerminalStylePrefs.defaultFontSize),
     );
+  }
+
+  /// 写回字号，并在下一帧让手柄几何重算。
+  ///
+  /// 同一个 build 里读到的还是旧的 `cellSize`（渲染对象要等这一帧布局完
+  /// 才更新），不补这一下，选区手柄会停在旧字号的格子上——字号差得越多、
+  /// 行号越靠下，偏得越离谱。
+  void _applyFontSize(TerminalStylePrefs next) {
+    TerminalStyleScope.of(context).notifier.value = next;
+    if (!_hasSelection) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _overlayRevision.value++;
+    });
   }
 
   /// 指针按下：鼠标左键是链接点击的候选；触屏则起一次长按判定。
@@ -348,7 +402,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     }
     // 鼠标模式：按下就转发给远端（远端没开鼠标上报时 mouseInput 自己会
     // 返回 false，拖动手势随之落回本地的滚动 / 长按那一套）。
-    if (_trackpad && _beginMouseDrag(event.position)) {
+    if (_mouseModeActive && _beginMouseDrag(event.position)) {
       _touchOrigin = null;
       return;
     }
@@ -576,7 +630,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 张开时画面不该跟着往下滚（物理一换，Scrollable 就算认领了拖动也
   /// 走不动，连带把在飞的那次拖动一并作废）。
   Widget _withGesturePhysics(Widget child) {
-    if (!_trackpad && !_pinching) return child;
+    if (!_mouseModeActive && !_pinching) return child;
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context)
           .copyWith(physics: const NeverScrollableScrollPhysics()),
@@ -620,7 +674,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 
   void _runSearch(String query) {
-    final matches = findTerminalMatches(widget.session.terminal.buffer, query);
+    final buffer = widget.session.terminal.buffer;
+    final matches = findTerminalMatches(buffer, query);
     _query = query;
     _matches = matches;
     _matchIndex = 0;
@@ -629,8 +684,35 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     if (matches.isNotEmpty) _scrollToMatch(0);
   }
 
+  /// 远端还在输出时重算命中（**保持当前下标、不滚动**——用户正在读，
+  /// 每来一行就把画面拽回第一条命中是不能用的）。300ms 节流。
+  void _scheduleSearchRefresh() {
+    if (!_searching || _query.isEmpty) return;
+    if (_searchRefreshTimer?.isActive ?? false) return;
+    _searchRefreshTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) _refreshMatches();
+    });
+  }
+
+  /// 重算命中列表与高亮，尽量留在原来那一条上。
+  void _refreshMatches() {
+    final buffer = widget.session.terminal.buffer;
+    final matches = findTerminalMatches(buffer, _query);
+    _matches = matches;
+    if (matches.isEmpty) {
+      _matchIndex = 0;
+    } else if (_matchIndex >= matches.length) {
+      _matchIndex = matches.length - 1;
+    }
+    _paintHighlights();
+    setState(() {});
+  }
+
   /// 上一条 / 下一条，首尾相接。
   void _stepMatch(int delta) {
+    // 先按当前缓冲区重找一遍再跳：输出 / clear / reflow 都会让先前的
+    // 行号作废，拿旧行号跳会跳到别的行去。
+    if (_query.isNotEmpty) _refreshMatches();
     if (_matches.isEmpty) return;
     final next = (_matchIndex + delta) % _matches.length;
     _matchIndex = next < 0 ? next + _matches.length : next;
@@ -647,8 +729,12 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   void _paintHighlights() {
     final theme = TerminalStyleScope.of(context).notifier.value.theme;
     _clearHighlights();
+    final buffer = widget.session.terminal.buffer;
     for (var i = 0; i < _matches.length; i++) {
       final match = _matches[i];
+      // 兜底：行号已经越界（缓冲被清过而重搜还没跑）就跳过。xterm 的
+      // createAnchor 直接索引 lines[y]，不兜就是 RangeError。
+      if (match.row < 0 || match.row >= buffer.height) continue;
       final current = i == _matchIndex;
       final color = current
           ? theme.searchHitBackgroundCurrent
@@ -908,6 +994,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 不再走长按 / 点链接那一套。
   bool _trackPinchDown(PointerDownEvent event) {
     if (!_isTouchPlatform) return false;
+    // 只认手指。鼠标 / 触控板 / 触控笔的抬起走的是 _onPointerUp 的鼠标
+    // 分支，那里不会清理这张表——收进来就等于留下一个永不消失的假指针，
+    // 此后第一根手指落下就被当成两指捏合，随手一点就改字号。
+    if (event.kind != PointerDeviceKind.touch) return false;
     _pinchPointers[event.pointer] = event.position;
     if (_pinchPointers.length < 2) return false;
     // 两指落下：手上还攥着的动作先收掉——长按计时器、待开的链接、
@@ -954,7 +1044,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     if (target == null) return true;
     // 抬手才落定：整段手势只重排一次 PTY，而且落盘一次。
     final notifier = TerminalStyleScope.of(context).notifier;
-    notifier.value = notifier.value.withFontSize(target);
+    _applyFontSize(notifier.value.withFontSize(target));
     return true;
   }
 
@@ -1030,15 +1120,18 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
       final firstRow = (position.pixels / lineHeight).floor();
       final lastRow =
           ((position.pixels + position.viewportDimension) / lineHeight).ceil();
-      row = row.clamp(firstRow, lastRow - 1);
+      // 退化布局（终端区高度为 0：小屏 + 键盘 + 查找栏 + 键条一起挤）
+      // 时 lastRow - 1 会小于 0，而 num.clamp 在 lower > upper 时抛
+      // ArgumentError（release 也抛）。
+      row = row.clamp(firstRow, math.max(firstRow, lastRow - 1));
     }
     // 每次都新建锚点：setSelection 会 dispose 掉上一对，复用同一个锚点
     // 第二次就被释放了。
     _controller.setSelection(
       buffer.createAnchor(fixed.x, fixed.y),
       buffer.createAnchor(
-        cell.x.clamp(0, widget.session.terminal.viewWidth - 1),
-        row.clamp(0, buffer.height - 1),
+        cell.x.clamp(0, math.max(0, widget.session.terminal.viewWidth - 1)),
+        row.clamp(0, math.max(0, buffer.height - 1)),
       ),
     );
   }
@@ -1220,49 +1313,64 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                                 onPointerUp: _onPointerUp,
                                 onPointerCancel: _onPointerCancel,
                                 // 滚轮 / 拖动滚动条也会顶动画面，通知往上冒到这里。
-                                child: NotificationListener<ScrollNotification>(
+                                child: NotificationListener<ScrollMetricsNotification>(
+                                  // 视口尺寸 / 可滚范围变了（展开查找栏、折叠
+                                  // 键条、软键盘弹起、转屏）也要重算手柄：
+                                  // 这类变化不一定伴随滚动事件。
                                   onNotification: (notification) {
-                                    _refreshLinkHover();
                                     if (_isTouchPlatform && _hasSelection) {
                                       _overlayRevision.value++;
                                     }
                                     return false;
                                   },
-                                  child: ValueListenableBuilder<TerminalLink?>(
-                                    valueListenable: _hoveredLink,
-                                    builder: (context, link, _) =>
-                                        _withGesturePhysics(
-                                          _withScrollbar(
-                                            prefs,
-                                            TerminalView(
-                                              widget.session.terminal,
-                                              key: _terminalKey,
-                                              controller: _controller,
-                                              theme: prefs.theme,
-                                              focusNode: _focusNode,
-                                              // 自己拿着滚动控制器：滚动条与
-                                              // 「回到最新」都要读同一个位置。
-                                              scrollController:
-                                                  _scrollController,
-                                              autofocus: true,
-                                              // 移动端软键盘的删除键不走硬件按键事件，需要开启检测。
-                                              deleteDetection: true,
-                                              textStyle: _styleOf(prefs),
-                                              padding: const EdgeInsets.all(10),
-                                              shortcuts: _shortcuts,
-                                              // 悬停在链接上换成手型光标：与下划线同一份判定。
-                                              mouseCursor: link == null
-                                                  ? SystemMouseCursors.text
-                                                  : SystemMouseCursors.click,
-                                              onSecondaryTapUp:
-                                                  (details, cell) =>
-                                                      _showContextMenu(
-                                                        details.globalPosition,
-                                                        cell,
-                                                      ),
+                                  child: NotificationListener<ScrollNotification>(
+                                    onNotification: (notification) {
+                                      _refreshLinkHover();
+                                      if (_isTouchPlatform && _hasSelection) {
+                                        _overlayRevision.value++;
+                                      }
+                                      return false;
+                                    },
+                                    child: ValueListenableBuilder<TerminalLink?>(
+                                      valueListenable: _hoveredLink,
+                                      builder: (context, link, _) =>
+                                          _withGesturePhysics(
+                                            _withScrollbar(
+                                              prefs,
+                                              TerminalView(
+                                                widget.session.terminal,
+                                                key: _terminalKey,
+                                                controller: _controller,
+                                                theme: prefs.theme,
+                                                focusNode: _focusNode,
+                                                // 自己拿着滚动控制器：滚动条与
+                                                // 「回到最新」都要读同一个位置。
+                                                scrollController:
+                                                    _scrollController,
+                                                autofocus: true,
+                                                // 移动端软键盘的删除键不走硬件按键事件，需要开启检测。
+                                                deleteDetection: true,
+                                                textStyle: _styleOf(prefs),
+                                                padding: const EdgeInsets.all(
+                                                  10,
+                                                ),
+                                                shortcuts: _shortcuts,
+                                                // 悬停在链接上换成手型光标：与下划线同一份判定。
+                                                mouseCursor: link == null
+                                                    ? SystemMouseCursors.text
+                                                    : SystemMouseCursors.click,
+                                                onSecondaryTapUp:
+                                                    (
+                                                      details,
+                                                      cell,
+                                                    ) => _showContextMenu(
+                                                      details.globalPosition,
+                                                      cell,
+                                                    ),
+                                              ),
                                             ),
                                           ),
-                                        ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1323,7 +1431,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                         trackpad: _trackpad,
                         trackpadAvailable: _remoteMouse,
                         onToggleTrackpad: () =>
-                            setState(() => _trackpad = !_trackpad),
+                            setState(() => _setTrackpad(!_trackpad)),
                       ),
                   ],
                 ),

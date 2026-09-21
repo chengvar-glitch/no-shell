@@ -163,10 +163,9 @@ class _TerminalKeyBarState extends State<TerminalKeyBar> {
                   label: '→',
                   onTap: () => _sendKey(TerminalKey.arrowRight),
                 ),
-                // 字号：触屏上调字号此前只能进设置页点步进（或接物理键盘按
-                // Cmd/Ctrl 加减）。捏合缩放要在 Scrollable 已经认领第一根
-                // 手指之后再拿两指跨度，且逐帧改字号会让 PTY 每帧重排一次，
-                // 所以在键条上给一对明确的加减键。
+                // 字号：除了双指捏合（手势期间只出预览、抬手才生效），
+                // 键条上也给一对明确的加减键——捏合要两只手，单手拿着
+                // 手机时这两颗更顺手。
                 _KeyButton(
                   label: 'A-',
                   tooltip: l10n.fontSizeDecrease,
@@ -199,19 +198,20 @@ class _TerminalKeyBarState extends State<TerminalKeyBar> {
   }
 
   /// 鼠标模式那颗键：可用性跟着远端走，只重建它自己。
+  /// 注意开着的时候恒可点——关得掉比「远端不上报就灰着不让动」要紧。
   Widget _trackpadKey(AppLocalizations l10n) {
     final available = widget.trackpadAvailable;
-    Widget button(bool enabled) => _KeyButton(
+    Widget button(bool remoteReports) => _KeyButton(
       label: l10n.trackpadMode,
-      tooltip: enabled ? l10n.trackpadModeHint : l10n.trackpadUnavailable,
+      tooltip: remoteReports ? l10n.trackpadModeHint : l10n.trackpadUnavailable,
       active: widget.trackpad,
-      enabled: enabled,
+      enabled: remoteReports || widget.trackpad,
       onTap: widget.onToggleTrackpad!,
     );
     if (available == null) return button(true);
     return ValueListenableBuilder<bool>(
       valueListenable: available,
-      builder: (context, enabled, child) => button(enabled),
+      builder: (context, remoteReports, child) => button(remoteReports),
     );
   }
 

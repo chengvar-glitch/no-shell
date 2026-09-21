@@ -50,7 +50,7 @@ final class TerminalInputModifiers extends ChangeNotifier {
 
 /// 把修饰键作用到一段用户输入上。
 ///
-/// Ctrl 只认单字符里的 ASCII（`a-z` / `A-Z` / `[ \ ] ^ _` / 空格 / `?`），
+/// Ctrl 只认单字符里的 ASCII（`@` / `a-z` / `A-Z` / `[ \ ] ^ _` / 空格 / `?`），
 /// 换成对应的控制码（Ctrl+C → 0x03）；Alt 加 ESC 前缀。认不出来的一律原样
 /// 返回——多字符（粘贴、输入法上屏）、中文、本来就带 ESC 的序列都不猜，
 /// 宁可少做一次变换，也不能把用户敲进去的东西吞掉或改坏。
@@ -77,6 +77,7 @@ String? controlCodeOf(String text) {
   if (code >= 0x61 && code <= 0x7A) return String.fromCharCode(code - 0x60);
   if (code >= 0x41 && code <= 0x5A) return String.fromCharCode(code - 0x40);
   if (code >= 0x5B && code <= 0x5F) return String.fromCharCode(code - 0x40);
+  if (code == 0x40) return '\x00'; // Ctrl+@ 与 Ctrl+空格 同为 NUL
   if (code == 0x20) return '\x00';
   if (code == 0x3F) return '\x7f';
   return null;
