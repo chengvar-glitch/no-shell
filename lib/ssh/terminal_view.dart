@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,11 +16,29 @@ import '../widgets/confirm_dialog.dart';
 import '../widgets/snippet_dialog.dart';
 import 'auto_reconnect.dart';
 import 'terminal_interactions.dart';
+import 'terminal_key_bar.dart';
 import 'terminal_session.dart';
 
 /// 链接点击的容差：按下与抬起之间超过这么多像素就算拖选，不算点击。
 /// 鼠标会抖，但不能大到把「选一小段字」也算成点击。
 const double _linkTapSlop = 6;
+
+/// 触屏长按多久算「叫我菜单」。xterm 自己的长按选词在 500ms 触发，
+/// 这里压后一点：菜单弹出时选区已经落定，「复制」才是可用的。
+const Duration _longPressDelay = Duration(milliseconds: 550);
+
+/// 触屏单击链接的延迟：等过双击窗口再打开。xterm 用双击选词，若第一下
+/// 就跳浏览器，链接上永远选不中一个词（与侧边栏「双击直连」同一取舍）。
+const Duration _doubleTapWindow = Duration(milliseconds: 260);
+
+/// 触屏平台（Android / iOS）：快捷键条与放宽的触控目标只在这里生效。
+///
+/// 判平台而不是判窗口宽度：窄窗口的桌面用户有物理键盘，给他塞一条软键盘
+/// 键条只是噪声（与凭据弹窗判平台、判 web 同一取向）。
+bool get _isTouchPlatform =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);
 
 /// 会话阶段映射为主机展示状态，复用现有的状态圆点 / 徽章。
 ServerStatus serverStatusOf(TerminalPhase phase) => switch (phase) {
@@ -77,6 +96,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   final GlobalKey<TerminalViewState> _terminalKey =
       GlobalKey<TerminalViewState>();
 
+  /// 终端自己的焦点节点：键条按键后要把焦点补回来（丢了焦点软键盘就收起）。
+  /// 由本视图持有并 dispose——给了 TerminalView 就不再归它管。
+  final FocusNode _focusNode = FocusNode();
+
   /// 下划线浮层的 render object：它的坐标系就是画布坐标系。
   final GlobalKey _underlineKey = GlobalKey();
 
@@ -97,6 +120,21 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   /// 最近一次「鼠标左键按下」的全局位置；不是左键时为 null。
   Offset? _linkTapOrigin;
+
+  /// 触屏按下的起点；只用于触屏的长按 / 单击判定。
+  Offset? _touchOrigin;
+
+  /// 长按已弹出菜单：这一串指针事件不再当单击处理。
+  bool _longPressFired = false;
+
+  /// 长按判定计时器；抬起、拖动、取消都要收掉，否则测试结束会留下悬挂 timer。
+  Timer? _longPressTimer;
+
+  /// 待打开的链接（触屏单击）：等过双击窗口，第二次按下即取消。
+  Timer? _linkTapTimer;
+
+  /// 这一串指针事件是双击的第二下：它的抬手同样不算「点链接」。
+  bool _touchDoubleTap = false;
 
   /// 键位表只在 init 时算一次：平台运行中不会变，每次 build 新建只会
   /// 让包的 ShortcutManager 白白换表。
@@ -134,6 +172,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   @override
   void dispose() {
     _copyOnSelectTimer?.cancel();
+    _longPressTimer?.cancel();
+    _linkTapTimer?.cancel();
+    _focusNode.dispose();
     HardwareKeyboard.instance.removeHandler(_onKeyEvent);
     widget.session.terminal.removeListener(_refreshLinkHover);
     _hoveredLink.dispose();
@@ -178,12 +219,29 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     );
   }
 
-  /// 指针按下：只有鼠标左键单击才是链接点击的候选。
+  /// 指针按下：鼠标左键是链接点击的候选；触屏则起一次长按判定。
   void _onPointerDown(PointerDownEvent event) {
     _linkTapOrigin =
         event.kind == PointerDeviceKind.mouse && event.buttons == kPrimaryButton
         ? event.position
         : null;
+    if (event.kind != PointerDeviceKind.touch) return;
+    // 触屏：单击是「点链接」、长按是「叫我菜单」，两者都在这一串指针事件里判。
+    // 用 Listener 而不是 GestureDetector，是为了不参与手势竞技场——xterm
+    // 内部已经拿着长按 / 拖动识别器做选词，再去竞技场里抢只会两败俱伤。
+    _longPressTimer?.cancel();
+    // 上一次单击还在双击窗口里：两下都不算「点链接」——双击是选词。
+    if (_linkTapTimer?.isActive ?? false) {
+      _linkTapTimer!.cancel();
+      _touchDoubleTap = true;
+    }
+    _touchOrigin = event.position;
+    _longPressFired = false;
+    _longPressTimer = Timer(_longPressDelay, () {
+      if (!mounted) return;
+      _longPressFired = true;
+      _showContextMenuAt(event.position);
+    });
   }
 
   /// 指针在终端上移动（没按任何键）：重新判定下划线。
@@ -193,7 +251,22 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 
   /// 按住键拖动（拖选文字）期间不画下划线：指针位置作废，松手时再恢复。
+  /// 拖动同时作废长按判定——手指挪了就不是「长按」。
   void _onPointerMove(PointerMoveEvent event) {
+    final origin = _touchOrigin;
+    if (origin != null && (event.position - origin).distance > _linkTapSlop) {
+      _longPressTimer?.cancel();
+      _touchOrigin = null;
+    }
+    _pointer = null;
+    _refreshLinkHover();
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    _longPressTimer?.cancel();
+    _touchOrigin = null;
+    _longPressFired = false;
+    _touchDoubleTap = false;
     _pointer = null;
     _refreshLinkHover();
   }
@@ -203,7 +276,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _refreshLinkHover();
   }
 
-  /// Cmd/Ctrl+单击：命中链接就交给系统打开；普通点击原样还给终端。
+  /// Cmd/Ctrl+单击（鼠标）或直接单击（触屏）：命中链接就交给系统打开；
+  /// 普通点击原样还给终端。
   ///
   /// 这里收的是原始指针事件，没用 `TerminalView.onTapUp`：xterm 4.0.0 里那条
   /// 回调是断的——手势层的 `_handleTapUp` 调的是 `onSingleTapUp`，而
@@ -216,13 +290,50 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _pointer = event.position;
     _refreshLinkHover();
 
+    if (event.kind == PointerDeviceKind.touch) {
+      _longPressTimer?.cancel();
+      final origin = _touchOrigin;
+      _touchOrigin = null;
+      final longPressed = _longPressFired;
+      final doubleTap = _touchDoubleTap;
+      _longPressFired = false;
+      _touchDoubleTap = false;
+      // 长按已经弹过菜单、或这是双击的第二下：都不再当单击
+      //（否则菜单刚出来就会去开链接，双击选词也会顺手跳浏览器）。
+      if (longPressed || doubleTap || origin == null) return;
+      if ((event.position - origin).distance > _linkTapSlop) return;
+      _scheduleTouchLinkOpen(event.position);
+      return;
+    }
+
     final origin = _linkTapOrigin;
     _linkTapOrigin = null;
     if (origin == null) return;
     // 拖着选字松手不算点击。
     if ((event.position - origin).distance > _linkTapSlop) return;
     if (!isLinkModifierPressed()) return;
-    final cell = _cellAt(event.position);
+    await _openLinkAt(event.position);
+  }
+
+  /// 触屏单击落点上的链接：压一个双击窗口再打开。
+  void _scheduleTouchLinkOpen(Offset globalPosition) {
+    if (!_touchTapOpensLinks) return;
+    _linkTapTimer?.cancel();
+    _linkTapTimer = Timer(_doubleTapWindow, () {
+      unawaited(_openLinkAt(globalPosition));
+    });
+  }
+
+  /// 触屏上单击就打开链接：手机上按不出 Cmd/Ctrl，否则链接永远点不动。
+  ///
+  /// 全屏程序（vim / less / tmux 走备用缓冲区）里例外——那里的点按属于
+  /// 远端应用（鼠标上报），抢来开浏览器会让「点一下定位光标」失灵。
+  bool get _touchTapOpensLinks => !widget.session.terminal.isUsingAltBuffer;
+
+  /// 打开坐标底下的链接；没命中就什么都不做。返回是否真的打开过。
+  Future<void> _openLinkAt(Offset globalPosition) async {
+    if (!mounted) return;
+    final cell = _cellAt(globalPosition);
     if (cell == null) return;
     final link = findLinkAtCell(widget.session.terminal, cell);
     if (link == null) return;
@@ -268,9 +379,27 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     return render.getCellOffset(render.globalToLocal(globalPosition));
   }
 
-  Future<void> _showContextMenu(TapUpDetails details, CellOffset cell) async {
+  /// 快捷键条只在触屏平台挂载（见 [_isTouchPlatform]）。
+  bool get _showKeyBar => _isTouchPlatform;
+
+  /// 键条上的键不该把焦点带走：焦点一丢软键盘就收起，连按几下 Esc 会变成
+  /// 「收起键盘」。只在真的丢了焦点时补回来——用户自己按返回键收键盘时焦点
+  /// 还在终端上，那时补焦点等于把键盘又弹回来。
+  void _restoreTerminalFocus() {
+    if (!_focusNode.hasFocus) _focusNode.requestFocus();
+  }
+
+  /// 在 [globalPosition] 处弹出会话菜单：桌面右键与触屏长按都走这里。
+  Future<void> _showContextMenuAt(Offset globalPosition) =>
+      _showContextMenu(globalPosition, _cellAt(globalPosition));
+
+  Future<void> _showContextMenu(Offset position, CellOffset? cell) async {
     final l10n = AppLocalizations.of(context);
-    final position = details.globalPosition;
+    // 按到的格子上正好是链接时多给一项「打开链接」：触屏上长按是选词，
+    // 想开链接要么点它、要么走这里，后者不受备用缓冲区那条限制。
+    final link = cell == null
+        ? null
+        : findLinkAtCell(widget.session.terminal, cell);
     final action = await showMenu<String>(
       context: context,
       // 四边都收敛到指针处，菜单从点击位置弹出。
@@ -288,6 +417,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
         ),
         PopupMenuItem(value: 'paste', child: Text(l10n.paste)),
         PopupMenuItem(value: 'selectAll', child: Text(l10n.selectAll)),
+        if (link != null) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem(value: 'openLink', child: Text(l10n.openLink)),
+        ],
       ],
     );
     if (!mounted || action == null) return;
@@ -298,6 +431,13 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
         await pasteIntoTerminal(widget.session.terminal);
       case 'selectAll':
         selectAllInTerminal(widget.session.terminal, _controller);
+      case 'openLink':
+        final uri = Uri.tryParse(link!.url);
+        if (uri == null) return;
+        final opened = await widget.openLink(uri);
+        if (!opened && mounted) {
+          showToast(context, AppLocalizations.of(context).linkOpenFailed);
+        }
     }
   }
 
@@ -331,42 +471,61 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: MouseRegion(
-                  // 指针离开终端：下划线跟着消失。
-                  onExit: _onPointerExit,
-                  child: Listener(
-                    onPointerHover: _onPointerHover,
-                    onPointerMove: _onPointerMove,
-                    onPointerDown: _onPointerDown,
-                    onPointerUp: _onPointerUp,
-                    // 滚轮 / 拖动滚动条也会顶动画面，通知往上冒到这里。
-                    child: NotificationListener<ScrollNotification>(
-                      onNotification: (notification) {
-                        _refreshLinkHover();
-                        return false;
-                      },
-                      child: ValueListenableBuilder<TerminalLink?>(
-                        valueListenable: _hoveredLink,
-                        builder: (context, link, _) => TerminalView(
-                          widget.session.terminal,
-                          key: _terminalKey,
-                          controller: _controller,
-                          theme: prefs.theme,
-                          autofocus: true,
-                          // 移动端软键盘的删除键不走硬件按键事件，需要开启检测。
-                          deleteDetection: true,
-                          textStyle: _styleOf(prefs),
-                          padding: const EdgeInsets.all(10),
-                          shortcuts: _shortcuts,
-                          // 悬停在链接上换成手型光标：与下划线同一份判定。
-                          mouseCursor: link == null
-                              ? SystemMouseCursors.text
-                              : SystemMouseCursors.click,
-                          onSecondaryTapUp: _showContextMenu,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: MouseRegion(
+                        // 指针离开终端：下划线跟着消失。
+                        onExit: _onPointerExit,
+                        child: Listener(
+                          onPointerHover: _onPointerHover,
+                          onPointerMove: _onPointerMove,
+                          onPointerDown: _onPointerDown,
+                          onPointerUp: _onPointerUp,
+                          onPointerCancel: _onPointerCancel,
+                          // 滚轮 / 拖动滚动条也会顶动画面，通知往上冒到这里。
+                          child: NotificationListener<ScrollNotification>(
+                            onNotification: (notification) {
+                              _refreshLinkHover();
+                              return false;
+                            },
+                            child: ValueListenableBuilder<TerminalLink?>(
+                              valueListenable: _hoveredLink,
+                              builder: (context, link, _) => TerminalView(
+                                widget.session.terminal,
+                                key: _terminalKey,
+                                controller: _controller,
+                                theme: prefs.theme,
+                                focusNode: _focusNode,
+                                autofocus: true,
+                                // 移动端软键盘的删除键不走硬件按键事件，需要开启检测。
+                                deleteDetection: true,
+                                textStyle: _styleOf(prefs),
+                                padding: const EdgeInsets.all(10),
+                                shortcuts: _shortcuts,
+                                // 悬停在链接上换成手型光标：与下划线同一份判定。
+                                mouseCursor: link == null
+                                    ? SystemMouseCursors.text
+                                    : SystemMouseCursors.click,
+                                onSecondaryTapUp: (details, cell) =>
+                                    _showContextMenu(
+                                      details.globalPosition,
+                                      cell,
+                                    ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    // 快捷键条排在终端之下、软键盘之上：用 Column 而不是浮层，
+                    // 键条因此永远不遮住输出，终端行数会跟着它让出的高度重排。
+                    if (_showKeyBar)
+                      TerminalKeyBar(
+                        session: widget.session,
+                        onKeySent: _restoreTerminalFocus,
+                      ),
+                  ],
                 ),
               ),
               // 链接下划线：浮在终端之上、不接指针事件。
@@ -605,6 +764,9 @@ final class _SessionToolbar extends StatelessWidget {
       valueListenable: TerminalStyleScope.of(context).notifier,
       builder: (context, prefs, _) {
         final foreground = prefs.theme.foreground;
+        // 触屏上按 44 的落点下限放大：工具条悬浮在终端之上，28 见方的按钮
+        // 在手机上点十次错三次。桌面上保持紧凑——那里有鼠标，精度不是问题。
+        final size = _isTouchPlatform ? 44.0 : 28.0;
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
           decoration: BoxDecoration(
@@ -624,6 +786,7 @@ final class _SessionToolbar extends StatelessWidget {
                   return _ToolbarButton(
                     tooltip: l10n.copy,
                     icon: Icons.copy_rounded,
+                    size: size,
                     color: hasSelection
                         ? foreground
                         : foreground.withValues(alpha: 0.35),
@@ -639,6 +802,7 @@ final class _SessionToolbar extends StatelessWidget {
               _ToolbarButton(
                 tooltip: l10n.paste,
                 icon: Icons.content_paste_rounded,
+                size: size,
                 color: foreground,
                 onTap: () => pasteIntoTerminal(session.terminal),
               ),
@@ -646,6 +810,7 @@ final class _SessionToolbar extends StatelessWidget {
                 _ToolbarButton(
                   tooltip: l10n.snippets,
                   icon: Icons.code_rounded,
+                  size: size,
                   color: foreground,
                   onTap: () => showSnippetDialog(
                     context,
@@ -661,13 +826,14 @@ final class _SessionToolbar extends StatelessWidget {
   }
 }
 
-/// 工具条按钮：紧凑的图标按钮，尺寸手工收紧以贴合圆角胶囊。
+/// 工具条按钮：尺寸手工收紧以贴合圆角胶囊；触屏上传 [size] 44 满足落点下限。
 final class _ToolbarButton extends StatelessWidget {
   const _ToolbarButton({
     required this.tooltip,
     required this.icon,
     required this.color,
     required this.onTap,
+    this.size = 28,
   });
 
   final String tooltip;
@@ -675,15 +841,19 @@ final class _ToolbarButton extends StatelessWidget {
   final Color color;
   final VoidCallback? onTap;
 
+  /// 触控目标边长（逻辑像素）。
+  final double size;
+
   @override
   Widget build(BuildContext context) {
+    final touch = size >= 44;
     return IconButton(
       tooltip: tooltip,
-      icon: Icon(icon, size: 17, color: color),
+      icon: Icon(icon, size: touch ? 20 : 17, color: color),
       onPressed: onTap,
       visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.all(5),
-      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+      padding: EdgeInsets.all(touch ? 10 : 5),
+      constraints: BoxConstraints.tightFor(width: size, height: size),
     );
   }
 }

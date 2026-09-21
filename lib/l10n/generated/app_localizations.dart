@@ -1988,6 +1988,36 @@ abstract class AppLocalizations {
   /// **'Could not open link'**
   String get linkOpenFailed;
 
+  /// No description provided for @openLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Link'**
+  String get openLink;
+
+  /// No description provided for @keyBarTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keys'**
+  String get keyBarTitle;
+
+  /// No description provided for @keyBarExpand.
+  ///
+  /// In en, this message translates to:
+  /// **'Show key bar'**
+  String get keyBarExpand;
+
+  /// No description provided for @keyBarCollapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide key bar'**
+  String get keyBarCollapse;
+
+  /// No description provided for @stickyModifierHint.
+  ///
+  /// In en, this message translates to:
+  /// **'{modifier} armed · applies to the next key'**
+  String stickyModifierHint(String modifier);
+
   /// No description provided for @updateSection.
   ///
   /// In en, this message translates to:

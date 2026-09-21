@@ -1177,6 +1177,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkOpenFailed => 'Could not open link';
 
   @override
+  String get openLink => 'Open Link';
+
+  @override
+  String get keyBarTitle => 'Keys';
+
+  @override
+  String get keyBarExpand => 'Show key bar';
+
+  @override
+  String get keyBarCollapse => 'Hide key bar';
+
+  @override
+  String stickyModifierHint(String modifier) {
+    return '$modifier armed · applies to the next key';
+  }
+
+  @override
   String get updateSection => 'Updates';
 
   @override

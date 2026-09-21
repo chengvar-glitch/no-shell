@@ -686,6 +686,18 @@
   "selectAll": "Select All",
   "copyOnSelect": "Copy on Select",
   "linkOpenFailed": "Could not open link",
+  "openLink": "Open Link",
+  "keyBarTitle": "Keys",
+  "keyBarExpand": "Show key bar",
+  "keyBarCollapse": "Hide key bar",
+  "stickyModifierHint": "{modifier} armed · applies to the next key",
+  "@stickyModifierHint": {
+    "placeholders": {
+      "modifier": {
+        "type": "String"
+      }
+    }
+  },
   "updateSection": "Updates",
   "updateRowTitle": "Check for updates",
   "updateRowSubtitle": "Current version v{version}",

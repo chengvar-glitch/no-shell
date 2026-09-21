@@ -14,6 +14,7 @@ import 'session_log.dart';
 import 'ssh_agent.dart';
 import 'ssh_credentials.dart';
 import 'ssh_transport.dart';
+import 'terminal_input_modifiers.dart';
 import 'tunnel_gateway.dart';
 
 enum TerminalPhase { connecting, connected, failed, closed }
@@ -88,10 +89,16 @@ final class TerminalSession extends ChangeNotifier {
   /// 会话结束即随之失效（见 [PortForwardManager]）。
   late final PortForwardManager forwards;
 
+  /// 软键盘快捷键条的粘滞修饰键；键条读写它，终端在输入出口消费它。
+  final TerminalInputModifiers inputModifiers = TerminalInputModifiers();
+
   /// 终端缓冲区（含回滚行），视图层直接渲染；会话日志也从这里取。
   ///
   /// `maxLines` 是日志的长度上限：缓冲区保留 50000 行回滚，超出的最旧行被丢弃。
-  final Terminal terminal = Terminal(maxLines: 50000);
+  late final Terminal terminal = _SessionTerminal(
+    modifiers: inputModifiers,
+    maxLines: 50000,
+  );
 
   /// 会话日志：终端画面与回滚的纯文本快照（见 [SessionLog]）。
   /// 惰性构造，无状态——每次读取都现从缓冲区取一份。
@@ -285,6 +292,72 @@ final class TerminalSession extends ChangeNotifier {
     terminal.onTitleChange = null;
     _transport.dispose();
     title.dispose();
+    inputModifiers.dispose();
     super.dispose();
+  }
+}
+
+/// 会话终端：在用户输入离开终端、进入传输层之前套上粘滞修饰键。
+///
+/// 为什么是子类而不是包一层 `onOutput`：软键盘敲下的字符不经过任何键位
+/// 回调（xterm 的 `_onInsert` 先试 `keyInput`，认不出来就直接 `textInput`），
+/// 要拦住它只能站在终端的输入入口；而 `onOutput` 会被传输层在 `attach` 时
+/// 整体覆盖（`dartssh2_transport` 里的 `terminal.onOutput = sendOutput`），
+/// 包了也会被冲掉、还会打断它在 dispose 时的身份比较。覆盖下面四个方法
+/// 是最短的一条正路，且四条都是 xterm 的公开 API。
+final class _SessionTerminal extends Terminal {
+  _SessionTerminal({required this.modifiers, super.maxLines});
+
+  final TerminalInputModifiers modifiers;
+
+  @override
+  bool keyInput(
+    TerminalKey key, {
+    bool shift = false,
+    bool alt = false,
+    bool ctrl = false,
+  }) {
+    // 待命的修饰键并进这次按键：键条上的 Esc / Tab / 方向键因此也能组合
+    // （Ctrl+← 是 readline 的按词移动）。没有待命时不碰 take()，省一次通知。
+    if (!modifiers.isArmed) {
+      return super.keyInput(key, shift: shift, alt: alt, ctrl: ctrl);
+    }
+    final armed = modifiers.take();
+    return super.keyInput(
+      key,
+      shift: shift,
+      alt: alt || armed.alt,
+      ctrl: ctrl || armed.ctrl,
+    );
+  }
+
+  @override
+  bool charInput(int charCode, {bool alt = false, bool ctrl = false}) {
+    if (!modifiers.isArmed) {
+      return super.charInput(charCode, alt: alt, ctrl: ctrl);
+    }
+    final armed = modifiers.take();
+    return super.charInput(
+      charCode,
+      alt: alt || armed.alt,
+      ctrl: ctrl || armed.ctrl,
+    );
+  }
+
+  @override
+  void textInput(String text) {
+    final armed = modifiers.take();
+    super.textInput(
+      applyTerminalModifiers(text, ctrl: armed.ctrl, alt: armed.alt),
+    );
+  }
+
+  @override
+  void paste(String text) {
+    // 粘贴永远不套修饰键：剪贴板里的内容不是「下一个按键」，何况它可能是
+    // 多行文本，套上 Ctrl 只会变成一串控制码。粘贴同时也是放弃这次待命的
+    // 明确信号，所以顺手清掉。
+    modifiers.clear();
+    super.paste(text);
   }
 }

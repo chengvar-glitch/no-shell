@@ -561,6 +561,18 @@
   "selectAll": "全选",
   "copyOnSelect": "选中即复制",
   "linkOpenFailed": "无法打开链接",
+  "openLink": "打开链接",
+  "keyBarTitle": "快捷键",
+  "keyBarExpand": "展开快捷键条",
+  "keyBarCollapse": "收起快捷键条",
+  "stickyModifierHint": "{modifier} 待命 · 只对下一个按键生效",
+  "@stickyModifierHint": {
+    "placeholders": {
+      "modifier": {
+        "type": "String"
+      }
+    }
+  },
   "updateSection": "更新",
   "updateRowTitle": "检查更新",
   "updateRowSubtitle": "当前版本 v{version}",

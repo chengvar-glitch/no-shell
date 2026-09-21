@@ -1128,6 +1128,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get linkOpenFailed => '无法打开链接';
 
   @override
+  String get openLink => '打开链接';
+
+  @override
+  String get keyBarTitle => '快捷键';
+
+  @override
+  String get keyBarExpand => '展开快捷键条';
+
+  @override
+  String get keyBarCollapse => '收起快捷键条';
+
+  @override
+  String stickyModifierHint(String modifier) {
+    return '$modifier 待命 · 只对下一个按键生效';
+  }
+
+  @override
   String get updateSection => '更新';
 
   @override
