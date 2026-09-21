@@ -6,15 +6,19 @@
 //   flutter test integration_test/mobile_connect_test.dart -d <模拟器或设备>
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:no_shell/main.dart';
 import 'package:no_shell/models.dart';
+import 'package:no_shell/settings.dart';
 import 'package:no_shell/store.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
+import 'package:no_shell/ssh/terminal_key_bar.dart';
 import 'package:no_shell/ssh/terminal_view.dart';
+import 'package:xterm/ui.dart';
 
 import '../test/support/credential_store_fake.dart';
 import '../test/support/host_key_store_fake.dart';
@@ -139,6 +143,139 @@ void main() {
         }
       }
       expect(lsEchoed, isTrue, reason: '10s 内终端未收到 ls 输出');
+
+      // ---- 移动端手势与键条 ----
+      //
+      // 这一段只验本机就能判定的东西（键条接线、菜单、手柄、查找、捏合），
+      // 不依赖远端行为：手机上的软键盘、外接指针、真机触摸采样这些，
+      // 只有真跑一次才知道，也正是这里唯一能覆盖它们的场合。
+      //
+      // **只在触屏平台上跑**：本测试也允许在 macOS 桌面上跑（见文件头的
+      // 「任意移动布局」），而键条与选区手柄本来就只在 iOS / Android 挂载，
+      // 桌面端不该因此变红。
+      final touchPlatform =
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.android;
+      if (!touchPlatform) {
+        debugPrint('非触屏平台：跳过键条 / 手柄 / 捏合这一段');
+      }
+      if (touchPlatform) {
+        final scope = TerminalStyleScope.of(
+          tester.element(find.byType(SshTerminalView)),
+        );
+        expect(
+          find.byType(TerminalKeyBar),
+          findsOneWidget,
+          reason: '触屏平台应当挂上快捷键条',
+        );
+
+        // 粘滞 Ctrl：点一下进入待命，再点一下取消（读的是会话自己的状态，
+        // 不依赖远端回显什么）。
+        Finder barKey(String label) => find.descendant(
+          of: find.byType(TerminalKeyBar),
+          matching: find.text(label),
+        );
+        await tester.tap(barKey('ctrl'));
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(session.inputModifiers.ctrl, isTrue, reason: 'ctrl 该进入待命');
+        await tester.tap(barKey('ctrl'));
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(session.inputModifiers.ctrl, isFalse, reason: '再点该取消');
+
+        // 字号键：窄屏上它在键条的可滚动区里，先滚到可见再点。
+        final barScroll = find.descendant(
+          of: find.byType(TerminalKeyBar),
+          matching: find.byType(Scrollable),
+        );
+        await tester.scrollUntilVisible(
+          barKey('A+'),
+          60,
+          scrollable: barScroll,
+        );
+        await tester.pump(const Duration(milliseconds: 200));
+        final fontBefore = scope.notifier.value.fontSize;
+        await tester.tap(barKey('A+'));
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(
+          scope.notifier.value.fontSize,
+          fontBefore + 1,
+          reason: '键条上的 A+ 该改全局字号',
+        );
+        await tester.tap(barKey('A-'));
+        await tester.pump(const Duration(milliseconds: 300));
+
+        // 长按终端：弹「复制 / 粘贴 / 全选」，全选后出现首尾手柄。
+        final terminalCenter = tester.getCenter(find.byType(TerminalView));
+        await tester.longPressAt(terminalCenter);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Select All'), findsOneWidget, reason: '长按该弹出终端菜单');
+        await tester.tap(find.text('Select All'));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          find.byKey(const ValueKey('selection-handle-end')),
+          findsOneWidget,
+          reason: '触屏上选中之后应当出现选区手柄',
+        );
+
+        // 查找：工具栏放大镜 → 查找栏 → 命中高亮。
+        await tester.tap(find.byIcon(Icons.search_rounded).first);
+        await tester.pump(const Duration(milliseconds: 300));
+        final searchField = find.descendant(
+          of: find.byType(SshTerminalView),
+          matching: find.byType(TextField),
+        );
+        expect(searchField, findsOneWidget, reason: '工具栏放大镜该展开查找栏');
+        await tester.enterText(searchField, 'demo');
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          tester
+              .widget<TerminalView>(find.byType(TerminalView))
+              .controller!
+              .highlights,
+          isNotEmpty,
+          reason: '在回滚里查到 demo，应当有命中高亮',
+        );
+        await tester.tap(
+          find.descendant(
+            of: find.byType(SshTerminalView),
+            matching: find.byIcon(Icons.close_rounded),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+
+        // 双指捏合：手势期间只出预览，抬手才改字号。
+        final pinchBefore = scope.notifier.value.fontSize;
+        final left = await tester.startGesture(
+          terminalCenter - const Offset(30, 0),
+        );
+        await tester.pump(const Duration(milliseconds: 80));
+        final right = await tester.startGesture(
+          terminalCenter + const Offset(30, 0),
+        );
+        await tester.pump(const Duration(milliseconds: 80));
+        await left.moveTo(terminalCenter - const Offset(85, 0));
+        await right.moveTo(terminalCenter + const Offset(85, 0));
+        await tester.pump(const Duration(milliseconds: 120));
+        expect(
+          scope.notifier.value.fontSize,
+          pinchBefore,
+          reason: '捏合期间只该出预览，不写偏好',
+        );
+        await left.up();
+        await right.up();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          scope.notifier.value.fontSize,
+          greaterThan(pinchBefore),
+          reason: '抬手之后字号该落定',
+        );
+
+        // 字号改过之后复原，别把后面的步骤带上（这里只是自测，不落盘也行）。
+        await tester.tap(barKey('A-'));
+        await tester.pump(const Duration(milliseconds: 200));
+      } // touchPlatform
+
       // SFTP Tab：复用同一 SSH 连接的通道列出目录。
       await tester.tap(detailTab('SFTP'));
       var listed = false;
