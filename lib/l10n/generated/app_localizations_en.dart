@@ -540,6 +540,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sftpEditPath => 'Edit path';
 
   @override
+  String get sftpHome => 'Home';
+
+  @override
   String get sftpPathHint => 'Remote path';
 
   @override

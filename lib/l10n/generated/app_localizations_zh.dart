@@ -526,6 +526,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sftpEditPath => '编辑路径';
 
   @override
+  String get sftpHome => '主目录';
+
+  @override
   String get sftpPathHint => '远端路径';
 
   @override

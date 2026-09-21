@@ -1028,6 +1028,12 @@ abstract class AppLocalizations {
   /// **'Edit path'**
   String get sftpEditPath;
 
+  /// No description provided for @sftpHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get sftpHome;
+
   /// No description provided for @sftpPathHint.
   ///
   /// In en, this message translates to:

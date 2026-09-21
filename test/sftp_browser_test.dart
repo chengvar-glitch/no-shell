@@ -35,6 +35,83 @@ void main() {
       expect(crumbs.last.path, '/var/log/nginx');
     });
 
+    test('家目录及其子目录折成一段', () {
+      final home = sftpBreadcrumbs('/home/deploy', home: '/home/deploy');
+      expect(home, hasLength(1));
+      expect(home.single.isHome, isTrue);
+      expect(home.single.path, '/home/deploy');
+
+      final nested = sftpBreadcrumbs(
+        '/home/deploy/logs/nginx',
+        home: '/home/deploy',
+      );
+      expect(nested.map((crumb) => crumb.path), [
+        '/home/deploy',
+        '/home/deploy/logs',
+        '/home/deploy/logs/nginx',
+      ]);
+      expect(nested.first.isHome, isTrue);
+      expect(nested.last.isHome, isFalse);
+
+      // 家目录之外照旧从根逐段拆。
+      expect(sftpBreadcrumbs('/var/log', home: '/home/deploy'), hasLength(3));
+    });
+
+    test('地址栏输入：~、相对路径、..、引号都规整成绝对路径', () {
+      String? resolve(String input) =>
+          resolveSftpPath(input, home: '/home/deploy', base: '/var/log');
+
+      expect(resolve('~'), '/home/deploy');
+      expect(resolve('~/logs'), '/home/deploy/logs');
+      expect(resolve('logs'), '/var/log/logs');
+      expect(resolve('/etc/nginx/'), '/etc/nginx');
+      expect(resolve('/var/log/../tmp'), '/var/tmp');
+      expect(resolve('../../etc'), '/etc', reason: '根目录之上的 .. 停在根');
+      expect(resolve('//var///log'), '/var/log');
+      expect(resolve('  "/var/log"  '), '/var/log');
+      expect(resolve(''), isNull);
+      expect(resolve('   '), isNull);
+      // `~user` 得问服务端才知道是谁的家目录，不猜。
+      expect(resolve('~someone/logs'), '~someone/logs');
+      // 家目录未知时也不猜。
+      expect(resolveSftpPath('~/logs', base: '/'), '~/logs');
+    });
+
+    test('超长的名字中间省略，短的照旧', () {
+      expect(elideSftpName('logs', 7), 'logs');
+      expect(elideSftpName('2026-09-21', 7), '2026-09-21', reason: '没超就不动它');
+      expect(elideSftpName('2026-09-21-release', 7), '2026-09…se');
+      expect(
+        elideSftpName('a-very-long-directory-name', 28),
+        'a-very-long-directory-name',
+      );
+    });
+
+    test('补全查询：拆成「要列的目录 + 名称前缀」', () {
+      ({String directory, String prefix})? query(String input) =>
+          sftpCompletionQuery(input, home: '/home/deploy', base: '/var/log');
+
+      expect(query('/home/de')?.directory, '/home');
+      expect(query('/home/de')?.prefix, 'de');
+      expect(query('/home/deploy/')?.directory, '/home/deploy');
+      expect(query('/home/deploy/')?.prefix, '');
+      expect(query('~/lo')?.directory, '/home/deploy');
+      expect(query('~/lo')?.prefix, 'lo');
+      expect(query('~/')?.directory, '/home/deploy');
+      expect(query('logs')?.directory, '/var/log');
+      expect(query('logs')?.prefix, 'logs');
+      expect(query('/var/log/../et')?.directory, '/var');
+      expect(query('/var/log/../et')?.prefix, 'et');
+      // 单独一个 `~` 不补全（GNOME 也是敲到斜杠才开始给候选），回车才展开。
+      expect(query('~'), isNull);
+      expect(query('~someone/logs'), isNull);
+      expect(
+        sftpCompletionQuery('~/logs', base: '/'),
+        isNull,
+        reason: '家目录未知时不补全',
+      );
+    });
+
     test('名称校验拦截路径分隔符与相对路径', () {
       expect(isValidEntryName('nginx.conf'), isTrue);
       expect(isValidEntryName('  logs  '), isTrue);
@@ -76,6 +153,42 @@ void main() {
       // 重复调用不会再次打开通道。
       await controller.ensureReady();
       expect(fs.listCalls.length, 1);
+    });
+
+    test('地址栏补全：同目录同前缀，目录带尾斜杠，点文件不进候选', () async {
+      final (:controller, :fs) = await ready();
+      addTearDown(controller.dispose);
+      fs.addDirectory(fs.home, 'logs');
+      fs.addDirectory(fs.home, 'local');
+      fs.addFile(fs.home, 'nginx.conf');
+      fs.addFile(fs.home, '.env');
+      await controller.refresh();
+      final listed = fs.listCalls.length;
+
+      // 候选保留用户敲的写法：`~` 还是 `~`，相对路径还是相对路径。
+      expect(await controller.completePath('~/lo'), ['~/local/', '~/logs/']);
+      expect(await controller.completePath('~/nginx'), ['~/nginx.conf']);
+      expect(await controller.completePath('~/'), [
+        '~/local/',
+        '~/logs/',
+        '~/nginx.conf',
+      ], reason: '前缀为空时列全部，但隐藏文件不列');
+      expect(await controller.completePath('~/.e'), ['~/.env']);
+      expect(await controller.completePath('lo'), ['local/', 'logs/']);
+      expect(fs.listCalls.length, listed, reason: '补全当前目录不该再问一次服务端');
+      expect(
+        await controller.completePath('~'),
+        isEmpty,
+        reason: '单独一个 ~ 不补全（GNOME 也是敲到斜杠才给候选）',
+      );
+
+      // 别的目录要现问；问不到就当没有候选，不抛。
+      expect(await controller.completePath('/etc/ng'), isEmpty);
+      expect(
+        await controller.completePath('/nope/x'),
+        isEmpty,
+        reason: '读目录失败不弹错误，静静返回空',
+      );
     });
 
     test('浏览器默认隐藏点文件，可切换显示', () async {

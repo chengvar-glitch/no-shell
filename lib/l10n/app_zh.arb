@@ -197,6 +197,7 @@
   "sftpDownload": "下载",
   "sftpNewFolder": "新建文件夹",
   "sftpEditPath": "编辑路径",
+  "sftpHome": "主目录",
   "sftpPathHint": "远端路径",
   "sftpFilter": "筛选",
   "sftpFilterHint": "在当前目录中筛选…",

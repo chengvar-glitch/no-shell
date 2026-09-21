@@ -9,6 +9,7 @@ final class _Toolbar extends StatelessWidget {
     required this.filterOpen,
     required this.onToggleFilter,
     required this.onError,
+    required this.pathBarKey,
   });
 
   final SftpBrowserController controller;
@@ -16,6 +17,9 @@ final class _Toolbar extends StatelessWidget {
   final bool filterOpen;
   final VoidCallback onToggleFilter;
   final ValueChanged<Object> onError;
+
+  /// 面板级的 Ctrl/⌘+L 要落在这条地址栏上（见 [_SftpTabState]）。
+  final GlobalKey<_PathBarState> pathBarKey;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +40,9 @@ final class _Toolbar extends StatelessWidget {
               : null,
         ),
         const SizedBox(width: 4),
-        Expanded(child: _PathBar(controller: controller)),
+        Expanded(
+          child: _PathBar(key: pathBarKey, controller: controller),
+        ),
         const SizedBox(width: 4),
         if (!compact) ...[
           _ToolButton(
@@ -221,11 +227,17 @@ final class _SortButton extends StatelessWidget {
   }
 }
 
-/// 路径栏：面包屑逐级可点（点哪层去哪层），点路径栏空白处 / 当前层即进入
-/// 编辑态，直接敲路径回车前往——与 Windows 资源管理器的地址栏一致，
-/// 不再需要先找到一个小按钮才能手输路径。
+/// 路径栏：与 GNOME 文件管理器（Nautilus）的位置栏对齐。
+///
+/// 浏览态是面包屑：段间一个暗色的 `/`，家目录折成一段「主目录」，每一段都是
+/// 粗体，非当前段压暗；点哪一段去哪一层，点当前段（或空白处）进编辑态。
+/// 路径装不下就横向滚（竖直滚轮也滚它），并自动把当前目录露出来——GNOME
+/// 从不把中间几层收起来，滚一下就能看到，收起去反而不知道自己在哪。
+///
+/// 编辑态是纯文本路径栏：`~` 与相对路径都认，边敲边补（候选下拉 + 行内补全，
+/// 补上来的那一截选中，接着敲就顶掉），回车前往、Esc 回面包屑。
 final class _PathBar extends StatefulWidget {
-  const _PathBar({required this.controller});
+  const _PathBar({super.key, required this.controller});
 
   final SftpBrowserController controller;
 
@@ -234,111 +246,272 @@ final class _PathBar extends StatefulWidget {
 }
 
 class _PathBarState extends State<_PathBar> {
-  final _scroll = ScrollController();
-  final _editor = TextEditingController();
+  /// 太长的一层在面包屑里留几个字：GNOME 给普通层 7 个字、给当前层 28 个，
+  /// 中间省略（保住开头与结尾，`2026-09-21` 这种尾巴才分得出来）。
+  static const int _crumbChars = 7;
+  static const int _currentChars = 28;
+
+  /// 下拉每行的高度，两处（下拉本体与滚动定位）共用。
+  static const double _suggestionRow = 30;
+
+  final TextEditingController _editor = TextEditingController();
+  final FocusNode _node = FocusNode();
+  final ScrollController _scroll = ScrollController();
+  final LayerLink _link = LayerLink();
+  final OverlayPortalController _portal = OverlayPortalController();
+
+  /// 输入框与补全下拉同属一个点按区域：点候选不算「点到外面」。
+  final Object _tapGroup = Object();
+
   bool _editing = false;
   bool _hovered = false;
+  List<String> _suggestions = const [];
 
-  @override
-  void didUpdateWidget(_PathBar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller.path != widget.controller.path &&
-        _scroll.hasClients) {
-      // 路径变深时把视口推到末尾，始终能看到当前目录。
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (_scroll.hasClients) {
-          _scroll.jumpTo(_scroll.position.maxScrollExtent);
-        }
-      });
-    }
-  }
+  /// 下拉里高亮的那条；-1 表示没选中。GNOME 每次重开下拉都不预选，这样
+  /// 「敲完直接回车」是前往，而不是把第一条候选吃进去。
+  int _highlight = -1;
+
+  /// 上下键预览候选之前输入框里的内容，Esc 要还回去。
+  String? _restore;
+
+  /// 边敲边补的去抖：一次补全可能要问一趟服务端，逐字发请求太糟。
+  Timer? _debounce;
+
+  /// 补全请求的序号：晚到的候选不许盖掉用户之后敲进去的内容。
+  int _token = 0;
+
+  /// 下拉的宽度（与地址栏对齐），由 build 里的 LayoutBuilder 记下。
+  double _width = 320;
+
+  /// 上一次画出来的路径（见 [_crumbs] 的自动滚动）。
+  String? _shownPath;
 
   @override
   void dispose() {
-    _scroll.dispose();
+    _debounce?.cancel();
     _editor.dispose();
+    _node.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  void _startEdit() {
-    final path = widget.controller.path ?? '';
+  String get _path => widget.controller.path ?? '/';
+
+  /// 进入编辑态。点路径栏、点当前段，以及面板里的 Ctrl/⌘+L 都走这里。
+  ///
+  /// 整条路径**全选**：远端路径动辄一长串，全选后直接敲就是要换一条路，
+  /// 比让用户先 Ctrl+A 再敲省一步（GNOME 是把光标放到末尾，那是本地路径的
+  /// 习惯，搬到这儿只会让人敲出 `/home/deploy/logs/etc`）。
+  void startEdit() {
+    final path = _path;
+    _debounce?.cancel();
+    _token++;
+    _editor.value = TextEditingValue(
+      text: path,
+      selection: TextSelection(baseOffset: 0, extentOffset: path.length),
+    );
     setState(() {
       _editing = true;
-      // 与资源管理器一致：整条路径选中，直接敲就能覆盖。
-      _editor.text = path;
-      _editor.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: path.length,
-      );
+      _suggestions = const [];
+      _highlight = -1;
+      _restore = null;
     });
+    _portal.hide();
   }
 
-  void _stopEdit({bool navigate = false}) {
+  void _stopEdit() {
+    _debounce?.cancel();
+    _token++;
     if (!_editing) return;
-    final text = _editor.text.trim();
-    setState(() => _editing = false);
-    if (navigate && text.isNotEmpty) {
-      unawaited(widget.controller.navigate(text));
+    setState(() {
+      _editing = false;
+      _suggestions = const [];
+      _highlight = -1;
+      _restore = null;
+    });
+    _portal.hide();
+  }
+
+  /// 敲字就补。GNOME 的位置栏不用按 Tab：候选与行内补全自己跟上来。
+  void _onChanged(String _) {
+    _restore = null;
+    _debounce?.cancel();
+    _debounce = Timer(
+      const Duration(milliseconds: 120),
+      () => unawaited(_complete()),
+    );
+  }
+
+  /// 按当前输入重算候选并把能确定的那截补进输入框（补上来的部分选中，
+  /// 接着敲就顶掉它——GTK 的行内补全就是这个手感）。
+  Future<void> _complete() async {
+    final token = ++_token;
+    final text = _editor.text;
+    final candidates = await widget.controller.completePath(text);
+    if (!mounted || !_editing || token != _token || text != _editor.text) {
+      return;
     }
+    if (candidates.isEmpty) {
+      _setSuggestions(const []);
+      return;
+    }
+    final prefix = _commonPrefix(candidates);
+    if (prefix.length > text.length) {
+      // 只选中补上来的那一截：接着敲就把它顶掉，与 GTK 的行内补全一致。
+      _editor.value = TextEditingValue(
+        text: prefix,
+        selection: TextSelection(
+          baseOffset: text.length,
+          extentOffset: prefix.length,
+        ),
+      );
+    }
+    _setSuggestions(candidates);
+  }
+
+  void _setSuggestions(List<String> suggestions) {
+    setState(() {
+      _suggestions = suggestions;
+      _highlight = -1;
+    });
+    if (suggestions.isEmpty) {
+      _portal.hide();
+    } else {
+      _portal.show();
+    }
+  }
+
+  /// 上下键：候选写进输入框当作预览（GTK 的 inline-selection 就是这个）；
+  /// 回到 -1 时把用户原本敲的内容还回去。
+  void _moveHighlight(int delta) {
+    if (_suggestions.isEmpty) return;
+    final base = _highlight < 0 ? _editor.text : _restore ?? _editor.text;
+    final next = _highlight + delta;
+    if (next < 0) {
+      setState(() => _highlight = -1);
+      _setText(base);
+      _restore = null;
+      return;
+    }
+    final index = next % _suggestions.length;
+    setState(() {
+      _highlight = index;
+      _restore = base;
+    });
+    _setText(_suggestions[index]);
+  }
+
+  void _setText(String value) {
+    _editor.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
+  /// 回车：有高亮就收下它（第二次回车才前往），否则直接按输入前往。
+  void _submit() {
+    if (_highlight >= 0 && _highlight < _suggestions.length) {
+      _accept(_suggestions[_highlight]);
+      return;
+    }
+    unawaited(_go());
+  }
+
+  /// Tab：收下行内补全（把选区收到末尾）并关掉下拉，光标留在原地——
+  /// GNOME 的位置栏里 Tab 也不触发补全，补全是敲字时自己来的。
+  void _acceptInline() {
+    if (_suggestions.isNotEmpty) _setSuggestions(const []);
+    final selection = _editor.selection;
+    if (!selection.isValid || selection.isCollapsed) return;
+    _editor.value = TextEditingValue(
+      text: _editor.text,
+      selection: TextSelection.collapsed(offset: selection.end),
+    );
+  }
+
+  void _accept(String value) {
+    _setText(value);
+    _setSuggestions(const []);
+    _restore = null;
+    _node.requestFocus();
+  }
+
+  /// Esc：先收下拉（有预览就把输入还回去），没有下拉才退出编辑态。
+  void _escape() {
+    if (_suggestions.isEmpty) {
+      _stopEdit();
+      return;
+    }
+    final restore = _restore;
+    _setSuggestions(const []);
+    if (restore != null) _setText(restore);
+    _restore = null;
+  }
+
+  Future<void> _go() async {
+    final target = resolveSftpPath(
+      _editor.text,
+      home: widget.controller.home,
+      base: widget.controller.path,
+    );
+    if (target == null || target == widget.controller.path) {
+      _stopEdit();
+      return;
+    }
+    _setSuggestions(const []);
+    await widget.controller.navigate(target);
+    if (!mounted || !_editing) return;
+    // 到了就回面包屑；没到就把输入留着——用户改一个字就能重来，
+    // 列表那边已经在展示失败原因。
+    if (widget.controller.error == null) _stopEdit();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    // 浏览态与编辑态共用同一个外框与同一个前置文件夹标记：两种状态只在
-    // 「内容」上不同（面包屑 / 输入框），不会一选中就换一副长相。
-    final bar = MouseRegion(
-      cursor: SystemMouseCursors.text,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        // 空白处（以及当前层那一段）吃掉点击后切到编辑态；
-        // 点某一层面包屑时由它自己的手势先胜出，正常跳转。
-        behavior: HitTestBehavior.opaque,
-        onTap: _editing ? null : _startEdit,
-        child: _frame(
-          theme,
-          highlighted: _editing || _hovered,
-          child: _editing
-              ? CallbackShortcuts(
-                  // Esc 放弃这次输入，回到面包屑；回车 / 失焦按输入内容前往。
-                  bindings: {
-                    const SingleActivator(LogicalKeyboardKey.escape): _stopEdit,
-                  },
-                  child: TextField(
-                    controller: _editor,
-                    autofocus: true,
-                    style: const TextStyle(fontSize: 12.5),
-                    cursorHeight: 15,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      hintText: l10n.sftpPathHint,
-                      hintStyle: TextStyle(
-                        fontSize: 12.5,
-                        color: theme.secondaryText,
-                      ),
-                      // 与面包屑文字左右各 5px 的内边距对齐：点进编辑态时
-                      // 路径文字原地不动，不会横向跳一下。
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 5),
-                    ),
-                    onSubmitted: (_) => _stopEdit(navigate: true),
-                    onTapOutside: (_) => _stopEdit(),
+    final editing = _editing;
+    final bar = TapRegion(
+      groupId: _tapGroup,
+      onTapOutside: (_) => _stopEdit(),
+      child: MouseRegion(
+        // 空白处是「可以在这里打字」，所以整条给的是文本光标（细线段）；
+        // 面包屑自己那层会把它改成手型。
+        cursor: SystemMouseCursors.text,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: editing ? null : startEdit,
+          child: _frame(
+            theme,
+            highlighted: editing || _hovered,
+            // 提示挂在面包屑上、不裹在 OverlayPortal 外面：两种状态换的是
+            // 外框**里面**的内容，裹到外面去就会把 OverlayPortal 连同补全
+            // 下拉的控制器一起重建——而切状态正是它要 show/hide 的时候。
+            child: editing
+                ? _field(context, theme, l10n)
+                : Tooltip(
+                    message: l10n.sftpEditPath,
+                    child: _crumbs(context, l10n),
                   ),
-                )
-              : SingleChildScrollView(
-                  controller: _scroll,
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Row(children: _crumbs(context)),
-                ),
+          ),
         ),
       ),
     );
-    if (_editing) return bar;
-    return Tooltip(message: l10n.sftpEditPath, child: bar);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _width = constraints.maxWidth;
+        return CompositedTransformTarget(
+          link: _link,
+          child: OverlayPortal(
+            controller: _portal,
+            overlayChildBuilder: _suggestionOverlay,
+            child: bar,
+          ),
+        );
+      },
+    );
   }
 
   /// 地址栏外框：浏览态与编辑态尺寸、底色、圆角、边框完全一致，
@@ -371,37 +544,211 @@ class _PathBarState extends State<_PathBar> {
     );
   }
 
-  List<Widget> _crumbs(BuildContext context) {
+  Widget _field(BuildContext context, ThemeData theme, AppLocalizations l10n) {
+    return CallbackShortcuts(
+      bindings: {
+        // Esc 收下拉 / 退出，Tab 收下行内补全，上下键在候选里走。
+        // 回车不走这里：桌面端引擎把回车翻成 done 动作，只能从 onSubmitted 收。
+        const SingleActivator(LogicalKeyboardKey.escape): _escape,
+        const SingleActivator(LogicalKeyboardKey.tab): _acceptInline,
+        const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+            _moveHighlight(1),
+        const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+            _moveHighlight(-1),
+      },
+      child: TextField(
+        controller: _editor,
+        focusNode: _node,
+        autofocus: true,
+        style: const TextStyle(fontSize: 12.5),
+        cursorHeight: 15,
+        decoration: InputDecoration(
+          isDense: true,
+          border: InputBorder.none,
+          hintText: l10n.sftpPathHint,
+          hintStyle: TextStyle(fontSize: 12.5, color: theme.secondaryText),
+          // 与面包屑文字左右各 5px 的内边距对齐：点进编辑态时
+          // 路径文字原地不动，不会横向跳一下。
+          contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+        ),
+        onSubmitted: (_) => _submit(),
+        onChanged: _onChanged,
+      ),
+    );
+  }
+
+  Widget _crumbs(BuildContext context, AppLocalizations l10n) {
     final theme = Theme.of(context);
-    final crumbs = sftpBreadcrumbs(widget.controller.path ?? '/');
-    final widgets = <Widget>[];
+    final path = widget.controller.path ?? '/';
+    // 路径变了就把当前目录滚进视野（新路径更深时尤其要紧）。判据得自己记：
+    // 控制器是同一个对象，`oldWidget.controller.path` 永远等于新值。
+    if (path != _shownPath) {
+      _shownPath = path;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scroll.hasClients) return;
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      });
+    }
+    final crumbs = sftpBreadcrumbs(path, home: widget.controller.home);
+    final children = <Widget>[];
     for (var i = 0; i < crumbs.length; i++) {
       final crumb = crumbs[i];
-      final isLast = i == crumbs.length - 1;
-      if (i > 0) {
-        widgets.add(
-          Text('/', style: TextStyle(fontSize: 12, color: theme.hairline)),
-        );
-      }
-      widgets.add(
+      final current = i == crumbs.length - 1;
+      final label = crumb.isHome ? l10n.sftpHome : crumb.label;
+      if (i > 0) children.add(_separator(theme));
+      children.add(
         _Crumb(
-          label: crumb.label,
-          current: isLast,
-          onTap: isLast
-              ? null
+          label: elideSftpName(label, current ? _currentChars : _crumbChars),
+          tooltip: label,
+          icon: crumb.isHome ? Icons.home_rounded : null,
+          current: current,
+          onTap: current
+              ? startEdit
               : () => unawaited(widget.controller.navigate(crumb.path)),
         ),
       );
     }
-    return widgets;
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        controller: _scroll,
+        scrollDirection: Axis.horizontal,
+        // 滚轮监听必须挂在滚动视图**里面**：指针信号由 PointerSignalResolver
+        // 派发，只有最先登记的那一个收到，而命中测试是里层先跑——挂在外层就
+        // 永远轮不到。铺满整条宽度，空白处的滚轮也算数；右侧那点留白要算在
+        // 最小宽度里，否则内容天然比视口宽 8px，一进来就先滚掉 8px。
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerSignal: _scrollWithWheel,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Row(children: children),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _scrollWithWheel(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent || !_scroll.hasClients) return;
+    final delta = event.scrollDelta.dy != 0
+        ? event.scrollDelta.dy
+        : event.scrollDelta.dx;
+    if (delta == 0) return;
+    _scroll.jumpTo(
+      (_scroll.offset + delta).clamp(0.0, _scroll.position.maxScrollExtent),
+    );
+  }
+
+  Widget _separator(ThemeData theme) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 1),
+    child: Text(
+      '/',
+      style: TextStyle(fontSize: 12.5, color: theme.secondaryText),
+    ),
+  );
+
+  /// 补全下拉：浮在地址栏下面，和 GNOME 的位置栏补全一个意思。
+  Widget _suggestionOverlay(BuildContext context) {
+    final theme = Theme.of(context);
+    return CompositedTransformFollower(
+      link: _link,
+      showWhenUnlinked: false,
+      targetAnchor: Alignment.bottomLeft,
+      followerAnchor: Alignment.topLeft,
+      offset: const Offset(0, 4),
+      // Overlay 给的是整屏紧约束，先摊平再让 Material 自己收成列表大小。
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: TapRegion(
+          groupId: _tapGroup,
+          child: Material(
+            elevation: 8,
+            color: theme.panelBackground,
+            borderRadius: BorderRadius.circular(10),
+            clipBehavior: Clip.antiAlias,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                // 地址栏比 180 还窄时别把上下限写反（窄面板里真的会遇到）。
+                minWidth: _width < 180 ? _width : 180,
+                maxWidth: _width,
+                maxHeight: _suggestionRow * 6 + 8,
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                itemExtent: _suggestionRow,
+                itemCount: _suggestions.length,
+                itemBuilder: (context, index) => _suggestion(theme, index),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _suggestion(ThemeData theme, int index) {
+    final value = _suggestions[index];
+    final directory = value.endsWith('/');
+    final name = value.split('/').where((segment) => segment.isNotEmpty).last;
+    final highlighted = index == _highlight;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _highlight = index),
+      child: GestureDetector(
+        onTap: () => _accept(value),
+        child: Container(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          color: highlighted ? theme.hoverOverlay : null,
+          child: Text(
+            directory ? '$name/' : name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: highlighted
+                  ? theme.colorScheme.onSurface
+                  : theme.secondaryText,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _commonPrefix(List<String> values) {
+    var prefix = values.first;
+    for (final value in values.skip(1)) {
+      var index = 0;
+      while (index < prefix.length &&
+          index < value.length &&
+          prefix[index] == value[index]) {
+        index++;
+      }
+      prefix = prefix.substring(0, index);
+    }
+    return prefix;
   }
 }
 
 final class _Crumb extends StatefulWidget {
-  const _Crumb({required this.label, required this.current, this.onTap});
+  const _Crumb({
+    required this.label,
+    required this.tooltip,
+    required this.current,
+    this.icon,
+    this.onTap,
+  });
 
   final String label;
+
+  /// 完整名字：太长时 [label] 是省略过的，悬停仍然要能看全。
+  final String tooltip;
   final bool current;
+  final IconData? icon;
   final VoidCallback? onTap;
 
   @override
@@ -414,31 +761,51 @@ class _CrumbState extends State<_Crumb> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final clickable = widget.onTap != null;
+    // 当前那一段与其余各段一样是粗体，只有明暗不同；当前段是「点开输入框」
+    // 而不是跳转，按 GNOME 的样式不给悬停底色。
+    final color = widget.current
+        ? theme.colorScheme.onSurface
+        : theme.secondaryText;
+    final box = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      decoration: BoxDecoration(
+        color: _hovered && clickable && !widget.current
+            ? theme.hoverOverlay
+            : null,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.icon != null) ...[
+            Icon(widget.icon, size: 14, color: color),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            widget.label,
+            maxLines: 1,
+            softWrap: false,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
     return MouseRegion(
-      cursor: widget.onTap == null
-          ? SystemMouseCursors.basic
+      cursor: widget.current
+          ? SystemMouseCursors.text
           : SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-          decoration: BoxDecoration(
-            color: _hovered && widget.onTap != null ? theme.hoverOverlay : null,
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: widget.current ? FontWeight.w600 : FontWeight.w400,
-              color: widget.current
-                  ? theme.colorScheme.onSurface
-                  : theme.secondaryText,
-            ),
-          ),
-        ),
+        child: widget.label == widget.tooltip
+            ? box
+            : Tooltip(message: widget.tooltip, child: box),
       ),
     );
   }

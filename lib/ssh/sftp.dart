@@ -103,16 +103,147 @@ String sftpParent(String path) {
 }
 
 /// 面包屑分段：绝对路径拆成 `(显示名, 绝对路径)` 列表，便于逐级点击。
-List<({String label, String path})> sftpBreadcrumbs(String path) {
+///
+/// [home] 是会话的家目录：家目录及其子目录折叠成一段（`isHome` 为 true，
+/// [label] 为空，界面用本地化的「主目录」补上）——GNOME 文件管理器就是这么
+/// 显示的，`/ home deploy …` 三段在窄面板里纯属浪费横向空间。
+/// 家目录未知或路径不在家目录下时按根目录逐段拆开。
+List<({String label, String path, bool isHome})> sftpBreadcrumbs(
+  String path, {
+  String? home,
+}) {
   final trimmed = _trimTrailingSlash(path);
-  final crumbs = <({String label, String path})>[(label: '/', path: '/')];
+  final crumbs = <({String label, String path, bool isHome})>[];
+  final homePath = home == null || home.isEmpty
+      ? null
+      : _trimTrailingSlash(home);
+  if (homePath != null &&
+      (trimmed == homePath || trimmed.startsWith('$homePath/'))) {
+    crumbs.add((label: '', path: homePath, isHome: true));
+    var current = homePath;
+    for (final segment in trimmed.substring(homePath.length).split('/')) {
+      if (segment.isEmpty) continue;
+      current = '$current/$segment';
+      crumbs.add((label: segment, path: current, isHome: false));
+    }
+    return crumbs;
+  }
+  crumbs.add((label: '/', path: '/', isHome: false));
   var current = '';
   for (final segment in trimmed.split('/')) {
     if (segment.isEmpty) continue;
     current = '$current/$segment';
-    crumbs.add((label: segment, path: current));
+    crumbs.add((label: segment, path: current, isHome: false));
   }
   return crumbs;
+}
+
+/// 把地址栏里敲进来的一行文本规整成远端绝对路径。
+///
+/// - `~` / `~/…` 展开成家目录（[home] 未知时原样留下，让服务端报错而不是
+///   静默跳到别处）；`~user` 不认，同样原样留下；
+/// - 相对路径按 [base]（当前目录）解析；
+/// - 去掉 `.` 与 `..`、合并重复的 `/`、去掉尾斜杠；
+/// - 从终端里粘出来的路径常带成对引号与首尾空白，一并去掉。
+///
+/// 返回值一律以 `/` 开头（认不出的写法除外），空输入返回 null。
+String? resolveSftpPath(String input, {String? home, String? base}) {
+  var text = input.trim();
+  if (text.length >= 2) {
+    final first = text[0];
+    final last = text[text.length - 1];
+    if ((first == '"' && last == '"') || (first == "'" && last == "'")) {
+      text = text.substring(1, text.length - 1).trim();
+    }
+  }
+  if (text.isEmpty) return null;
+  final homePath = home == null || home.isEmpty
+      ? null
+      : _trimTrailingSlash(home);
+  final String raw;
+  if (text == '~') {
+    if (homePath == null) return text;
+    raw = homePath;
+  } else if (text.startsWith('~/')) {
+    if (homePath == null) return text;
+    raw = '$homePath${text.substring(1)}';
+  } else if (text.startsWith('~')) {
+    // `~user` 需要服务端才知道家目录在哪，这里不猜。
+    return text;
+  } else if (text.startsWith('/')) {
+    raw = text;
+  } else {
+    raw = sftpJoin(base ?? homePath ?? '/', text);
+  }
+  return _normalizeSftpPath(raw);
+}
+
+/// 地址栏补全：把「敲到一半的路径」拆成「要列出的目录 + 名称前缀」。
+///
+/// 末尾带 `/` 时前缀为空（列该目录的全部内容）；没有任何 `/` 时按 [base]
+/// 展开。`~` / `~user` 这类认不出的写法返回 null，调用方不弹候选。
+({String directory, String prefix})? sftpCompletionQuery(
+  String input, {
+  String? home,
+  String? base,
+}) {
+  final text = input.trim();
+  // 单独一个 `~`（以及认不出的 `~user`）不补全：GNOME 的位置栏也是敲到
+  // 斜杠才开始给候选，`~` 到回车时才展开成家目录。
+  if (text.startsWith('~') && !text.startsWith('~/')) return null;
+  final homePath = home == null || home.isEmpty
+      ? null
+      : _trimTrailingSlash(home);
+  if (text.startsWith('~/') && homePath == null) return null;
+  final expanded = text.startsWith('~/')
+      ? '$homePath${text.substring(1)}'
+      : text;
+  final fallback = base ?? homePath ?? '/';
+  final String rawDirectory;
+  final String prefix;
+  if (expanded.isEmpty) {
+    rawDirectory = fallback;
+    prefix = '';
+  } else if (expanded.endsWith('/')) {
+    rawDirectory = expanded;
+    prefix = '';
+  } else {
+    final index = expanded.lastIndexOf('/');
+    if (index < 0) {
+      rawDirectory = fallback;
+      prefix = expanded;
+    } else {
+      rawDirectory = expanded.substring(0, index);
+      prefix = expanded.substring(index + 1);
+    }
+  }
+  final directory = rawDirectory.startsWith('/')
+      ? _normalizeSftpPath(rawDirectory)
+      : _normalizeSftpPath(sftpJoin(fallback, rawDirectory));
+  return (directory: directory, prefix: prefix);
+}
+
+/// 去掉 `.` / `..` / 空段与重复斜杠，结果一律以 `/` 开头的绝对路径。
+/// 根目录之上的 `..` 停在根目录（与文件管理器一致，不做符号链接解析）。
+String _normalizeSftpPath(String path) {
+  final segments = <String>[];
+  for (final segment in path.split('/')) {
+    if (segment.isEmpty || segment == '.') continue;
+    if (segment == '..') {
+      if (segments.isNotEmpty) segments.removeLast();
+      continue;
+    }
+    segments.add(segment);
+  }
+  return '/${segments.join('/')}';
+}
+
+/// 太长的一层在面包屑里显示成「开头…结尾」：GNOME 的位置栏就是这么处理
+/// 超长目录名的（中间省略）——只留开头的话，`2026-09-21` 这类靠结尾区分的
+/// 名字就分不出来了。短名字原样返回。
+String elideSftpName(String name, int keep) {
+  if (name.length <= keep + 3) return name;
+  return '${name.substring(0, keep)}…${name.substring(name.length - 2)}';
 }
 
 /// 校验用户新建 / 重命名时输入的名称：不允许路径分隔符与 `..`。

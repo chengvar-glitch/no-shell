@@ -49,6 +49,11 @@ class _SftpTabState extends State<SftpTab> {
   /// 面板的重建来源：控制器 + 传输队列。
   Listenable? _source;
 
+  /// 地址栏的入口：面板里的 Ctrl/⌘+L 直接把它叫进编辑态。焦点得先在面板
+  /// 上（点一下面板里的任何地方），否则快捷键根本轮不到这里——见 build。
+  final GlobalKey<_PathBarState> _pathBarKey = GlobalKey<_PathBarState>();
+  final FocusNode _panelFocus = FocusNode(debugLabel: 'sftp-panel');
+
   bool _filterOpen = false;
 
   @override
@@ -97,6 +102,7 @@ class _SftpTabState extends State<SftpTab> {
   @override
   void dispose() {
     _session?.removeListener(_onSessionChanged);
+    _panelFocus.dispose();
     _controller?.transfers.onTransferFinished = null;
     super.dispose();
   }
@@ -160,14 +166,34 @@ class _SftpTabState extends State<SftpTab> {
     if (controller == null || source == null) return const SizedBox.shrink();
     return ListenableBuilder(
       listenable: source,
-      builder: (context, _) => _Browser(
-        controller: controller,
-        filterOpen: _filterOpen,
-        onToggleFilter: () => setState(() => _filterOpen = !_filterOpen),
-        onError: _showError,
+      builder: (context, _) => CallbackShortcuts(
+        // Ctrl/⌘+L 是 GNOME 文件管理器进地址栏的键位。它只在焦点落进面板时
+        // 生效：点一下列表或工具条，焦点就归 [_panelFocus]，按键才顺着焦点
+        // 链走到这里——绑在更外层会跟终端的 Ctrl+L（清屏）抢。
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.keyL, control: true):
+              _editPath,
+          const SingleActivator(LogicalKeyboardKey.keyL, meta: true): _editPath,
+        },
+        child: Focus(
+          focusNode: _panelFocus,
+          child: Listener(
+            // 只旁听按下，不碰手势竞技场；列表行的选中 / 进入照旧。
+            onPointerDown: (_) => _panelFocus.requestFocus(),
+            child: _Browser(
+              controller: controller,
+              pathBarKey: _pathBarKey,
+              filterOpen: _filterOpen,
+              onToggleFilter: () => setState(() => _filterOpen = !_filterOpen),
+              onError: _showError,
+            ),
+          ),
+        ),
       ),
     );
   }
+
+  void _editPath() => _pathBarKey.currentState?.startEdit();
 
   void _showError(Object error) {
     if (!mounted) return;
@@ -180,12 +206,14 @@ class _SftpTabState extends State<SftpTab> {
 final class _Browser extends StatelessWidget {
   const _Browser({
     required this.controller,
+    required this.pathBarKey,
     required this.filterOpen,
     required this.onToggleFilter,
     required this.onError,
   });
 
   final SftpBrowserController controller;
+  final GlobalKey<_PathBarState> pathBarKey;
   final bool filterOpen;
   final VoidCallback onToggleFilter;
   final ValueChanged<Object> onError;
@@ -207,6 +235,7 @@ final class _Browser extends StatelessWidget {
             children: [
               _Toolbar(
                 controller: controller,
+                pathBarKey: pathBarKey,
                 compact: compact,
                 filterOpen: filterOpen,
                 onToggleFilter: onToggleFilter,

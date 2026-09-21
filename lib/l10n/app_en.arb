@@ -280,6 +280,7 @@
   "sftpDownload": "Download",
   "sftpNewFolder": "New folder",
   "sftpEditPath": "Edit path",
+  "sftpHome": "Home",
   "sftpPathHint": "Remote path",
   "sftpFilter": "Filter",
   "sftpFilterHint": "Filter in this folder…",

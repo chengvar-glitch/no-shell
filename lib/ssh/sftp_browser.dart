@@ -40,6 +40,10 @@ final class SftpBrowserController extends ChangeNotifier {
   SftpFileSystem? _fileSystem;
   String? _path;
 
+  /// 会话的家目录：地址栏用它折叠面包屑（`/home/deploy` → 「主目录」）
+  /// 并展开 `~`。通道打开时读一次，读不到就退回逐段路径。
+  String? _home;
+
   /// 最近一次成功载入的目录。[navigate] 用它判重：
   /// 载入失败的路径仍留在 [_path]（路径栏如实展示），再次进入要能重试。
   String? _loadedPath;
@@ -78,6 +82,9 @@ final class SftpBrowserController extends ChangeNotifier {
 
   /// 当前目录；尚未载入时为 null。
   String? get path => _path;
+
+  /// 登录用户的家目录；未读到时为 null。
+  String? get home => _home;
 
   /// 过滤 + 排序后的展示序列（长列表按下标直取，避免每帧重排）。
   List<SftpEntry> get entries => _visible;
@@ -136,7 +143,12 @@ final class SftpBrowserController extends ChangeNotifier {
         }
         _fileSystem = fileSystem;
       }
-      if (_path == null) await _load(await fileSystem.homeDirectory());
+      if (_path == null) {
+        final home = await fileSystem.homeDirectory();
+        if (_disposed) return;
+        _home = home;
+        await _load(home);
+      }
     } on Object catch (error) {
       if (_disposed) return;
       _error = _wrap(error);
@@ -171,6 +183,46 @@ final class SftpBrowserController extends ChangeNotifier {
     final parent = sftpParent(path);
     if (parent == path) return;
     await _load(parent);
+  }
+
+  /// 地址栏补全候选：把 [input] 当作「敲到一半的路径」，列出同目录下同前缀
+  /// 的条目（目录带尾斜杠，与 shell 一致）。
+  ///
+  /// 候选保持**用户敲的那个写法**：`~/lo` 补出 `~/logs/` 而不是
+  /// `/home/deploy/logs/`，相对路径同理——否则边敲边补时输入框会自己把
+  /// `~` 换成绝对路径，越补越陌生（GNOME 也是保留原写法）。
+  ///
+  /// 读目录失败返回空列表——补全失败不该弹错误，用户接着敲就是了。
+  /// 隐藏文件只在用户自己敲了 `.` 的时候才出现。
+  Future<List<String>> completePath(String input) async {
+    final fileSystem = _fileSystem;
+    final query = sftpCompletionQuery(input, home: _home, base: _path);
+    if (fileSystem == null || query == null) return const [];
+    final List<SftpEntry> entries;
+    if (query.directory == _loadedPath) {
+      // 当前目录已经在手，不必为一次补全再问一遍服务端。
+      entries = _entries;
+    } else {
+      try {
+        entries = await fileSystem.list(query.directory);
+      } on Object {
+        return const [];
+      }
+      if (_disposed) return const [];
+    }
+    final matches = [
+      for (final entry in entries)
+        if (entry.name.startsWith(query.prefix) &&
+            (query.prefix.startsWith('.') || !entry.name.startsWith('.')))
+          entry,
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    // 用户已经敲好的目录那一段（含斜杠）原样留着，只接上候选的名字。
+    final typed = input.trim();
+    final prefix = typed.substring(0, typed.length - query.prefix.length);
+    return [
+      for (final entry in matches)
+        entry.isDirectory ? '$prefix${entry.name}/' : '$prefix${entry.name}',
+    ];
   }
 
   void setQuery(String query) {

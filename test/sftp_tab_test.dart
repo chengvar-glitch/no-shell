@@ -184,7 +184,8 @@ void main() {
       expect(find.text('app.log'), findsOneWidget);
       expect(find.text('logs'), findsOneWidget); // 面包屑最后一段
 
-      await tester.tap(find.text('deploy'));
+      // 家目录在面包屑里折成一段「主目录」（GNOME 的做法），点它回上级。
+      await tester.tap(find.text('主目录'));
       await tester.pumpAndSettle();
       expect(find.text('app.log'), findsNothing);
       expect(find.text('logs'), findsOneWidget); // 回到上级，目录重新出现在列表
@@ -218,11 +219,21 @@ void main() {
       // 两种状态的内容都从同一个 x 起：1px 描边 + 9 间距 + 15 图标 + 7 间距。
       final contentLeft = browse.left + 32;
       expect(
-        tester.getTopLeft(find.byType(SingleChildScrollView)).dx,
+        tester
+            .getTopLeft(
+              find
+                  .ancestor(
+                    of: find.text('主目录'),
+                    matching: find.byType(Container),
+                  )
+                  .first,
+            )
+            .dx,
         contentLeft,
+        reason: '面包屑与输入框的首字从同一个 x 起（各自再带 5 的内边距）',
       );
 
-      await tester.tap(find.text('deploy'));
+      await tester.tap(find.text('主目录'));
       await tester.pump();
 
       expect(find.byType(TextField), findsOneWidget, reason: '进入编辑态');
@@ -283,7 +294,7 @@ void main() {
       await pumpPanel(tester, fileSystem: fs);
 
       // 当前层那一段没有跳转语义，点它就是点路径栏：进编辑态、整条路径选中。
-      await tester.tap(find.text('deploy'));
+      await tester.tap(find.text('主目录'));
       await tester.pump();
 
       final editor = find.byType(TextField);
@@ -308,7 +319,7 @@ void main() {
       fs.addFile(fs.home, 'nginx.conf');
       await pumpPanel(tester, fileSystem: fs);
 
-      await tester.tap(find.text('deploy'));
+      await tester.tap(find.text('主目录'));
       await tester.pump();
       await tester.enterText(find.byType(TextField), '/tmp');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -349,6 +360,200 @@ void main() {
       expect(find.text('redis.conf'), findsOneWidget);
       expect(find.text('nginx.conf'), findsNothing);
       expect(find.text('没有匹配的条目'), findsNothing);
+    });
+
+    testWidgets('路径装不下就横滚，当前目录自动露出来', (tester) async {
+      final fs = FakeSftpFileSystem();
+      final srv = fs.addDirectory('/', 'srv');
+      final app = fs.addDirectory(srv.path, 'app');
+      final releases = fs.addDirectory(app.path, 'releases');
+      // 这一层的名字长到需要中间省略。
+      final dated = fs.addDirectory(releases.path, '2026-09-21-nightly-build');
+      final target = fs.addDirectory(dated.path, 'nginx');
+      fs.addFile(target.path, 'app.log');
+      final session = await pumpPanel(
+        tester,
+        width: 390,
+        height: 700,
+        fileSystem: fs,
+      );
+
+      await session.sftp.navigate(target.path);
+      await tester.pumpAndSettle();
+
+      // 一层都不收起：装不下就滚（GNOME 的位置栏也是这样）。
+      expect(find.text('nginx'), findsOneWidget);
+      expect(find.text('2026-09…ld'), findsOneWidget, reason: '超长的一层中间省略');
+      expect(
+        tester.getTopLeft(find.text('nginx')).dx,
+        lessThan(390),
+        reason: '当前目录要滚进视野',
+      );
+      final scroll = tester
+          .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+          .controller!;
+      expect(scroll.offset, scroll.position.maxScrollExtent);
+
+      // 竖直滚轮也滚这条横向的路径：往回拨就看得见开头那几层。
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      pointer.hover(tester.getCenter(find.text('nginx')));
+      // 滚轮往下拨（正 dy）是往右走，往回看开头要往上拨。
+      await tester.sendEventToBinding(pointer.scroll(const Offset(0, -400)));
+      await tester.pumpAndSettle();
+      expect(scroll.offset, 0, reason: '一直滚回最左边');
+      expect(
+        tester.getTopLeft(find.text('srv')).dx,
+        greaterThan(0),
+        reason: '滚回来就看得见开头那几层',
+      );
+    });
+
+    testWidgets('边敲边补：唯一候选直接补上，补来的那截是选中的', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addDirectory(fs.home, 'nginx');
+      fs.addFile(fs.home, 'notes.txt');
+      await pumpPanel(tester, fileSystem: fs);
+
+      await tester.tap(find.text('主目录'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '~/ngi');
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, '~/nginx/');
+      expect(
+        field.controller!.selection,
+        const TextSelection(baseOffset: 5, extentOffset: 8),
+        reason: '补上来的 `x/` 选中，接着敲就顶掉它',
+      );
+
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+      expect(fs.listCalls.last, '/home/deploy/nginx');
+    });
+
+    testWidgets('补全下拉：上下键预览，回车先收候选再前往', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addDirectory(fs.home, 'logs');
+      fs.addDirectory(fs.home, 'local');
+      fs.addFile(fs.home, 'nginx.conf');
+      await pumpPanel(tester, fileSystem: fs);
+
+      await tester.tap(find.text('主目录'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '~/lo');
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      expect(find.text('local/'), findsOneWidget);
+      expect(find.text('logs/'), findsOneWidget);
+
+      // 上下键把候选写进输入框当预览（GTK 的行内选择就是这么做的）。
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '~/local/',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '~/logs/',
+      );
+
+      // 第一次回车收下候选（下拉关掉、还留在输入框里），第二次才前往。
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.text('local/'), findsNothing, reason: '下拉收起来了');
+      expect(find.byType(TextField), findsOneWidget);
+
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+      expect(fs.listCalls.last, '/home/deploy/logs');
+    });
+
+    testWidgets('Esc 先收下拉，再按一次才退出编辑态', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addDirectory(fs.home, 'logs');
+      fs.addDirectory(fs.home, 'local');
+      await pumpPanel(tester, fileSystem: fs);
+
+      await tester.tap(find.text('主目录'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '~/lo');
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('local/'), findsNothing, reason: '先收下拉');
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '~/lo',
+        reason: '预览过的候选要还回去，留下用户自己敲的',
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing, reason: '再按一次才退出');
+    });
+
+    testWidgets('地址栏接受 ~ 与相对路径，前往失败时输入留着', (tester) async {
+      final fs = FakeSftpFileSystem();
+      final logs = fs.addDirectory(fs.home, 'logs');
+      fs.addFile(logs.path, 'app.log');
+      await pumpPanel(tester, fileSystem: fs);
+
+      await tester.tap(find.text('主目录'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '~/logs');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.text('app.log'), findsOneWidget);
+      expect(fs.listCalls.last, '/home/deploy/logs');
+
+      // 相对当前目录的路径也认（Windows 资源管理器 / shell 的习惯）。
+      await tester.tap(find.text('logs'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '..');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(fs.listCalls.last, fs.home);
+
+      // 不存在的路径：列表报错，输入框留着让用户改。
+      await tester.tap(find.text('主目录'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '~/nope');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.text('路径不存在'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '~/nope',
+        reason: '失败不该把用户敲的路径丢掉',
+      );
+    });
+
+    testWidgets('点过面板之后 Ctrl+L 直接进地址栏', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addFile(fs.home, 'nginx.conf');
+      await pumpPanel(tester, fileSystem: fs);
+
+      await tester.tap(find.text('nginx.conf'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyL);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsOneWidget);
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, fs.home);
     });
   });
 
