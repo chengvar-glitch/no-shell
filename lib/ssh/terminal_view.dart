@@ -187,6 +187,11 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 每帧都在变，只重建手柄那一小层，不牵动整棵终端树。
   final ValueNotifier<int> _overlayRevision = ValueNotifier<int>(0);
 
+  /// 当前有没有选区。缓一份是为了让「要不要重算手柄」这个判断不至于每次
+  /// 远端输出都去构造一次 `BufferRange`——没有选区的绝大多数时候，
+  /// 那一层根本不需要重建。
+  bool _hasSelection = false;
+
   /// 正在拖的手柄：true 是起点、false 是终点；没在拖时为 null。
   bool? _handleGrabbed;
 
@@ -235,6 +240,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     // 远端输出会顶动画面：指针底下的链接可能已经换了一条，选区手柄的位置
     // 也跟着挪。
     widget.session.terminal.addListener(_onTerminalOutput);
+    // 挂上来时远端可能已经开着鼠标上报（另一条会话切过来），先对一次表。
+    _syncRemoteMouse();
   }
 
   @override
@@ -246,6 +253,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     widget.session.terminal.addListener(_onTerminalOutput);
     _pointer = null;
     _refreshLinkHover();
+    _syncRemoteMouse();
   }
 
   @override
@@ -275,7 +283,13 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   void _onTerminalOutput() {
     _refreshLinkHover();
-    if (_isTouchPlatform) _overlayRevision.value++;
+    if (_isTouchPlatform && _hasSelection) _overlayRevision.value++;
+    _syncRemoteMouse();
+  }
+
+  /// 远端是否开着鼠标上报。终端每次输出都会通知，这里做无变化守卫，
+  /// 只有真的翻转时才让键条上那一颗键重建。
+  void _syncRemoteMouse() {
     final wantsMouse = widget.session.terminal.mouseMode != MouseMode.none;
     if (_remoteMouse.value != wantsMouse) _remoteMouse.value = wantsMouse;
   }
@@ -291,6 +305,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 
   void _onSelectionChanged() {
+    _hasSelection = _controller.selection != null;
     if (_isTouchPlatform) _overlayRevision.value++;
     _copyOnSelectTimer?.cancel();
     if (!_copyOnSelect) return;
@@ -560,7 +575,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 鼠标模式与捏合期间关掉本地滚动：前者拖动整段都归远端，后者两指
   /// 张开时画面不该跟着往下滚（物理一换，Scrollable 就算认领了拖动也
   /// 走不动，连带把在飞的那次拖动一并作废）。
-  Widget _withTrackpadPhysics(Widget child) {
+  Widget _withGesturePhysics(Widget child) {
     if (!_trackpad && !_pinching) return child;
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context)
@@ -1208,7 +1223,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                                 child: NotificationListener<ScrollNotification>(
                                   onNotification: (notification) {
                                     _refreshLinkHover();
-                                    if (_isTouchPlatform) {
+                                    if (_isTouchPlatform && _hasSelection) {
                                       _overlayRevision.value++;
                                     }
                                     return false;
@@ -1216,7 +1231,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                                   child: ValueListenableBuilder<TerminalLink?>(
                                     valueListenable: _hoveredLink,
                                     builder: (context, link, _) =>
-                                        _withTrackpadPhysics(
+                                        _withGesturePhysics(
                                           _withScrollbar(
                                             prefs,
                                             TerminalView(

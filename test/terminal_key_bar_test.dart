@@ -722,6 +722,42 @@ void main() {
       }
     });
 
+    testWidgets('挂上来时远端已经开着鼠标上报：那颗键直接可用', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final transport = FakeTransport(lines: ['hello world\n'])
+          ..captureOutput = true;
+        final session = TerminalSession(
+          server: _server,
+          credentials: const SshCredentials(password: 'pw'),
+          transport: transport,
+        );
+        await session.start();
+        addTearDown(session.dispose);
+        // 视图挂上来之前远端就开着鼠标上报——从另一条会话切过来就是这个
+        // 时序，状态得在 initState 里对一次表，不能等下一次输出。
+        session.terminal.write('\x1b[?1002h\x1b[?1006h');
+
+        final style = ValueNotifier(const TerminalStylePrefs());
+        addTearDown(style.dispose);
+        await tester.pumpWidget(
+          _host(
+            SshTerminalView(session: session, openLink: (uri) async => true),
+            style: style,
+          ),
+        );
+        await tester.pump();
+
+        await tester.tap(find.text('鼠标'));
+        await tester.pump();
+        await dragOnce(tester, _firstCell(tester) + const Offset(2, 2));
+
+        expect(transport.sent, isNotEmpty, reason: '那颗键该是亮的，点了就生效');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
     testWidgets('没开鼠标模式时拖动不转发（照旧滚画面）', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       try {
