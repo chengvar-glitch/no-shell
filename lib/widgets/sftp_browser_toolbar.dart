@@ -564,7 +564,17 @@ class _PathBarState extends State<_PathBar> {
         cursorHeight: 15,
         decoration: InputDecoration(
           isDense: true,
+          // 外框已经由 [_frame] 画好了，输入框自己不许再画一层：主题里的
+          // `filled: true` 会铺一块灰底，而 `enabledBorder` / `focusedBorder`
+          // 会**压过** `border: none`（那两项在 decoration 里没写就取主题值），
+          // 于是框里套框——每个状态都得显式按掉，光写 border 不够。
+          filled: false,
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
           hintText: l10n.sftpPathHint,
           hintStyle: TextStyle(fontSize: 12.5, color: theme.secondaryText),
           // 与面包屑文字左右各 5px 的内边距对齐：点进编辑态时

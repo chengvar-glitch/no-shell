@@ -250,6 +250,14 @@ void main() {
           .widget<TextField>(find.byType(TextField))
           .decoration!;
       expect((decoration.contentPadding! as EdgeInsets).horizontal, 10);
+      // 外框只有一层：输入框自己不许再铺主题的底色、再描一圈聚焦边框
+      // （主题的 enabledBorder / focusedBorder 会压过 border: none）。
+      final applied = tester
+          .widget<InputDecorator>(find.byType(InputDecorator))
+          .decoration;
+      expect(applied.filled, isFalse, reason: '框里不该再套一块灰底');
+      expect(applied.enabledBorder, InputBorder.none);
+      expect(applied.focusedBorder, InputBorder.none);
     });
 
     testWidgets('载入中转圈恒定占位：地址栏宽度不随忙闲跳动', (tester) async {
