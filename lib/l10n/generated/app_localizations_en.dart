@@ -1204,6 +1204,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get trackpadMode => 'Mouse';
 
   @override
+  String fontSizePreview(int size) {
+    return 'Font size $size';
+  }
+
+  @override
   String get trackpadModeHint =>
       'Drag sends mouse drags to the remote (vim visual mode, tmux pane resize); off scrolls locally';
 

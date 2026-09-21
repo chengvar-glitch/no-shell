@@ -198,6 +198,23 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 正在转发的鼠标拖动：为真时移动与抬手都要发给远端。
   bool _mouseDragging = false;
 
+  /// 正在双指捏合缩放。
+  ///
+  /// 手势期间**只预览**、抬手才写进偏好：字号一变 PTY 就得重排，逐帧改
+  /// 等于每帧给远端发一次 SIGWINCH（vim / tmux 会跟着抖）。
+  bool _pinching = false;
+
+  /// 参与捏合的手指（指针 id → 全局坐标）。跨度用原始指针自己算，
+  /// 不进手势竞技场——竞技场里第一根手指早被 Scrollable 认领了。
+  final Map<int, Offset> _pinchPointers = {};
+
+  /// 捏合起点：两指跨度与当时的字号，缩放比例是相对它们算的。
+  double _pinchBaseSpan = 0;
+  int _pinchBaseFontSize = 0;
+
+  /// 预览中的字号；为空表示没在预览。
+  final ValueNotifier<int?> _fontPreview = ValueNotifier<int?>(null);
+
   /// 最近一次转发出去的格子（抬手要用它补 up，指针取消时也算数）。
   CellOffset? _mouseCell;
 
@@ -247,6 +264,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     HardwareKeyboard.instance.removeHandler(_onKeyEvent);
     widget.session.terminal.removeListener(_onTerminalOutput);
     _remoteMouse.dispose();
+    _fontPreview.dispose();
     _hoveredLink.dispose();
     _linkRepaint.dispose();
     _controller
@@ -299,6 +317,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   /// 指针按下：鼠标左键是链接点击的候选；触屏则起一次长按判定。
   void _onPointerDown(PointerDownEvent event) {
+    if (_trackPinchDown(event)) return;
     _linkTapOrigin =
         event.kind == PointerDeviceKind.mouse && event.buttons == kPrimaryButton
         ? event.position
@@ -345,6 +364,12 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 按住键拖动（拖选文字）期间不画下划线：指针位置作废，松手时再恢复。
   /// 拖动同时作废长按判定——手指挪了就不是「长按」。
   void _onPointerMove(PointerMoveEvent event) {
+    _trackPinchMove(event);
+    if (_pinching) {
+      _pointer = null;
+      _refreshLinkHover();
+      return;
+    }
     if (_mouseDragging) {
       // 拖动期间长按判定作废：手指在挪，这不是长按。
       _longPressTimer?.cancel();
@@ -370,6 +395,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
+    _trackPinchUp(event);
     _endMouseDrag();
     _onHandleDragEnd();
     _longPressTimer?.cancel();
@@ -401,6 +427,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
     if (event.kind == PointerDeviceKind.touch) {
       _longPressTimer?.cancel();
+      if (_trackPinchUp(event)) return;
       if (_handleGrabbed != null) {
         _onHandleDragEnd();
         return;
@@ -530,9 +557,11 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   ///
   /// `interactive` 保持 false：拖动拇指要跟包内层的选字识别器抢手势，
   /// 而竞技场里更深的那一个（xterm 的）会赢——给了拖动也是白给。
-  /// 鼠标模式关掉本地滚动：拖动整段都归远端，否则画面会跟着一起滚。
+  /// 鼠标模式与捏合期间关掉本地滚动：前者拖动整段都归远端，后者两指
+  /// 张开时画面不该跟着往下滚（物理一换，Scrollable 就算认领了拖动也
+  /// 走不动，连带把在飞的那次拖动一并作废）。
   Widget _withTrackpadPhysics(Widget child) {
-    if (!_trackpad) return child;
+    if (!_trackpad && !_pinching) return child;
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context)
           .copyWith(physics: const NeverScrollableScrollPhysics()),
@@ -852,6 +881,60 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     ];
   }
 
+  /// 第二根手指落下即开始捏合；返回 true 表示这次按下归捏合管，
+  /// 不再走长按 / 点链接那一套。
+  bool _trackPinchDown(PointerDownEvent event) {
+    if (!_isTouchPlatform) return false;
+    _pinchPointers[event.pointer] = event.position;
+    if (_pinchPointers.length < 2) return false;
+    // 两指落下：手上还攥着的动作先收掉——长按计时器、待开的链接、
+    // 转发中的鼠标拖动、拖着的选区手柄，都不能跟捏合抢同一串指针。
+    _longPressTimer?.cancel();
+    _linkTapTimer?.cancel();
+    _touchOrigin = null;
+    _endMouseDrag();
+    _onHandleDragEnd();
+    _pinchBaseSpan = _pinchSpan();
+    _pinchBaseFontSize = TerminalStyleScope.of(context).notifier.value.fontSize;
+    setState(() => _pinching = true);
+    return true;
+  }
+
+  /// 只取前两指的跨度：第三指落下不该把比例算花。
+  double _pinchSpan() {
+    final points = _pinchPointers.values.toList(growable: false);
+    if (points.length < 2) return 0;
+    return (points[0] - points[1]).distance;
+  }
+
+  void _trackPinchMove(PointerMoveEvent event) {
+    if (!_pinchPointers.containsKey(event.pointer)) return;
+    _pinchPointers[event.pointer] = event.position;
+    if (!_pinching || _pinchBaseSpan <= 0) return;
+    final scale = _pinchSpan() / _pinchBaseSpan;
+    final target = TerminalStylePrefs.clampFontSize(
+      (_pinchBaseFontSize * scale).round(),
+      fallback: _pinchBaseFontSize,
+    );
+    if (_fontPreview.value != target) _fontPreview.value = target;
+  }
+
+  /// 手指抬起 / 取消。返回 true 表示这次事件归捏合管（别再当单击处理）。
+  bool _trackPinchUp(PointerEvent event) {
+    if (_pinchPointers.remove(event.pointer) == null) return false;
+    if (!_pinching) return false;
+    // 还剩两根以上：继续捏。
+    if (_pinchPointers.length >= 2) return true;
+    final target = _fontPreview.value;
+    setState(() => _pinching = false);
+    _fontPreview.value = null;
+    if (target == null) return true;
+    // 抬手才落定：整段手势只重排一次 PTY，而且落盘一次。
+    final notifier = TerminalStyleScope.of(context).notifier;
+    notifier.value = notifier.value.withFontSize(target);
+    return true;
+  }
+
   /// 转发一次鼠标按下；远端没开鼠标上报时返回 false（`mouseInput` 没有
   /// output 可发就是没人接），拖动随之落回本地行为。
   bool _beginMouseDrag(Offset globalPosition) {
@@ -964,6 +1047,22 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     );
     if (target == position.pixels) return;
     _scrollController.jumpTo(target);
+  }
+
+  Widget _fontPreviewChip(TerminalStylePrefs prefs, int size) {
+    final foreground = prefs.theme.foreground;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: prefs.theme.background.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: foreground.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        AppLocalizations.of(context).fontSizePreview(size),
+        style: TextStyle(fontSize: 13, color: foreground),
+      ),
+    );
   }
 
   Widget _scrollToLatestButton(TerminalStylePrefs prefs) {
@@ -1144,6 +1243,21 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                                   ),
                                 ),
                               ),
+                            ),
+                          ),
+                          // 捏合时的字号预览：手势期间不写偏好、不重排 PTY，
+                          // 抬手才落定（见 _trackPinchUp）。
+                          Positioned(
+                            top: 10,
+                            left: 0,
+                            right: 0,
+                            child: ValueListenableBuilder<int?>(
+                              valueListenable: _fontPreview,
+                              builder: (context, size, child) => size == null
+                                  ? const SizedBox.shrink()
+                                  : Center(
+                                      child: _fontPreviewChip(prefs, size),
+                                    ),
                             ),
                           ),
                           // 选区手柄（触屏）：长按选词之后要能把两端拽开。

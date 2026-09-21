@@ -711,7 +711,11 @@ void main() {
           reason: '按下的字节必须与点击一致：一边是包编的，一边是我们编的',
         );
         // SGR：\x1b[<32;x;yM —— 移动事件的按钮号加 32。
-        expect(transport.sent[1], startsWith('\x1b[<32;'), reason: '移动事件的按钮号加 32');
+        expect(
+          transport.sent[1],
+          startsWith('\x1b[<32;'),
+          reason: '移动事件的按钮号加 32',
+        );
         expect(transport.sent.last, endsWith('m'), reason: 'SGR 抬起是小写 m');
       } finally {
         debugDefaultTargetPlatformOverride = null;
@@ -746,6 +750,133 @@ void main() {
         await dragOnce(tester, _firstCell(tester) + const Offset(2, 2));
 
         expect(transport.sent, isEmpty, reason: '远端没人接鼠标事件，开了也没用');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+  });
+
+  group('双指捏合缩放（触屏）', () {
+    /// 造一段比视口长的输出，顺便能验证捏合期间画面没被滚走。
+    String manyLines() => List.generate(200, (i) => 'line $i').join('\n');
+
+    ScrollableState scrollable(WidgetTester tester) =>
+        tester.state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(TerminalView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+
+    testWidgets('两指张开只预览，抬手才改字号（且只落一次）', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final style = ValueNotifier(const TerminalStylePrefs());
+        addTearDown(style.dispose);
+        await _pumpTerminal(tester, style: style, output: manyLines());
+        final position = scrollable(tester).position;
+        position.jumpTo(position.maxScrollExtent / 2);
+        await tester.pump();
+        final scrollBefore = position.pixels;
+
+        final center = tester.getCenter(find.byType(TerminalView));
+        final left = await tester.startGesture(
+          center - const Offset(30, 0),
+          kind: PointerDeviceKind.touch,
+        );
+        await tester.pump();
+        final right = await tester.startGesture(
+          center + const Offset(30, 0),
+          kind: PointerDeviceKind.touch,
+        );
+        await tester.pump();
+
+        // 张开到三倍跨度：字号该涨，但手势期间只出预览。
+        await left.moveTo(center - const Offset(90, 0));
+        await right.moveTo(center + const Offset(90, 0));
+        await tester.pump();
+
+        expect(
+          style.value.fontSize,
+          TerminalStylePrefs.defaultFontSize,
+          reason: '手势期间不写偏好：写一次就是一次 PTY 重排',
+        );
+        expect(find.textContaining('字号'), findsOneWidget, reason: '要有预览');
+        expect(position.pixels, scrollBefore, reason: '捏合期间画面不该跟着滚');
+
+        await left.up();
+        await right.up();
+        await tester.pump();
+
+        expect(
+          style.value.fontSize,
+          greaterThan(TerminalStylePrefs.defaultFontSize),
+        );
+        expect(find.textContaining('字号'), findsNothing, reason: '抬手后预览收起');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('两指收拢缩小，且夹在字号下限', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final style = ValueNotifier(const TerminalStylePrefs());
+        addTearDown(style.dispose);
+        await _pumpTerminal(tester, style: style, output: 'hello\n');
+
+        final center = tester.getCenter(find.byType(TerminalView));
+        final left = await tester.startGesture(
+          center - const Offset(90, 0),
+          kind: PointerDeviceKind.touch,
+        );
+        await tester.pump();
+        final right = await tester.startGesture(
+          center + const Offset(90, 0),
+          kind: PointerDeviceKind.touch,
+        );
+        await tester.pump();
+
+        // 收拢到十分之一：远远越过下限，应当被夹住。
+        await left.moveTo(center - const Offset(9, 0));
+        await right.moveTo(center + const Offset(9, 0));
+        await tester.pump();
+        await left.up();
+        await right.up();
+        await tester.pump();
+
+        expect(style.value.fontSize, TerminalStylePrefs.minFontSize);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('桌面端两指拖动不改字号（那边没有捏合这回事）', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        final style = ValueNotifier(const TerminalStylePrefs());
+        addTearDown(style.dispose);
+        await _pumpTerminal(tester, style: style, output: 'hello\n');
+
+        final center = tester.getCenter(find.byType(TerminalView));
+        final left = await tester.startGesture(
+          center - const Offset(30, 0),
+          kind: PointerDeviceKind.touch,
+        );
+        final right = await tester.startGesture(
+          center + const Offset(30, 0),
+          kind: PointerDeviceKind.touch,
+        );
+        await left.moveTo(center - const Offset(90, 0));
+        await right.moveTo(center + const Offset(90, 0));
+        await tester.pump();
+        await left.up();
+        await right.up();
+        await tester.pump();
+
+        expect(style.value.fontSize, TerminalStylePrefs.defaultFontSize);
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

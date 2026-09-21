@@ -571,6 +571,14 @@
   "selectionStart": "选区起点",
   "selectionEnd": "选区终点",
   "trackpadMode": "鼠标",
+  "fontSizePreview": "字号 {size}",
+  "@fontSizePreview": {
+    "placeholders": {
+      "size": {
+        "type": "int"
+      }
+    }
+  },
   "trackpadModeHint": "开启后拖动即远端的鼠标拖动（vim 可视选区 / tmux 拉分割线），关掉则拖动滚动画面",
   "trackpadUnavailable": "远端程序没开鼠标上报（vim 的 set mouse=a / tmux 的 mouse on）",
   "keyBarTitle": "快捷键",

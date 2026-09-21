@@ -1155,6 +1155,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get trackpadMode => '鼠标';
 
   @override
+  String fontSizePreview(int size) {
+    return '字号 $size';
+  }
+
+  @override
   String get trackpadModeHint =>
       '开启后拖动即远端的鼠标拖动（vim 可视选区 / tmux 拉分割线），关掉则拖动滚动画面';
 

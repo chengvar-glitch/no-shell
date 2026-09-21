@@ -696,6 +696,14 @@
   "selectionStart": "Selection start",
   "selectionEnd": "Selection end",
   "trackpadMode": "Mouse",
+  "fontSizePreview": "Font size {size}",
+  "@fontSizePreview": {
+    "placeholders": {
+      "size": {
+        "type": "int"
+      }
+    }
+  },
   "trackpadModeHint": "Drag sends mouse drags to the remote (vim visual mode, tmux pane resize); off scrolls locally",
   "trackpadUnavailable": "The remote app is not reporting mouse events (vim: set mouse=a, tmux: mouse on)",
   "keyBarTitle": "Keys",

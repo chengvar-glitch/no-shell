@@ -2042,6 +2042,12 @@ abstract class AppLocalizations {
   /// **'Mouse'**
   String get trackpadMode;
 
+  /// No description provided for @fontSizePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Font size {size}'**
+  String fontSizePreview(int size);
+
   /// No description provided for @trackpadModeHint.
   ///
   /// In en, this message translates to:
