@@ -17,6 +17,7 @@ import '../ssh/sftp_browser.dart';
 import '../ssh/sftp_transfer.dart';
 import '../ssh/terminal_session.dart';
 import '../settings.dart';
+import '../syntax_highlight.dart';
 import '../theme.dart';
 import 'confirm_dialog.dart';
 import 'file_type_icon.dart';

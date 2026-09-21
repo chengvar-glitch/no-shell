@@ -75,7 +75,8 @@ const Set<String> _kTextPreviewExtensions = {
 SftpQuickPreviewKind? sftpQuickPreviewKind(SftpEntry entry) {
   if (entry.isDirectory) return null;
   final dot = entry.name.lastIndexOf('.');
-  if (dot <= 0) return null;
+  // .env 是常见配置：文件名本身就是一个扩展名，不能按“没有主名”排除。
+  if (dot < 0 || dot == entry.name.length - 1) return null;
   final extension = entry.name.substring(dot + 1).toLowerCase();
   if (_kImagePreviewExtensions.contains(extension)) {
     return SftpQuickPreviewKind.image;
@@ -141,6 +142,7 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
   StreamSubscription<List<int>>? _subscription;
   Uint8List? _data;
   List<String> _textLines = const [];
+  List<List<TextSpan>> _textCodeSpans = const [];
   bool _textLoaded = false;
   Object? _error;
 
@@ -197,8 +199,14 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
     }
     if (widget.kind == SftpQuickPreviewKind.text) {
       final text = utf8.decode(data, allowMalformed: true);
+      final language = data.length <= kSyntaxHighlightMaxBytes
+          ? syntaxHighlightLanguage(widget.entry.name)
+          : null;
       setState(() {
         _textLines = _splitTextPreviewLines(text);
+        _textCodeSpans = language == null
+            ? const []
+            : highlightSyntaxLines(text, language);
         _textLoaded = true;
       });
       return;
@@ -293,7 +301,7 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
                   ),
                 )
               : widget.kind == SftpQuickPreviewKind.text
-              ? _TextPreviewBody(lines: _textLines)
+              ? _TextPreviewBody(lines: _textLines, codeLines: _textCodeSpans)
               : RepaintBoundary(
                   child: InteractiveViewer(
                     maxScale: 12,
@@ -307,9 +315,12 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
 }
 
 final class _TextPreviewBody extends StatelessWidget {
-  const _TextPreviewBody({required this.lines});
+  const _TextPreviewBody({required this.lines, required this.codeLines});
 
   final List<String> lines;
+
+  /// 语法高亮行；空列表表示按纯文本渲染（日志、未知类型或超过高亮预算）。
+  final List<List<TextSpan>> codeLines;
 
   @override
   Widget build(BuildContext context) {
@@ -325,19 +336,25 @@ final class _TextPreviewBody extends StatelessWidget {
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         itemCount: lines.length,
-        itemBuilder: (context, index) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 1),
-          child: Text(
-            lines[index],
-            softWrap: true,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 13,
-              height: 1.45,
-              color: Colors.white,
-            ),
-          ),
-        ),
+        itemBuilder: (context, index) {
+          final style = TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 13,
+            height: 1.45,
+            color: Colors.white,
+          );
+          final codeSpans = index < codeLines.length ? codeLines[index] : null;
+          final text = codeSpans == null
+              ? Text(lines[index], softWrap: true, style: style)
+              : Text.rich(
+                  TextSpan(children: codeSpans, style: style),
+                  softWrap: true,
+                );
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 1),
+            child: text,
+          );
+        },
       ),
     );
   }

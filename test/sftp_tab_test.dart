@@ -76,6 +76,20 @@ LocalUpload upload(String name, List<int> bytes) => LocalUpload(
   openRead: () => Stream.value(bytes),
 );
 
+Finder previewChunk(String text) => find.byWidgetPredicate((widget) {
+  if (widget is! RichText) return false;
+  final root = widget.text;
+  return _hasExactText(root, text);
+});
+
+bool _hasExactText(InlineSpan span, String text) {
+  if (span is! TextSpan) return false;
+  if ((span.text ?? '') == text) return true;
+  return (span.children ?? const <InlineSpan>[]).any(
+    (child) => _hasExactText(child, text),
+  );
+}
+
 void main() {
   group('SftpTab 未连接态', () {
     testWidgets('无会话时展示引导文案，不打开 SFTP 通道', (tester) async {
@@ -297,8 +311,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // 2048 是分块边界；代理对必须完整落到第二块。
-      expect(find.text('a' * 2048), findsOneWidget);
-      final secondChunk = find.text('$surrogate${'b' * 8}');
+      expect(previewChunk('a' * 2048), findsOneWidget);
+      final secondChunk = previewChunk('$surrogate${'b' * 8}');
       await tester.scrollUntilVisible(
         secondChunk,
         500,
@@ -309,7 +323,7 @@ void main() {
             )
             .first,
       );
-      expect(find.text('$surrogate${'b' * 8}'), findsOneWidget);
+      expect(previewChunk('$surrogate${'b' * 8}'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byType(Dialog),
