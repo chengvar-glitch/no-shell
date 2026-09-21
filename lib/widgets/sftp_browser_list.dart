@@ -269,6 +269,16 @@ const _kSizeWidth = 74.0;
 const _kTimeWidth = 96.0;
 const _kModeWidth = 88.0;
 
+/// 按下那一刻就能生效的指针：只有鼠标。
+///
+/// 反过来判（列出触屏那几种）而不是判 `== mouse`：认不出的指针类型宁可当成
+/// 鼠标，也不能让某个平台上的单击彻底失灵——按下的即时选中只是「快一点」，
+/// 而没有 [GestureDetector.onTap] 之外的兜底路径。
+bool _isPointerInstant(PointerDeviceKind kind) =>
+    kind != PointerDeviceKind.touch &&
+    kind != PointerDeviceKind.stylus &&
+    kind != PointerDeviceKind.invertedStylus;
+
 /// 单行文件条目：自管 hover 状态，避免鼠标移入移出重建整个列表。
 final class _EntryRow extends StatefulWidget {
   const _EntryRow({
@@ -295,20 +305,39 @@ class _EntryRowState extends State<_EntryRow> {
     final entry = _controller.entries[widget.index];
     final theme = Theme.of(context);
     final selected = _controller.isSelected(entry.path);
+    final compact = widget.compact;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      // 选中走原始指针事件：双击手势会让竞技场等到 100ms 超时才裁决，
+      // 桌面端选中走原始指针事件：双击手势会让竞技场等到 100ms 超时才裁决，
       // 而文件列表里单击极其频繁，走 Listener 才能做到点哪选哪。
+      //
+      // 触屏（compact）**不能**走这条路：指针一落下就进入目录的话，从某一行
+      // 起手的那次滑动会在手指还没抬起时就「点进」那一行——想滚列表，人已经
+      // 在文件夹里了。触屏的单击交给下面那个 TapGestureRecognizer，让它与
+      // ListView 的拖动同场竞技：手指移动超过 slop 就是拖动胜出，这次点击
+      // 随之作废（不是靠自己去量位移，竞技场本来就是干这个的）。
       child: Listener(
-        onPointerDown: (event) {
-          if (event.buttons != kPrimaryButton) return;
-          _onPrimaryDown(entry);
-        },
+        // 「按下即生效」是鼠标的特权：手指与笔的按下只是一次可能的拖动，
+        // 而拖动是它们唯一的滚动方式。宽屏的触屏设备（平板、折叠屏、分屏
+        // 窗口、带触摸屏的桌面）同样是 compact 为 false，这条判据一并挡住。
+        onPointerDown: compact
+            ? null
+            : (event) {
+                if (!_isPointerInstant(event.kind)) return;
+                if (event.buttons != kPrimaryButton) return;
+                _onPrimaryDown(entry);
+              },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onDoubleTap: () => _onActivate(entry),
+          // 单击：抬手且没滑才算数（见上）。触屏是「目录进下一层 / 文件切多选」；
+          // 宽屏那一路只是给上面兜底——手指点宽屏时按下不算数，选中得靠这里。
+          onTap: compact ? () => _onTap(entry) : () => _onPrimaryDown(entry),
+          // 桌面端双击：目录进入，文件直接下载。触屏不挂双击——它会把单击在
+          // 竞技场里扣住 300ms 等第二下（kDoubleTapTimeout），而手机上「抬手
+          // 即进入」要的是立刻响应；重复进入由 navigate 的判重兜住。
+          onDoubleTap: compact ? null : () => _onActivate(entry),
           onSecondaryTapDown: (details) => _showMenu(
             context,
             _toRelativeRect(context, details.globalPosition),
@@ -408,22 +437,7 @@ class _EntryRowState extends State<_EntryRow> {
                     ),
                   ),
                 ],
-                SizedBox(
-                  width: 26,
-                  child: (_hovered || selected)
-                      ? IconButton(
-                          tooltip: AppLocalizations.of(context).moreActions,
-                          icon: const Icon(Icons.more_horiz_rounded, size: 16),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 24,
-                            height: 24,
-                          ),
-                          color: theme.secondaryText,
-                          onPressed: () => _showMenuFromButton(context, entry),
-                        )
-                      : null,
-                ),
+                SizedBox(width: 26, child: _trailing(context, entry, selected)),
               ],
             ),
           ),
@@ -432,16 +446,40 @@ class _EntryRowState extends State<_EntryRow> {
     );
   }
 
-  void _onPrimaryDown(SftpEntry entry) {
-    // 移动端单击目录即进入；文件则用于多选（批量下载）。
-    if (widget.compact) {
-      if (entry.isDirectory) {
-        unawaited(_controller.navigate(entry.path));
-      } else {
-        _controller.toggleSelection(entry.path);
-      }
-      return;
+  /// 行尾一格：悬停 / 选中时是「更多」按钮（菜单入口）；触屏下的目录行
+  /// 退而给一个「点进去」的箭头——同一行上「点目录进下一层 / 点文件是多选」
+  /// 得让人一眼分得出来，否则只能靠试。
+  Widget? _trailing(BuildContext context, SftpEntry entry, bool selected) {
+    final theme = Theme.of(context);
+    if (_hovered || selected) {
+      return IconButton(
+        tooltip: AppLocalizations.of(context).moreActions,
+        icon: const Icon(Icons.more_horiz_rounded, size: 16),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 24, height: 24),
+        color: theme.secondaryText,
+        onPressed: () => _showMenuFromButton(context, entry),
+      );
     }
+    if (!widget.compact || !entry.isDirectory) return null;
+    return Icon(
+      Icons.chevron_right_rounded,
+      size: 16,
+      color: theme.secondaryText,
+    );
+  }
+
+  /// 触屏单击（抬手且没滑动）：目录进入下一层，文件切换多选（批量下载）。
+  void _onTap(SftpEntry entry) {
+    if (entry.isDirectory) {
+      unawaited(_controller.navigate(entry.path));
+    } else {
+      _controller.toggleSelection(entry.path);
+    }
+  }
+
+  /// 桌面端按下即选中（滚轮 / 滚动条才是这边的滚动方式，拖动极少误伤）。
+  void _onPrimaryDown(SftpEntry entry) {
     final keyboard = HardwareKeyboard.instance;
     if (keyboard.isShiftPressed) {
       _controller.selectTo(entry.path, additive: keyboard.isMetaPressed);

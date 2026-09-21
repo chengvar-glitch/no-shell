@@ -109,6 +109,8 @@
   - `SftpTransferQueue.dispose()` 只清自己的记录，不打断在跑的传输：`_drain` 与下载循环在 `await` 之后都必须复查 `_disposed` 再改状态或通知，否则会对已 dispose 的 `SftpTransfer` 调 `notifyListeners()`（debug 下直接抛 `used after being disposed`）
   - `_mutate` 的 `isMutating` 必须保持到**刷新结束**才放开：刷新在大目录 / 慢链路上要几百毫秒，提前放开等于允许第二个结构性操作挤进刷新窗口；忙时抛 `SftpErrorKind.busy`，不静默 return（那会让调用方谎报成功）
   - 下载落点数量必须与目标一一对应才开工：网关换了实现（移动端 SAF 选择器）可能少回落点，直接下标取用会在循环中途 RangeError，而前面的任务已经入队
+  - 文件行的「进入 / 选中」只让**鼠标**在按下那一刻生效（`Listener.onPointerDown` 先过 `_isPointerInstant`；桌面端单击要「点哪选哪」，等不起双击手势在竞技场里的超时）；手指与笔的按下不算数——按下即生效的话，从某一行起手的那次滑动会在手指还没抬起时就进入那个目录（用户想滚列表，人已经在文件夹里了）。宽屏触屏设备（平板 / 折叠屏 / 分屏窗口）的 `compact` 为 false，靠的就是这条指针判据。触屏（compact）的单击走 `GestureDetector.onTap`，与 ListView 的拖动同场竞技：移动超过 slop 就是拖动胜出、这次点击随之作废（不要去自己量位移，竞技场本来就是干这个的）；compact 也不挂 `onDoubleTap`——它会把单击扣住 300ms 等第二下，而重复进入由 `SftpBrowserController.navigate` 的 `_loadingTarget` 判重兜住
+  - 触屏的目录行行尾给一个 `chevron_right`：同一行上「点目录进下一层 / 点文件是多选」得让人一眼分得出来，没有悬停提示的触屏只能靠它
 - 状态与重建：
   - `ServerStore` / `SessionManager` 是唯一状态源，UI 通过 `ListenableBuilder` 订阅；通知前必须做无变化守卫，避免下游整页重建
   - 高频交互（搜索输入等）的 `setState` 必须限定在最小子树内，禁止上抛到整页级 State

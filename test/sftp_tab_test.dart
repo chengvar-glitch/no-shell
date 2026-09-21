@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -152,7 +153,8 @@ void main() {
       fs.addFile(fs.home, 'nginx.conf');
       await pumpPanel(tester, fileSystem: fs);
 
-      await tester.tap(find.text('nginx.conf'));
+      // 桌面端的单击是鼠标：按下那一刻就选中，不等手势竞技场裁决。
+      await tester.tap(find.text('nginx.conf'), kind: PointerDeviceKind.mouse);
       await tester.pump();
       expect(find.text('已选 1 项'), findsOneWidget);
 
@@ -350,6 +352,174 @@ void main() {
     });
   });
 
+  group('SftpTab 触屏交互（紧凑布局）', () {
+    /// 造一份够长的目录：列表真的能滚，滑动手势才成立。
+    FakeSftpFileSystem scrollableFileSystem() {
+      final fs = FakeSftpFileSystem();
+      fs.addDirectory(fs.home, 'logs');
+      for (var i = 0; i < 20; i++) {
+        fs.addFile(fs.home, 'file-$i.log');
+      }
+      return fs;
+    }
+
+    testWidgets('在目录行上滑动只滚列表，不进入目录', (tester) async {
+      final fs = scrollableFileSystem();
+      await pumpPanel(tester, width: 390, height: 700, fileSystem: fs);
+      final before = List.of(fs.listCalls);
+
+      // 从目录那一行起手往上滑：手指落点就在「logs」上。
+      // 手指抬起时那一行已经滚出视口，所以判据是「有没有发列目录请求」
+      // 与列表内容，而不是那一行还在不在画面上。
+      await tester.drag(find.text('logs'), const Offset(0, -180));
+      await tester.pumpAndSettle();
+
+      expect(fs.listCalls, before, reason: '滑动期间一次列目录请求都不该发');
+      expect(find.text('21 项'), findsOneWidget, reason: '列表仍是家目录');
+    });
+
+    testWidgets('在文件行上滑动不会改变选中', (tester) async {
+      final fs = scrollableFileSystem();
+      await pumpPanel(tester, width: 390, height: 700, fileSystem: fs);
+
+      await tester.drag(find.text('file-0.log'), const Offset(0, -180));
+      await tester.pumpAndSettle();
+
+      expect(find.text('已选 1 项'), findsNothing, reason: '滑动不是选中');
+      expect(find.text('21 项'), findsOneWidget, reason: '列表内容不变');
+    });
+
+    testWidgets('滑动之后照旧点得中：目录能进、文件能选', (tester) async {
+      final fs = scrollableFileSystem();
+      final app = fs.addDirectory(fs.home, 'app');
+      fs.addFile(app.path, 'app.log');
+      await pumpPanel(tester, width: 390, height: 700, fileSystem: fs);
+
+      // 滑上去再滑回来：滚动手势不会把点击一直扣在竞技场里。
+      await tester.drag(find.text('file-0.log'), const Offset(0, -180));
+      await tester.pumpAndSettle();
+      await tester.drag(find.text('file-19.log'), const Offset(0, 180));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('app'));
+      await tester.pumpAndSettle();
+      expect(find.text('app.log'), findsOneWidget);
+
+      await tester.tap(find.text('app.log'));
+      await tester.pump();
+      expect(find.text('已选 1 项'), findsOneWidget);
+    });
+
+    testWidgets('单击文件切换多选，再点一下取消', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addFile(fs.home, 'nginx.conf');
+      await pumpPanel(tester, width: 390, height: 700, fileSystem: fs);
+
+      await tester.tap(find.text('nginx.conf'));
+      await tester.pump();
+      expect(find.text('已选 1 项'), findsOneWidget);
+
+      await tester.tap(find.text('nginx.conf'));
+      await tester.pump();
+      expect(find.text('已选 1 项'), findsNothing);
+    });
+
+    testWidgets('长按弹出行菜单，不会顺手进入目录', (tester) async {
+      final fs = scrollableFileSystem();
+      final zulu = fs.addDirectory(fs.home, 'zulu');
+      fs.addFile(zulu.path, 'app.log');
+      await pumpPanel(tester, width: 390, height: 700, fileSystem: fs);
+      final before = List.of(fs.listCalls);
+
+      await tester.longPress(find.text('zulu'));
+      await tester.pumpAndSettle();
+
+      // 只断言菜单里的那几项：底下的选中操作条也有一个「删除」。
+      final menu = find.byType(PopupMenuItem<String>);
+      expect(
+        find.descendant(of: menu, matching: find.text('重命名')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: menu, matching: find.text('复制路径')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: menu, matching: find.text('删除')),
+        findsOneWidget,
+      );
+      expect(fs.listCalls, before, reason: '长按只开菜单，不进入目录');
+    });
+
+    testWidgets('连点目录只发一次列目录请求', (tester) async {
+      final fs = FakeSftpFileSystem();
+      final logs = fs.addDirectory(fs.home, 'logs');
+      fs.addFile(logs.path, 'app.log');
+      await pumpPanel(tester, width: 390, height: 700, fileSystem: fs);
+
+      // 把这次载入钉在半路：第二下点击落在「请求还没回来」的窗口里。
+      final gate = Completer<void>();
+      fs.listGate = gate;
+      final row = find.text('logs');
+      await tester.tap(row);
+      await tester.pump();
+      await tester.tap(row);
+      await tester.pump();
+
+      fs.listGate = null;
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(
+        fs.listCalls.where((path) => path == logs.path),
+        hasLength(1),
+        reason: '慢链路上重复点按不该再发一条请求',
+      );
+      expect(find.text('app.log'), findsOneWidget);
+    });
+
+    testWidgets('宽屏上的手指拖动只滚列表，鼠标单击仍是按下即选中', (tester) async {
+      final fs = FakeSftpFileSystem();
+      for (var i = 0; i < 20; i++) {
+        fs.addFile(fs.home, 'file-$i.log');
+      }
+      // 宽屏（平板 / 折叠屏 / 分屏窗口）走的是桌面那套行，指针类型才是判据。
+      await pumpPanel(tester, width: 900, height: 640, fileSystem: fs);
+
+      await tester.drag(find.text('file-0.log'), const Offset(0, -120));
+      await tester.pumpAndSettle();
+      expect(find.text('已选 1 项'), findsNothing, reason: '手指拖动不是选中');
+
+      // 滑过之后仍在视口里的那一行（名字按字典序排，file-15 在 file-1 之后）。
+      await tester.tap(find.text('file-15.log'), kind: PointerDeviceKind.mouse);
+      await tester.pump();
+      expect(find.text('已选 1 项'), findsOneWidget, reason: '鼠标按下即选中');
+
+      // 桌面端挂着双击手势，单击的「落定」要等 kDoubleTapTimeout 过去。
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('目录行的「点进去」箭头只出现在触屏紧凑布局', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addDirectory(fs.home, 'logs');
+      fs.addFile(fs.home, 'nginx.conf');
+
+      await pumpPanel(tester, width: 900, height: 640, fileSystem: fs);
+      expect(
+        find.byIcon(Icons.chevron_right_rounded),
+        findsNothing,
+        reason: '桌面端靠悬停给提示，列表里不加箭头',
+      );
+
+      await pumpPanel(tester, width: 390, height: 700, fileSystem: fs);
+      expect(
+        find.byIcon(Icons.chevron_right_rounded),
+        findsOneWidget,
+        reason: '触屏只有目录行带箭头，文件行没有',
+      );
+    });
+  });
+
   group('SftpTab 传输', () {
     testWidgets('上传写入远端、刷新列表并提示完成', (tester) async {
       final fs = FakeSftpFileSystem();
@@ -427,7 +597,7 @@ void main() {
         );
       await pumpPanel(tester, fileSystem: fs, gateway: gateway);
 
-      await tester.tap(find.text('nginx.conf'));
+      await tester.tap(find.text('nginx.conf'), kind: PointerDeviceKind.mouse);
       await tester.pump();
       await tester.tap(find.widgetWithText(TextButton, '下载'));
       await tester.pumpAndSettle();

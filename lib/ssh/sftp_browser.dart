@@ -43,6 +43,11 @@ final class SftpBrowserController extends ChangeNotifier {
   /// 最近一次成功载入的目录。[navigate] 用它判重：
   /// 载入失败的路径仍留在 [_path]（路径栏如实展示），再次进入要能重试。
   String? _loadedPath;
+
+  /// 正在请求中的目录（含刷新）。[navigate] 用它挡掉同一目录的重复点按：
+  /// 触屏上「点一下没反应就再点一下」很常见，慢链路上两次请求会互相挤，
+  /// 后一次还会把前一次的结果丢掉重来（_loadToken）。
+  String? _loadingTarget;
   List<SftpEntry> _entries = const [];
   List<SftpEntry> _visible = const [];
 
@@ -155,6 +160,8 @@ final class SftpBrowserController extends ChangeNotifier {
 
   Future<void> navigate(String target) async {
     if (target.isEmpty || target == _loadedPath) return;
+    // 同一目录的请求还在路上：这一次点按就是刚那一下的重复。
+    if (target == _loadingTarget) return;
     await _load(target);
   }
 
@@ -347,6 +354,7 @@ final class SftpBrowserController extends ChangeNotifier {
     final token = ++_loadToken;
     final firstLoad = _path == null;
     _error = null;
+    _loadingTarget = target;
     if (firstLoad) {
       _isLoading = true;
     } else {
@@ -381,6 +389,7 @@ final class SftpBrowserController extends ChangeNotifier {
       _error = _wrap(error);
     } finally {
       if (token == _loadToken && !_disposed) {
+        _loadingTarget = null;
         _isLoading = false;
         _isRefreshing = false;
         notifyListeners();
