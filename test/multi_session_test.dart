@@ -271,6 +271,66 @@ void main() {
       expect(find.text('连接「multi-test」'), findsNothing);
     });
 
+    /// 头部是否亮着：它被包在 IgnorePointer 里，收起时连点都不接。
+    bool headerVisible(WidgetTester tester) {
+      final ignore = tester.widget<IgnorePointer>(
+        find
+            .ancestor(
+              of: find.byType(BackButton),
+              matching: find.byType(IgnorePointer),
+            )
+            .first,
+      );
+      return !ignore.ignoring;
+    }
+
+    testWidgets('全屏终端页：进页面亮 3 秒后自动收起，轻点顶部唤出', (tester) async {
+      sessions.open(_server, const SshCredentials(password: 'pw'));
+      await _settle(tester);
+      await tester.pumpWidget(_host(fullscreen()));
+      await tester.pump();
+
+      expect(headerVisible(tester), isTrue);
+      expect(find.byType(BackButton), findsOneWidget);
+
+      // 3 秒后收起：终端因此拿回一整块高度（AppBar 那 56pt 不再常驻）。
+      await tester.pump(const Duration(seconds: 4));
+      expect(headerVisible(tester), isFalse);
+
+      // 轻点顶部一条唤出（这一条是 translucent，事件照旧落给终端）。
+      await tester.tapAt(const Offset(200, 20));
+      await tester.pump();
+      expect(headerVisible(tester), isTrue);
+      // 放掉 xterm 双击判定挂的 300ms 计时器，否则测试结束会因悬挂 timer 失败。
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('全屏终端页：点头部以外的终端正文立刻收起头部', (tester) async {
+      sessions.open(_server, const SshCredentials(password: 'pw'));
+      await _settle(tester);
+      await tester.pumpWidget(_host(fullscreen()));
+      await tester.pump();
+      expect(headerVisible(tester), isTrue);
+
+      await tester.tapAt(const Offset(200, 300));
+      await tester.pump();
+      expect(headerVisible(tester), isFalse);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('全屏终端页：头部里的断开仍能结束会话', (tester) async {
+      sessions.open(_server, const SshCredentials(password: 'pw'));
+      await _settle(tester);
+      await tester.pumpWidget(_host(fullscreen()));
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('断开连接'));
+      await tester.pumpAndSettle();
+
+      expect(sessions.sessionCountOf(_server.id), 0);
+      expect(find.text('连接已断开'), findsOneWidget);
+    });
+
     testWidgets('全屏终端页：胶囊点开能切到另一条会话', (tester) async {
       sessions.open(_server, const SshCredentials(password: 'pw'));
       await _settle(tester);

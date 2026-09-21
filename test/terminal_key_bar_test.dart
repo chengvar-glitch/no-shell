@@ -454,4 +454,54 @@ void main() {
       }
     });
   });
+
+  group('回到最新输出', () {
+    /// 造一段比视口长的输出，回滚缓冲里才有可滚的余地。
+    String manyLines() => List.generate(200, (i) => 'line $i').join('\n');
+
+    ScrollableState scrollable(WidgetTester tester) =>
+        tester.state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(TerminalView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+
+    testWidgets('停在底部时没有按钮，滚上去才出现，点它跳回底部', (tester) async {
+      await _pumpTerminal(tester, output: manyLines());
+      await tester.pump();
+
+      // 刚连上停在最新输出：不摆按钮。
+      expect(find.text('回到最新'), findsNothing);
+
+      final position = scrollable(tester).position;
+      expect(position.maxScrollExtent, greaterThan(0), reason: '输出要长过视口');
+      position.jumpTo(0);
+      await tester.pump();
+
+      expect(find.text('回到最新'), findsOneWidget);
+
+      await tester.tap(find.text('回到最新'));
+      await tester.pump();
+
+      expect(position.pixels, position.maxScrollExtent);
+      expect(find.text('回到最新'), findsNothing);
+    });
+
+    testWidgets('滚回底部（手动）后按钮自己收回', (tester) async {
+      await _pumpTerminal(tester, output: manyLines());
+      await tester.pump();
+      final position = scrollable(tester).position;
+
+      position.jumpTo(0);
+      await tester.pump();
+      expect(find.text('回到最新'), findsOneWidget);
+
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pump();
+      expect(find.text('回到最新'), findsNothing);
+    });
+  });
 }

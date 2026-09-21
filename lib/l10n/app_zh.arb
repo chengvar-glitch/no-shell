@@ -562,6 +562,7 @@
   "copyOnSelect": "选中即复制",
   "linkOpenFailed": "无法打开链接",
   "openLink": "打开链接",
+  "scrollToBottom": "回到最新",
   "keyBarTitle": "快捷键",
   "keyBarExpand": "展开快捷键条",
   "keyBarCollapse": "收起快捷键条",

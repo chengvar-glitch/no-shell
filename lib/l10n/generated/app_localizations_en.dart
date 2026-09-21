@@ -1180,6 +1180,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get openLink => 'Open Link';
 
   @override
+  String get scrollToBottom => 'Jump to latest';
+
+  @override
   String get keyBarTitle => 'Keys';
 
   @override

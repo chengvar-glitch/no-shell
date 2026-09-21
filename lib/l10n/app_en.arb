@@ -687,6 +687,7 @@
   "copyOnSelect": "Copy on Select",
   "linkOpenFailed": "Could not open link",
   "openLink": "Open Link",
+  "scrollToBottom": "Jump to latest",
   "keyBarTitle": "Keys",
   "keyBarExpand": "Show key bar",
   "keyBarCollapse": "Hide key bar",

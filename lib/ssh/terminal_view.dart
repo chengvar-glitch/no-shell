@@ -140,6 +140,14 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 让包的 ShortcutManager 白白换表。
   late final Map<ShortcutActivator, Intent> _shortcuts = terminalShortcuts();
 
+  /// 终端自己的滚动控制器：交给 TerminalView 用，同时喂滚动条与「回到最新」。
+  /// 由本视图创建并 dispose——给了 TerminalView 就不再归它管（与 focusNode 同理）。
+  final ScrollController _scrollController = ScrollController();
+
+  /// 画面是否停在最新输出处。滚动每帧都在变，只有跨过这条边界才通知下游：
+  /// 值变化时重画的只是那一颗浮动按钮。
+  final ValueNotifier<bool> _atBottom = ValueNotifier<bool>(true);
+
   /// 选中即复制的去抖：拖选过程中选区连续变化（每次都通知），等最后一次
   /// 变化后静默一小段时间再复制，落进剪贴板的才是完整选区；双击选词、
   /// 长按选词也走同一条路。
@@ -152,6 +160,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   void initState() {
     super.initState();
     _controller.addListener(_onSelectionChanged);
+    _scrollController.addListener(_onScroll);
     // 修饰键按下 / 抬起时指针不会动，但下划线该跟着出现或消失。
     HardwareKeyboard.instance.addHandler(_onKeyEvent);
     // 远端输出会顶动画面：指针底下的链接可能已经换了一条。
@@ -175,6 +184,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _longPressTimer?.cancel();
     _linkTapTimer?.cancel();
     _focusNode.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _atBottom.dispose();
     HardwareKeyboard.instance.removeHandler(_onKeyEvent);
     widget.session.terminal.removeListener(_refreshLinkHover);
     _hoveredLink.dispose();
@@ -389,6 +401,67 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     if (!_focusNode.hasFocus) _focusNode.requestFocus();
   }
 
+  /// 滚到最新输出。用 jumpTo 而不是 animateTo：远端还在输出时
+  /// `maxScrollExtent` 每帧都在长，动画的目标值一出门就过期；xterm 自己在
+  /// 用户输入时也是直接 jumpTo。
+  void _scrollToLatest() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    // 阈值 1px：滚到底时 pixels 与 maxScrollExtent 可能差一个浮点尾巴。
+    final atBottom = position.maxScrollExtent - position.pixels <= 1;
+    if (_atBottom.value == atBottom) return;
+    _atBottom.value = atBottom;
+  }
+
+  /// 滚动条只挂在触屏平台：桌面端框架自己会按平台加一条
+  /// （`MaterialScrollBehavior`），这里再加就是两条；移动端框架不加，
+  /// 而手机上没有任何滚动位置反馈，一屏刷过去的日志会让人不知道身在何处。
+  ///
+  /// `interactive` 保持 false：拖动拇指要跟包内层的选字识别器抢手势，
+  /// 而竞技场里更深的那一个（xterm 的）会赢——给了拖动也是白给。
+  Widget _withScrollbar(TerminalStylePrefs prefs, Widget child) {
+    if (!_isTouchPlatform) return child;
+    return Scrollbar(
+      controller: _scrollController,
+      thickness: 3,
+      radius: const Radius.circular(2),
+      child: child,
+    );
+  }
+
+  Widget _scrollToLatestButton(TerminalStylePrefs prefs) {
+    final foreground = prefs.theme.foreground;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _scrollToLatest,
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: prefs.theme.background.withValues(alpha: 0.88),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: foreground.withValues(alpha: 0.24)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.arrow_downward_rounded, size: 16, color: foreground),
+            const SizedBox(width: 6),
+            Text(
+              AppLocalizations.of(context).scrollToBottom,
+              style: TextStyle(fontSize: 12, color: foreground),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// 在 [globalPosition] 处弹出会话菜单：桌面右键与触屏长按都走这里。
   Future<void> _showContextMenuAt(Offset globalPosition) =>
       _showContextMenu(globalPosition, _cellAt(globalPosition));
@@ -474,48 +547,74 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                 child: Column(
                   children: [
                     Expanded(
-                      child: MouseRegion(
-                        // 指针离开终端：下划线跟着消失。
-                        onExit: _onPointerExit,
-                        child: Listener(
-                          onPointerHover: _onPointerHover,
-                          onPointerMove: _onPointerMove,
-                          onPointerDown: _onPointerDown,
-                          onPointerUp: _onPointerUp,
-                          onPointerCancel: _onPointerCancel,
-                          // 滚轮 / 拖动滚动条也会顶动画面，通知往上冒到这里。
-                          child: NotificationListener<ScrollNotification>(
-                            onNotification: (notification) {
-                              _refreshLinkHover();
-                              return false;
-                            },
-                            child: ValueListenableBuilder<TerminalLink?>(
-                              valueListenable: _hoveredLink,
-                              builder: (context, link, _) => TerminalView(
-                                widget.session.terminal,
-                                key: _terminalKey,
-                                controller: _controller,
-                                theme: prefs.theme,
-                                focusNode: _focusNode,
-                                autofocus: true,
-                                // 移动端软键盘的删除键不走硬件按键事件，需要开启检测。
-                                deleteDetection: true,
-                                textStyle: _styleOf(prefs),
-                                padding: const EdgeInsets.all(10),
-                                shortcuts: _shortcuts,
-                                // 悬停在链接上换成手型光标：与下划线同一份判定。
-                                mouseCursor: link == null
-                                    ? SystemMouseCursors.text
-                                    : SystemMouseCursors.click,
-                                onSecondaryTapUp: (details, cell) =>
-                                    _showContextMenu(
-                                      details.globalPosition,
-                                      cell,
-                                    ),
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: MouseRegion(
+                              // 指针离开终端：下划线跟着消失。
+                              onExit: _onPointerExit,
+                              child: Listener(
+                                onPointerHover: _onPointerHover,
+                                onPointerMove: _onPointerMove,
+                                onPointerDown: _onPointerDown,
+                                onPointerUp: _onPointerUp,
+                                onPointerCancel: _onPointerCancel,
+                                // 滚轮 / 拖动滚动条也会顶动画面，通知往上冒到这里。
+                                child: NotificationListener<ScrollNotification>(
+                                  onNotification: (notification) {
+                                    _refreshLinkHover();
+                                    return false;
+                                  },
+                                  child: ValueListenableBuilder<TerminalLink?>(
+                                    valueListenable: _hoveredLink,
+                                    builder: (context, link, _) =>
+                                        _withScrollbar(
+                                          prefs,
+                                          TerminalView(
+                                            widget.session.terminal,
+                                            key: _terminalKey,
+                                            controller: _controller,
+                                            theme: prefs.theme,
+                                            focusNode: _focusNode,
+                                            // 自己拿着滚动控制器：滚动条与
+                                            // 「回到最新」都要读同一个位置。
+                                            scrollController: _scrollController,
+                                            autofocus: true,
+                                            // 移动端软键盘的删除键不走硬件按键事件，需要开启检测。
+                                            deleteDetection: true,
+                                            textStyle: _styleOf(prefs),
+                                            padding: const EdgeInsets.all(10),
+                                            shortcuts: _shortcuts,
+                                            // 悬停在链接上换成手型光标：与下划线同一份判定。
+                                            mouseCursor: link == null
+                                                ? SystemMouseCursors.text
+                                                : SystemMouseCursors.click,
+                                            onSecondaryTapUp: (details, cell) =>
+                                                _showContextMenu(
+                                                  details.globalPosition,
+                                                  cell,
+                                                ),
+                                          ),
+                                        ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                          // 「回到最新」浮在终端右下角：只在滚上去时出现，
+                          // 新输出不再自动把画面拽回底部（xterm 只在用户输入时
+                          // 跳到底），刷屏日志后想回底就得有这颗按钮。
+                          Positioned(
+                            right: 10,
+                            bottom: 10,
+                            child: ValueListenableBuilder<bool>(
+                              valueListenable: _atBottom,
+                              builder: (context, atBottom, _) => atBottom
+                                  ? const SizedBox.shrink()
+                                  : _scrollToLatestButton(prefs),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     // 快捷键条排在终端之下、软键盘之上：用 Column 而不是浮层，

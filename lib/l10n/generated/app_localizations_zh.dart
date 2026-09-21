@@ -1131,6 +1131,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get openLink => '打开链接';
 
   @override
+  String get scrollToBottom => '回到最新';
+
+  @override
   String get keyBarTitle => '快捷键';
 
   @override

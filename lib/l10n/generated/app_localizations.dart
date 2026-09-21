@@ -1994,6 +1994,12 @@ abstract class AppLocalizations {
   /// **'Open Link'**
   String get openLink;
 
+  /// No description provided for @scrollToBottom.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to latest'**
+  String get scrollToBottom;
+
   /// No description provided for @keyBarTitle.
   ///
   /// In en, this message translates to:
