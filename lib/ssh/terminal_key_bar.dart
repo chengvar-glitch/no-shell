@@ -86,9 +86,7 @@ class _TerminalKeyBarState extends State<TerminalKeyBar> {
               // 重排一次，按一下 Ctrl 抖一下画面。
               clipBehavior: Clip.none,
               children: [
-                _collapsed
-                    ? _collapsedRow(l10n, colors)
-                    : _keyRow(l10n, prefs),
+                _collapsed ? _collapsedRow(l10n, colors) : _keyRow(l10n, prefs),
                 if (armed.isNotEmpty && !_collapsed)
                   Positioned(
                     right: 0,

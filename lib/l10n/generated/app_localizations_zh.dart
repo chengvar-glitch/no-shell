@@ -134,7 +134,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get windowClose => '关闭';
 
   @override
-  String get searchHint => '搜索名称、主机或标签…';
+  String get searchHint => '在终端里查找';
 
   @override
   String get noMatchingHosts => '没有匹配的主机';
@@ -1132,6 +1132,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scrollToBottom => '回到最新';
+
+  @override
+  String get searchTerminal => '查找';
+
+  @override
+  String get searchPrevious => '上一个';
+
+  @override
+  String get searchNext => '下一个';
+
+  @override
+  String get searchNoResults => '无结果';
 
   @override
   String get keyBarTitle => '快捷键';

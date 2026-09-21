@@ -311,7 +311,7 @@ abstract class AppLocalizations {
   /// No description provided for @searchHint.
   ///
   /// In en, this message translates to:
-  /// **'Search name, host, or tag…'**
+  /// **'Find in terminal'**
   String get searchHint;
 
   /// No description provided for @noMatchingHosts.
@@ -1999,6 +1999,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Jump to latest'**
   String get scrollToBottom;
+
+  /// No description provided for @searchTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Find'**
+  String get searchTerminal;
+
+  /// No description provided for @searchPrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous'**
+  String get searchPrevious;
+
+  /// No description provided for @searchNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get searchNext;
+
+  /// No description provided for @searchNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results'**
+  String get searchNoResults;
 
   /// No description provided for @keyBarTitle.
   ///

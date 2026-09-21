@@ -233,4 +233,68 @@ void main() {
       );
     });
   });
+
+  group('findTerminalMatches 回滚搜索', () {
+    test('大小写不敏感，同一行多处命中都算', () {
+      final terminal = Terminal(maxLines: 100)
+        ..write('Beta beta BETA\nnothing here\n');
+
+      final hits = findTerminalMatches(terminal.buffer, 'beta');
+      expect(hits, const [
+        TerminalMatch(row: 0, startCell: 0, endCell: 4),
+        TerminalMatch(row: 0, startCell: 5, endCell: 9),
+        TerminalMatch(row: 0, startCell: 10, endCell: 14),
+      ]);
+    });
+
+    test('空查询与查不到都是空表', () {
+      final terminal = Terminal(maxLines: 100)..write('alpha\n');
+      expect(findTerminalMatches(terminal.buffer, ''), isEmpty);
+      expect(findTerminalMatches(terminal.buffer, 'zeta'), isEmpty);
+    });
+
+    test('重叠命中按两处算', () {
+      final terminal = Terminal(maxLines: 100)..write('aaaa\n');
+      expect(findTerminalMatches(terminal.buffer, 'aa'), const [
+        TerminalMatch(row: 0, startCell: 0, endCell: 2),
+        TerminalMatch(row: 0, startCell: 1, endCell: 3),
+        TerminalMatch(row: 0, startCell: 2, endCell: 4),
+      ]);
+    });
+
+    test('宽字符按格子算跨度，不按字符串下标', () {
+      final terminal = Terminal(maxLines: 100)..write('中文 log\n');
+      // 「中文」各占两格：'log' 是第 5 个字符，但落在第 5 格起
+      // （中 0-1、文 2-3、空格 4、l 5）。
+      expect(findTerminalMatches(terminal.buffer, 'log'), const [
+        TerminalMatch(row: 0, startCell: 5, endCell: 8),
+      ]);
+      // 命中汉字本身时跨度是两格。
+      expect(findTerminalMatches(terminal.buffer, '中'), const [
+        TerminalMatch(row: 0, startCell: 0, endCell: 2),
+      ]);
+    });
+
+    test('回滚里的行也在搜索范围内', () {
+      final terminal = Terminal(maxLines: 100)
+        ..write('first needle\n')
+        ..write(List.generate(40, (i) => 'line $i\n').join());
+      final hits = findTerminalMatches(terminal.buffer, 'needle');
+      expect(hits, hasLength(1));
+      expect(hits.single.row, 0, reason: '第 0 行就是最早那行，仍在缓冲区里');
+    });
+
+    test('Cmd/Ctrl+F 那一支键位已绑上查找意图', () {
+      final shortcuts = terminalShortcuts();
+      final searchKeys = shortcuts.entries
+          .where((entry) => entry.value is TerminalSearchIntent)
+          .toList();
+      expect(searchKeys, hasLength(1), reason: '每个平台只绑一个组合');
+      final activator = searchKeys.single.key as SingleActivator;
+      expect(activator.trigger, LogicalKeyboardKey.keyF);
+      // 非 Apple 平台必须是 Ctrl+Shift+F：裸 Ctrl+F 是 readline 的光标右移。
+      expect(activator.control, isTrue);
+      expect(activator.shift, isTrue);
+    });
+  });
 }

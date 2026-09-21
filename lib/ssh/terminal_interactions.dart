@@ -21,6 +21,11 @@ class TerminalFontSizeResetIntent extends Intent {
   const TerminalFontSizeResetIntent();
 }
 
+/// 打开终端查找意图。
+class TerminalSearchIntent extends Intent {
+  const TerminalSearchIntent();
+}
+
 /// 终端键位表：包默认（复制 / 粘贴 / 全选）+ 字号缩放。
 ///
 /// `TerminalView.shortcuts` 会**整体替换**包的默认表，所以必须把
@@ -59,6 +64,18 @@ Map<ShortcutActivator, Intent> terminalShortcuts() {
       ],
       intent: const TerminalFontSizeResetIntent(),
     ),
+    // 查找：Apple 用 Cmd+F；其余平台用 Ctrl+Shift+F——裸 Ctrl+F 在 shell 里
+    // 是 readline 的「光标右移一个字符」，抢走它等于让用户按不出这个键
+    // （GNOME Terminal / Windows Terminal 也是 Ctrl+Shift+F）。
+    if (meta)
+      const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+          const TerminalSearchIntent()
+    else
+      const SingleActivator(
+        LogicalKeyboardKey.keyF,
+        control: true,
+        shift: true,
+      ): const TerminalSearchIntent(),
   };
 }
 
@@ -176,6 +193,32 @@ final class TerminalLink {
   int get hashCode => Object.hash(url, row, startCell, endCell);
 }
 
+/// 一行的文本 + 「字符串下标 → 起始格列 / 格宽」映射。
+///
+/// 三者必须一起逐格构建：宽字符占两格，格列与字符串下标不能互相当。
+/// 宽字符的占位格 codepoint 恒为 0（见 xterm `Buffer.writeChar`），跳过即是。
+final class BufferLineText {
+  BufferLineText(BufferLine line) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < line.length; i++) {
+      final codePoint = line.getCodePoint(i);
+      if (codePoint == 0) continue;
+      starts.add(i);
+      widths.add(line.getWidth(i));
+      buffer.writeCharCode(codePoint);
+    }
+    text = buffer.toString();
+  }
+
+  late final String text;
+  final List<int> starts = [];
+  final List<int> widths = [];
+
+  /// 第 [index] 个字符占的格子区间（含首不含尾）。
+  (int, int) cellSpanOf(int index, int length) =>
+      (starts[index], starts[index + length - 1] + widths[index + length - 1]);
+}
+
 /// 点击的格子落在 URL 上时返回该链接，否则返回 null。
 ///
 /// 跨度覆盖正则匹配到的整段（含被裁掉的句尾标点）：下划线画的就是点击
@@ -183,27 +226,13 @@ final class TerminalLink {
 TerminalLink? findLinkAtCell(Terminal terminal, CellOffset cell) {
   final buffer = terminal.buffer;
   if (cell.y < 0 || cell.y >= buffer.height) return null;
-  final line = buffer.lines[cell.y];
+  final line = BufferLineText(buffer.lines[cell.y]);
 
-  // 行文本与「字符串下标 → 起始格列」的映射必须一起逐格构建：
-  // 宽字符占两格，格列和字符串下标不能互相当。宽字符的占位格
-  // codepoint 恒为 0（见 xterm Buffer.writeChar），跳过即是。
-  final text = StringBuffer();
-  final starts = <int>[];
-  final widths = <int>[];
-  for (var i = 0; i < line.length; i++) {
-    final codePoint = line.getCodePoint(i);
-    if (codePoint == 0) continue;
-    starts.add(i);
-    widths.add(line.getWidth(i));
-    text.writeCharCode(codePoint);
-  }
-  final lineText = text.toString();
-
-  for (final match in _linkPattern.allMatches(lineText)) {
-    final lastIndex = match.end - 1;
-    final startCell = starts[match.start];
-    final endCell = starts[lastIndex] + widths[lastIndex];
+  for (final match in _linkPattern.allMatches(line.text)) {
+    final (startCell, endCell) = line.cellSpanOf(
+      match.start,
+      match.end - match.start,
+    );
     if (cell.x >= startCell && cell.x < endCell) {
       return TerminalLink(
         url: _trimTrailingPunctuation(match.group(0)!),
@@ -214,6 +243,66 @@ TerminalLink? findLinkAtCell(Terminal terminal, CellOffset cell) {
     }
   }
   return null;
+}
+
+/// 回滚缓冲里的一处命中：行号（与 `CellOffset.y` 同一坐标系，含回滚）与
+/// 它在行内占的格子区间（含首不含尾）。
+final class TerminalMatch {
+  const TerminalMatch({
+    required this.row,
+    required this.startCell,
+    required this.endCell,
+  });
+
+  final int row;
+  final int startCell;
+  final int endCell;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TerminalMatch &&
+      other.row == row &&
+      other.startCell == startCell &&
+      other.endCell == endCell;
+
+  @override
+  int get hashCode => Object.hash(row, startCell, endCell);
+
+  @override
+  String toString() => 'TerminalMatch(row: $row, $startCell..$endCell)';
+}
+
+/// 在缓冲区（含回滚）里找 [query] 的全部出现，大小写不敏感；[query] 为空
+/// 返回空表。
+///
+/// 不跨行匹配：终端里一行就是一条记录，跨行命中在日志里几乎没有意义，
+/// 而实现代价是多一倍的边界处理。
+///
+/// 每次输入都重扫一遍整块缓冲区（50000 行满缓冲是最坏情况）。没有加去抖：
+/// 一屏日志量级下这是微不足道的一次遍历，真在低端机上感到卡顿再加。
+List<TerminalMatch> findTerminalMatches(Buffer buffer, String query) {
+  if (query.isEmpty) return const [];
+  final out = <TerminalMatch>[];
+  for (var row = 0; row < buffer.height; row++) {
+    final line = BufferLineText(buffer.lines[row]);
+    if (line.text.isEmpty) continue;
+    // 大小写转换可能改变长度（如 'İ'），那样下标就对不上格列映射了——
+    // 这种行退回大小写敏感，宁可少命中几个，也不能把高亮画错格子。
+    final folded = line.text.toLowerCase();
+    final caseInsensitive = folded.length == line.text.length;
+    final haystack = caseInsensitive ? folded : line.text;
+    final needle = caseInsensitive ? query.toLowerCase() : query;
+
+    var from = 0;
+    while (from <= haystack.length - needle.length) {
+      final at = haystack.indexOf(needle, from);
+      if (at < 0) break;
+      final (startCell, endCell) = line.cellSpanOf(at, needle.length);
+      out.add(TerminalMatch(row: row, startCell: startCell, endCell: endCell));
+      from = at + 1; // 允许重叠：'aa' 在 'aaa' 里算两处
+    }
+  }
+  return out;
 }
 
 /// 裁掉 URL 尾部的句读。右括号 / 右方括号只在括号不配对时才裁：

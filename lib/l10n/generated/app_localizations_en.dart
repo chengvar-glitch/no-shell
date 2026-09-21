@@ -136,7 +136,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get windowClose => 'Close';
 
   @override
-  String get searchHint => 'Search name, host, or tag…';
+  String get searchHint => 'Find in terminal';
 
   @override
   String get noMatchingHosts => 'No matching hosts';
@@ -1181,6 +1181,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scrollToBottom => 'Jump to latest';
+
+  @override
+  String get searchTerminal => 'Find';
+
+  @override
+  String get searchPrevious => 'Previous';
+
+  @override
+  String get searchNext => 'Next';
+
+  @override
+  String get searchNoResults => 'No results';
 
   @override
   String get keyBarTitle => 'Keys';

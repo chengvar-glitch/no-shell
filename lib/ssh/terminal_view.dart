@@ -156,6 +156,21 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 当前是否开启选中即复制；每次偏好重建时刷新，供控制器回调读取。
   bool _copyOnSelect = false;
 
+  /// 查找栏是否展开。
+  bool _searching = false;
+  String _query = '';
+
+  /// 命中位置（绝对行号，随输出滚动会过期；高亮用的是锚点，不受影响）。
+  List<TerminalMatch> _matches = const [];
+  int _matchIndex = 0;
+
+  /// 挂在控制器上的高亮对象：重新查找或收起查找栏时必须逐个 dispose，
+  /// 否则旧底色会一直留在缓冲区的那些格子上。
+  final List<TerminalHighlight> _highlights = [];
+
+  final TextEditingController _searchField = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
   @override
   void initState() {
     super.initState();
@@ -187,6 +202,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _atBottom.dispose();
+    _clearHighlights();
+    _searchField.dispose();
+    _searchFocus.dispose();
     HardwareKeyboard.instance.removeHandler(_onKeyEvent);
     widget.session.terminal.removeListener(_refreshLinkHover);
     _hoveredLink.dispose();
@@ -434,6 +452,222 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     );
   }
 
+  void _openSearch() {
+    if (_searching) {
+      _searchFocus.requestFocus();
+      return;
+    }
+    setState(() => _searching = true);
+    // 展开之后再申请焦点：焦点一挪走软键盘就会跳出来，而这是用户主动点
+    // 「查找」的预期结果；收起时再还给终端（见 _closeSearch）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocus.requestFocus();
+    });
+  }
+
+  void _closeSearch() {
+    _clearHighlights();
+    _searchField.clear();
+    setState(() {
+      _searching = false;
+      _query = '';
+      _matches = const [];
+      _matchIndex = 0;
+    });
+    _restoreTerminalFocus();
+  }
+
+  void _runSearch(String query) {
+    final matches = findTerminalMatches(widget.session.terminal.buffer, query);
+    _query = query;
+    _matches = matches;
+    _matchIndex = 0;
+    _paintHighlights();
+    setState(() {});
+    if (matches.isNotEmpty) _scrollToMatch(0);
+  }
+
+  /// 上一条 / 下一条，首尾相接。
+  void _stepMatch(int delta) {
+    if (_matches.isEmpty) return;
+    final next = (_matchIndex + delta) % _matches.length;
+    _matchIndex = next < 0 ? next + _matches.length : next;
+    _paintHighlights();
+    setState(() {});
+    _scrollToMatch(_matchIndex);
+  }
+
+  /// 命中全部上底色，当前那一处换更实的颜色。
+  ///
+  /// 颜色必须**半透明**：xterm 画高亮就是在字上面盖一个实心矩形
+  /// （`paintHighlight` 只有 drawRect，主题里的 `searchHitForeground`
+  /// 在包里根本没人读），不透明就把命中的字整片盖掉了。
+  void _paintHighlights() {
+    final theme = TerminalStyleScope.of(context).notifier.value.theme;
+    _clearHighlights();
+    for (var i = 0; i < _matches.length; i++) {
+      final match = _matches[i];
+      final current = i == _matchIndex;
+      final color = current
+          ? theme.searchHitBackgroundCurrent
+          : theme.searchHitBackground;
+      _highlights.add(
+        _controller.highlight(
+          p1: widget.session.terminal.buffer.createAnchor(
+            match.startCell,
+            match.row,
+          ),
+          // 区间是「含首含尾」的，所以末格要减一。
+          p2: widget.session.terminal.buffer.createAnchor(
+            match.endCell - 1,
+            match.row,
+          ),
+          color: color.withValues(alpha: current ? 0.55 : 0.26),
+        ),
+      );
+    }
+  }
+
+  void _clearHighlights() {
+    for (final highlight in _highlights) {
+      highlight.dispose();
+    }
+    _highlights.clear();
+  }
+
+  /// 把命中行滚进视野。已经在视野里（留一行余量）就不动，免得每敲一个字
+  /// 画面都跳一下。
+  void _scrollToMatch(int index) {
+    final render = _terminalKey.currentState?.renderTerminal;
+    if (render == null || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final lineHeight = render.lineHeight;
+    if (lineHeight <= 0) return;
+    final row = _matches[index].row;
+    final first = position.pixels / lineHeight;
+    final last = (position.pixels + position.viewportDimension) / lineHeight;
+    if (row >= first + 1 && row <= last - 1) return;
+    final target = (row * lineHeight - lineHeight * 3).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
+    _scrollController.jumpTo(target);
+  }
+
+  Widget _searchBar(TerminalStylePrefs prefs) {
+    final l10n = AppLocalizations.of(context);
+    final theme = prefs.theme;
+    final foreground = theme.foreground;
+    final counter = _query.isEmpty
+        ? ''
+        : (_matches.isEmpty
+              ? l10n.searchNoResults
+              : '${_matchIndex + 1}/${_matches.length}');
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: theme.background,
+        border: Border(
+          top: BorderSide(color: foreground.withValues(alpha: 0.14)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.search_rounded,
+            size: 17,
+            color: foreground.withValues(alpha: 0.7),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _searchField,
+              focusNode: _searchFocus,
+              onChanged: _runSearch,
+              onSubmitted: (_) => _stepMatch(1),
+              textInputAction: TextInputAction.search,
+              style: TextStyle(fontSize: 13, color: foreground),
+              cursorColor: theme.cursor,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: l10n.searchHint,
+                hintStyle: TextStyle(
+                  fontSize: 13,
+                  color: foreground.withValues(alpha: 0.45),
+                ),
+              ),
+            ),
+          ),
+          if (counter.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Text(
+              counter,
+              style: TextStyle(
+                fontSize: 12,
+                color: _matches.isEmpty
+                    ? AppPalette.warning
+                    : foreground.withValues(alpha: 0.75),
+              ),
+            ),
+          ],
+          _searchButton(
+            Icons.keyboard_arrow_up_rounded,
+            l10n.searchPrevious,
+            _matches.isEmpty ? null : () => _stepMatch(-1),
+            foreground,
+          ),
+          _searchButton(
+            Icons.keyboard_arrow_down_rounded,
+            l10n.searchNext,
+            _matches.isEmpty ? null : () => _stepMatch(1),
+            foreground,
+          ),
+          _searchButton(
+            Icons.close_rounded,
+            MaterialLocalizations.of(context).closeButtonTooltip,
+            _closeSearch,
+            foreground,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 查找栏上的按钮：与键条同理，走 GestureDetector 不碰焦点体系，
+  /// 否则点一下「下一个」软键盘就收起来了。
+  Widget _searchButton(
+    IconData icon,
+    String tooltip,
+    VoidCallback? onTap,
+    Color color,
+  ) {
+    final size = _isTouchPlatform ? 44.0 : 32.0;
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: Tooltip(
+        message: tooltip,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Icon(
+                icon,
+                size: 19,
+                color: color.withValues(alpha: onTap == null ? 0.3 : 1),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _scrollToLatestButton(TerminalStylePrefs prefs) {
     final foreground = prefs.theme.foreground;
     return GestureDetector(
@@ -540,6 +774,12 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                     return null;
                   },
                 ),
+            TerminalSearchIntent: CallbackAction<TerminalSearchIntent>(
+              onInvoke: (intent) {
+                _openSearch();
+                return null;
+              },
+            ),
           },
           child: Stack(
             children: [
@@ -617,6 +857,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                         ],
                       ),
                     ),
+                    // 查找栏与键条都排在终端之下：用 Column 而不是浮层，
+                    // 两者因此永远不遮住输出，终端行数跟着它们让出的高度重排。
+                    if (_searching) _searchBar(prefs),
                     // 快捷键条排在终端之下、软键盘之上：用 Column 而不是浮层，
                     // 键条因此永远不遮住输出，终端行数会跟着它让出的高度重排。
                     if (_showKeyBar)
@@ -653,6 +896,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                 child: _SessionToolbar(
                   session: widget.session,
                   controller: _controller,
+                  onSearch: _openSearch,
                 ),
               ),
             ],
@@ -846,12 +1090,19 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 /// 终端右上角的会话工具条：复制 / 粘贴 / 命令片段的入口。
 /// 悬浮在终端内容之上，底色用终端配色，图标对比度不随主题漂移。
 final class _SessionToolbar extends StatelessWidget {
-  const _SessionToolbar({required this.session, required this.controller});
+  const _SessionToolbar({
+    required this.session,
+    required this.controller,
+    required this.onSearch,
+  });
 
   final TerminalSession session;
 
   /// 选区状态源：复制按钮的可用态跟着它走。
   final TerminalController controller;
+
+  /// 展开查找栏（⌘F / Ctrl+Shift+F 与工具栏按钮同一入口）。
+  final VoidCallback onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -904,6 +1155,13 @@ final class _SessionToolbar extends StatelessWidget {
                 size: size,
                 color: foreground,
                 onTap: () => pasteIntoTerminal(session.terminal),
+              ),
+              _ToolbarButton(
+                tooltip: l10n.searchTerminal,
+                icon: Icons.search_rounded,
+                size: size,
+                color: foreground,
+                onTap: onSearch,
               ),
               if (snippets != null)
                 _ToolbarButton(

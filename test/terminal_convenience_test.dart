@@ -527,4 +527,117 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     });
   });
+
+  group('回滚搜索', () {
+    /// 终端上的查找栏：输入框 + 命中计数 + 上一条 / 下一条 / 关闭。
+    Finder searchField() => find.descendant(
+      of: find.byType(SshTerminalView),
+      matching: find.byType(TextField),
+    );
+
+    /// 控制器挂在 TerminalView 上（公开字段），命中高亮就在它手里。
+    int highlightCount(WidgetTester tester) => tester
+        .widget<TerminalView>(find.byType(TerminalView))
+        .controller!
+        .highlights
+        .length;
+
+    Future<void> search(WidgetTester tester, String query) async {
+      await tester.enterText(searchField(), query);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('工具栏入口打开查找栏，命中上高亮并给出计数', (tester) async {
+      final style = ValueNotifier(const TerminalStylePrefs());
+      await _pumpTerminal(
+        tester,
+        style,
+        output: 'alpha beta\ngamma beta\ndelta\n',
+      );
+
+      expect(searchField(), findsNothing);
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.search_rounded));
+      await tester.pump();
+      expect(searchField(), findsOneWidget);
+
+      await search(tester, 'beta');
+      expect(find.text('1/2'), findsOneWidget);
+      expect(highlightCount(tester), 2, reason: '两处命中都要有底色');
+
+      // 下一条循环回第一条。
+      await tester.tap(find.byTooltip('下一个'));
+      await tester.pump();
+      expect(find.text('2/2'), findsOneWidget);
+      await tester.tap(find.byTooltip('下一个'));
+      await tester.pump();
+      expect(find.text('1/2'), findsOneWidget);
+      await tester.tap(find.byTooltip('上一个'));
+      await tester.pump();
+      expect(find.text('2/2'), findsOneWidget);
+
+      // 查不到时说清楚，且不留下任何高亮。
+      await search(tester, 'zeta');
+      expect(find.text('无结果'), findsOneWidget);
+      expect(highlightCount(tester), 0);
+
+      // 关闭：清空、收高亮、焦点还给终端。
+      await tester.tap(find.byTooltip('关闭'));
+      await tester.pump();
+      expect(searchField(), findsNothing);
+      expect(highlightCount(tester), 0);
+    });
+
+    testWidgets('Ctrl+Shift+F 打开查找栏（非 Apple 平台）', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        final style = ValueNotifier(const TerminalStylePrefs());
+        await _pumpTerminal(tester, style, output: 'alpha\n');
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pump();
+
+        expect(searchField(), findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('命中在回滚里时把画面滚过去', (tester) async {
+      final style = ValueNotifier(const TerminalStylePrefs());
+      // 输出要长过视口，命中才落在当前视野之外。
+      final lines = List.generate(
+        200,
+        (i) => i == 5 ? 'needle here' : 'line $i',
+      );
+      await _pumpTerminal(tester, style, output: '${lines.join('\n')}\n');
+
+      final position = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(TerminalView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      expect(position.pixels, position.maxScrollExtent, reason: '起点在底部');
+
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.search_rounded));
+      await tester.pump();
+      await search(tester, 'needle');
+
+      expect(find.text('1/1'), findsOneWidget);
+      expect(
+        position.pixels,
+        lessThan(position.maxScrollExtent),
+        reason: '命中在回滚里，画面要滚上去',
+      );
+    });
+  });
 }
