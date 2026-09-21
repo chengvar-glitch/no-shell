@@ -126,6 +126,7 @@ final class _TransferPanel extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 132),
             child: ListView.builder(
+              physics: const _SftpScrollPhysics(),
               shrinkWrap: true,
               padding: const EdgeInsets.only(bottom: 6),
               itemCount: transfers.length,

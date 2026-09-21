@@ -1,6 +1,19 @@
 // 文件列表区：表头 / 排序热区 / 单行条目与右键菜单，及加载、错误、空态。
 part of 'sftp_browser.dart';
 
+/// SFTP 列表的滚动物理：iOS / macOS 默认的过界果冻在长列表上很晃，
+/// 把摩擦系数压到默认（0.52）的约十分之一——过界只给一丝让步，
+/// 松手仍走默认弹簧收回。六端统一用它，不按平台分叉。
+class _SftpScrollPhysics extends BouncingScrollPhysics {
+  const _SftpScrollPhysics();
+
+  @override
+  double frictionFactor(double overscrollFraction) {
+    final remain = 1 - overscrollFraction;
+    return remain * remain * 0.05;
+  }
+}
+
 /// 列表主体：加载 / 错误 / 空 / 表格四种形态。
 final class _Body extends StatelessWidget {
   const _Body({required this.controller, required this.compact});
@@ -49,6 +62,7 @@ final class _Body extends StatelessWidget {
           if (!compact) _ListHeader(controller: controller),
           Expanded(
             child: ListView.builder(
+              physics: const _SftpScrollPhysics(),
               padding: EdgeInsets.symmetric(vertical: compact ? 2 : 0),
               itemCount: entries.length,
               itemExtent: compact ? 44 : 34,
@@ -279,6 +293,22 @@ bool _isPointerInstant(PointerDeviceKind kind) =>
     kind != PointerDeviceKind.stylus &&
     kind != PointerDeviceKind.invertedStylus;
 
+/// 行首图标：目录与软链接保持主题色 Material 图形——文件夹的蓝 = 可进入、
+/// 链条形 = 软链接，这两个信号不跟文件类型的彩色走；普通文件用
+/// vscode-icons 的彩色 SVG（按扩展名，见 file_type_icon.dart）。
+Widget _entryLeadingIcon(SftpEntry entry, ThemeData theme) {
+  if (entry.isDirectory || entry.isSymlink) {
+    return Icon(
+      entry.isSymlink ? Icons.link_rounded : Icons.folder_rounded,
+      size: 17,
+      color: entry.isDirectory
+          ? theme.colorScheme.primary
+          : theme.secondaryText,
+    );
+  }
+  return SvgPicture.asset(fileTypeIconAsset(entry.name), width: 17, height: 17);
+}
+
 /// 单行文件条目：自管 hover 状态，避免鼠标移入移出重建整个列表。
 final class _EntryRow extends StatefulWidget {
   const _EntryRow({
@@ -356,13 +386,7 @@ class _EntryRowState extends State<_EntryRow> {
                 : (_hovered ? theme.hoverOverlay : null),
             child: Row(
               children: [
-                Icon(
-                  _entryIcon(entry),
-                  size: 17,
-                  color: entry.isDirectory
-                      ? theme.colorScheme.primary
-                      : theme.secondaryText,
-                ),
+                _entryLeadingIcon(entry, theme),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Row(

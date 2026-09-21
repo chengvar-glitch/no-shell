@@ -33,57 +33,6 @@ String _sortLabel(AppLocalizations l10n, SftpSortField field) =>
       SftpSortField.modified => l10n.sftpSortModified,
     };
 
-/// 目录 / 文件图标：按扩展名粗分，够用即可。
-IconData _entryIcon(SftpEntry entry) {
-  if (entry.isSymlink) return Icons.link_rounded;
-  if (entry.isDirectory) return Icons.folder_rounded;
-  final dot = entry.name.lastIndexOf('.');
-  final extension = dot <= 0 ? '' : entry.name.substring(dot + 1).toLowerCase();
-  return switch (extension) {
-    'png' ||
-    'jpg' ||
-    'jpeg' ||
-    'gif' ||
-    'webp' ||
-    'svg' ||
-    'bmp' ||
-    'ico' => Icons.image_outlined,
-    'zip' ||
-    'tar' ||
-    'gz' ||
-    'tgz' ||
-    'bz2' ||
-    'xz' ||
-    '7z' ||
-    'rar' => Icons.folder_zip_outlined,
-    'dart' ||
-    'js' ||
-    'ts' ||
-    'py' ||
-    'go' ||
-    'rs' ||
-    'java' ||
-    'rb' ||
-    'php' ||
-    'sh' ||
-    'c' ||
-    'h' ||
-    'cpp' ||
-    'html' ||
-    'css' => Icons.code_rounded,
-    'json' ||
-    'yaml' ||
-    'yml' ||
-    'toml' ||
-    'ini' ||
-    'conf' ||
-    'env' => Icons.settings_suggest_outlined,
-    'log' || 'txt' || 'md' => Icons.article_outlined,
-    'sql' || 'db' || 'sqlite' => Icons.storage_rounded,
-    _ => Icons.insert_drive_file_outlined,
-  };
-}
-
 RelativeRect _toRelativeRect(BuildContext context, Offset globalPosition) {
   final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
   return RelativeRect.fromLTRB(

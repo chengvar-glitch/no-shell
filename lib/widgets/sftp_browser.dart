@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
@@ -13,6 +14,7 @@ import '../ssh/sftp_transfer.dart';
 import '../ssh/terminal_session.dart';
 import '../theme.dart';
 import 'confirm_dialog.dart';
+import 'file_type_icon.dart';
 import 'session_idle_view.dart';
 
 part 'sftp_browser_actions.dart';

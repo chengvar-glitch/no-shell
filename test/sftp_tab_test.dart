@@ -191,6 +191,27 @@ void main() {
       expect(find.text('logs'), findsOneWidget); // 回到上级，目录重新出现在列表
     });
 
+    testWidgets('家目录之外的面包屑：根段的斜杠不与分隔符叠成双斜杠', (tester) async {
+      final fs = FakeSftpFileSystem();
+      final usr = fs.addDirectory('/', 'usr');
+      fs.addDirectory(usr.path, 'local');
+      await pumpPanel(tester, fileSystem: fs);
+
+      // 经地址栏直接前往根下深处的目录（用户报障的路径形态）。
+      await tester.tap(find.text('主目录'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '/usr/local');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      // 根段的「/」本身就是分隔符（GNOME 的做法）。/usr/local 的面包屑
+      // 里斜杠字符恰好两个：根段一条 + usr 与 local 之间一条——渲染层若
+      // 在根段后再画分隔符就是「/ / usr」三条（修复前的样子）。
+      expect(find.text('/'), findsNWidgets(2));
+      expect(find.text('usr'), findsOneWidget);
+      expect(find.text('local'), findsOneWidget);
+    });
+
     testWidgets('紧凑布局下单击目录直接进入', (tester) async {
       final fs = FakeSftpFileSystem();
       final logs = fs.addDirectory(fs.home, 'logs');

@@ -112,7 +112,7 @@ extension AppThemeX on ThemeData {
   Color get rowHover => colorScheme.onSurface.withValues(alpha: 0.08);
 
   Color get selectedOverlay => colorScheme.primary.withValues(
-    alpha: brightness == Brightness.dark ? 0.20 : 0.12,
+    alpha: brightness == Brightness.dark ? 0.26 : 0.18,
   );
 
   Color get secondaryText => colorScheme.onSurface.withValues(alpha: 0.62);

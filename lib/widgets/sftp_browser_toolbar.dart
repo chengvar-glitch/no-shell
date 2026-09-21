@@ -605,7 +605,12 @@ class _PathBarState extends State<_PathBar> {
       final crumb = crumbs[i];
       final current = i == crumbs.length - 1;
       final label = crumb.isHome ? l10n.sftpHome : crumb.label;
-      if (i > 0) children.add(_separator(theme));
+      // 根段的「/」本身就是分隔符：其后再画一条就成了「/ / usr」双斜杠
+      // （GNOME 文件管理器同样只显示一条）。家目录段折叠的是一整段路径，
+      // 分隔符照画不误。
+      if (i > 0 && crumbs[i - 1].path != '/') {
+        children.add(_separator(theme));
+      }
       children.add(
         _Crumb(
           label: elideSftpName(label, current ? _currentChars : _crumbChars),

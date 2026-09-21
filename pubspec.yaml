@@ -17,6 +17,8 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_secure_storage: ^11.1.1
+  # SFTP 文件行的彩色类型图标（vscode-icons 的 SVG 子集）。
+  flutter_svg: ^2.2.1
   intl: any
   # 读宿主包信息拿真实版本号（界面展示 + 版本检测的比较基准）。
   # 此前版本号是手写常量：pubspec 到 4.1.3 了，「关于」里还显示 4.0.1。
@@ -101,6 +103,8 @@ flutter:
     - icon/png/icon-128.png
     - assets/fonts/jetbrains_mono/OFL.txt
     - assets/fonts/fira_code/OFL.txt
+    # SFTP 文件类型图标：vscode-icons（MIT）的常用子集，许可文本同目录随附。
+    - assets/icons/file_type/
   # 终端字体随包内置：用户不必安装任何字体，六端渲染一致，也不存在
   # 「请求的族名在系统里不存在」时被 fontconfig 顶替成比例字体的风险。
   # 族名带 NoShell 前缀是刻意的——与系统字体彻底解耦，引擎必定命中这里。

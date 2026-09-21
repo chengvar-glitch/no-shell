@@ -24,10 +24,11 @@ import 'ssh/session_manager.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'update_check.dart';
+import 'widgets/file_type_icon.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  _registerBundledFontLicenses();
+  _registerBundledLicenses();
   await _setupDesktopWindow();
   // 启动即载入已保存的主机列表与偏好，避免先闪一帧空列表 / 默认主题
   // 再被替换；三者互不依赖，并行读盘。版本号顺带一起读，界面里随即
@@ -71,11 +72,13 @@ class _NoUpdateCheckClient implements UpdateCheckClient {
       Future.error(const ReleaseLookupException(ReleaseLookupError.notFound));
 }
 
-/// 把随包内置字体的 OFL 文本注册进许可清单：SIL OFL 要求分发字体时随附许可，
-/// 注册后「关于 → 查看许可」（showAppAboutDialog 自带入口）里就能看到。
+/// 把随包内置资源的许可文本注册进许可清单（内置字体的 OFL、文件类型图标的
+/// MIT）：这些协议都要求分发时随附许可，注册后「关于 → 查看许可」
+/// （showAppAboutDialog 自带入口）里就能看到。
 /// 读不到 asset 时静默跳过——许可展示失败不该拦下启动。
-void _registerBundledFontLicenses() {
-  for (final entry in kBundledFontLicenses.entries) {
+void _registerBundledLicenses() {
+  final licenses = {...kBundledFontLicenses, ...kFileTypeIconLicenses};
+  for (final entry in licenses.entries) {
     LicenseRegistry.addLicense(() async* {
       try {
         final text = await rootBundle.loadString(entry.value);
