@@ -258,6 +258,13 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
     widget.initialSettings?.terminalStyle ?? const TerminalStylePrefs(),
   );
 
+  /// SFTP 快速预览的内存上限档位；改动即时生效并随偏好落盘。
+  late final ValueNotifier<QuickPreviewLimit> _quickPreviewLimit =
+      ValueNotifier(
+        widget.initialSettings?.quickPreviewLimit ??
+            QuickPreviewLimit.defaultLimit,
+      );
+
   /// 落盘节流：设置面板里连点配色、连按字号步进都会频繁通知，
   /// 合并成一次写盘；退出前再补一次，保证「点完成 → 值一定落盘」。
   Timer? _saveTimer;
@@ -277,6 +284,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   void initState() {
     super.initState();
     _terminalStyle.addListener(_scheduleSave);
+    _quickPreviewLimit.addListener(_scheduleSave);
     // 启动后静默查一次：先读上次记录的「有新版」结论（不联网就有提示），
     // 再排一次联网查询。两者都不阻塞启动，失败也只是不提示。
     unawaited(_updateCheck.load());
@@ -325,6 +333,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
     language: _language,
     terminalStyle: _terminalStyle.value,
     allowLegacyHostKeys: _allowLegacyHostKeys,
+    quickPreviewLimit: _quickPreviewLimit.value,
   );
 
   void _setAllowLegacyHostKeys(bool value) {
@@ -353,12 +362,14 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   void dispose() {
     if (_windowHooked) windowManager.removeListener(this);
     _terminalStyle.removeListener(_scheduleSave);
+    _quickPreviewLimit.removeListener(_scheduleSave);
     // 先补写这次会话最后的改动，再拆状态；写盘失败不影响退出。
     _saveNow();
     _sessions.dispose();
     _store.dispose();
     _snippets.dispose();
     _terminalStyle.dispose();
+    _quickPreviewLimit.dispose();
     _updateCheck.dispose();
     super.dispose();
   }
@@ -397,9 +408,12 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
       // 命令片段的作用域同理，终端工具条与片段弹窗都从树上取同一个注册表。
       builder: (context, child) => TerminalStyleScope(
         notifier: _terminalStyle,
-        child: SnippetScope(
-          store: _snippets,
-          child: child ?? const SizedBox.shrink(),
+        child: QuickPreviewLimitScope(
+          notifier: _quickPreviewLimit,
+          child: SnippetScope(
+            store: _snippets,
+            child: child ?? const SizedBox.shrink(),
+          ),
         ),
       ),
       // 开发自测的 FPS 悬浮表：kFpsHudEnabled 在 release 里是编译期 false，

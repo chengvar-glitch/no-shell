@@ -730,6 +730,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sftpTargetUnavailable => 'Cannot determine where to save the file';
 
   @override
+  String get sftpPreview => 'Preview';
+
+  @override
+  String get sftpPreviewLoading => 'Loading preview…';
+
+  @override
+  String get sftpPreviewInvalid => 'This file cannot be previewed.';
+
+  @override
+  String get sftpPreviewEmpty => 'This file is empty.';
+
+  @override
+  String get quickPreviewLimit => 'Quick preview limit';
+
+  @override
   String get sftpErrorPermission => 'Permission denied';
 
   @override

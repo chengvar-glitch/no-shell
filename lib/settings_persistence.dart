@@ -36,6 +36,7 @@ class AppSettings {
     this.language = AppLanguage.system,
     this.terminalStyle = const TerminalStylePrefs(),
     this.allowLegacyHostKeys = false,
+    this.quickPreviewLimit = QuickPreviewLimit.defaultLimit,
   });
 
   final ThemeMode themeMode;
@@ -49,16 +50,24 @@ class AppSettings {
   /// 因此给一个显式开关，而不是把算法放宽成默认行为。
   final bool allowLegacyHostKeys;
 
+  /// SFTP 快速预览允许读入内存的最大字节数档位。
+  ///
+  /// 存枚举名而不是裸字节数：以后调整档位定义或插入新档位时，
+  /// 旧存档仍能按名字落到正确语义上。
+  final QuickPreviewLimit quickPreviewLimit;
+
   AppSettings copyWith({
     ThemeMode? themeMode,
     AppLanguage? language,
     TerminalStylePrefs? terminalStyle,
     bool? allowLegacyHostKeys,
+    QuickPreviewLimit? quickPreviewLimit,
   }) => AppSettings(
     themeMode: themeMode ?? this.themeMode,
     language: language ?? this.language,
     terminalStyle: terminalStyle ?? this.terminalStyle,
     allowLegacyHostKeys: allowLegacyHostKeys ?? this.allowLegacyHostKeys,
+    quickPreviewLimit: quickPreviewLimit ?? this.quickPreviewLimit,
   );
 
   Map<String, Object?> toJson() => {
@@ -70,6 +79,7 @@ class AppSettings {
     'terminalFontSize': terminalStyle.fontSize,
     'terminalCopyOnSelect': terminalStyle.copyOnSelect,
     'allowLegacyHostKeys': allowLegacyHostKeys,
+    'quickPreviewLimit': quickPreviewLimit.name,
   };
 
   factory AppSettings.fromJson(Map<String, Object?> json) {
@@ -112,6 +122,11 @@ class AppSettings {
       ),
       // 缺字段（旧存档）即默认关闭。
       allowLegacyHostKeys: json['allowLegacyHostKeys'] == true,
+      quickPreviewLimit: _enumByName(
+        QuickPreviewLimit.values,
+        json['quickPreviewLimit'],
+        QuickPreviewLimit.defaultLimit,
+      ),
     );
   }
 
@@ -124,7 +139,8 @@ class AppSettings {
       other.terminalStyle.font == terminalStyle.font &&
       other.terminalStyle.fontSize == terminalStyle.fontSize &&
       other.terminalStyle.copyOnSelect == terminalStyle.copyOnSelect &&
-      other.allowLegacyHostKeys == allowLegacyHostKeys;
+      other.allowLegacyHostKeys == allowLegacyHostKeys &&
+      other.quickPreviewLimit == quickPreviewLimit;
 
   @override
   int get hashCode => Object.hash(
@@ -135,6 +151,7 @@ class AppSettings {
     terminalStyle.fontSize,
     terminalStyle.copyOnSelect,
     allowLegacyHostKeys,
+    quickPreviewLimit,
   );
 }
 

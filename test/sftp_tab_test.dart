@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:no_shell/ssh/local_files.dart';
 import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
+import 'package:no_shell/settings.dart';
 import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/sftp_browser.dart';
 
@@ -19,21 +21,33 @@ import 'support/sftp_fakes.dart';
 
 /// 用固定尺寸的宿主承载 SFTP 面板：
 /// 900 走桌面（宽表格 + 完整工具条），390 走紧凑（移动）布局。
-Widget host(Widget child) => MaterialApp(
-  locale: const Locale('zh'),
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
-  supportedLocales: AppLocalizations.supportedLocales,
-  theme: AppTheme.light(),
-  home: Scaffold(body: child),
-);
+Widget host(
+  Widget child, {
+  ValueNotifier<QuickPreviewLimit>? quickPreviewLimit,
+}) {
+  final notifier =
+      quickPreviewLimit ?? ValueNotifier(QuickPreviewLimit.defaultLimit);
+  return MaterialApp(
+    locale: const Locale('zh'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    theme: AppTheme.light(),
+    builder: (context, nested) => QuickPreviewLimitScope(
+      notifier: notifier,
+      child: nested ?? const SizedBox.shrink(),
+    ),
+    home: Scaffold(body: child),
+  );
+}
 
 /// 建一个已连接会话并挂上面板；返回会话便于断言通道只开一次。
 Future<TerminalSession> pumpPanel(
   WidgetTester tester, {
-  required FakeSftpFileSystem fileSystem,
+  required SftpFileSystem fileSystem,
   FakeLocalFileGateway? gateway,
   double width = 900,
   double height = 640,
+  ValueNotifier<QuickPreviewLimit>? quickPreviewLimit,
 }) async {
   tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
@@ -47,7 +61,10 @@ Future<TerminalSession> pumpPanel(
   addTearDown(session.dispose);
   await session.start();
   await tester.pumpWidget(
-    host(SftpTab(session: session, idleHint: '会话未建立 —— 先连接')),
+    host(
+      SftpTab(session: session, idleHint: '会话未建立 —— 先连接'),
+      quickPreviewLimit: quickPreviewLimit,
+    ),
   );
   await tester.pumpAndSettle();
   return session;
@@ -189,6 +206,216 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('app.log'), findsNothing);
       expect(find.text('logs'), findsOneWidget); // 回到上级，目录重新出现在列表
+    });
+
+    testWidgets('双击图片打开预览并可在查看器里缩放', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addFile(
+        fs.home,
+        'photo.png',
+        content: base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        ),
+      );
+      await pumpPanel(tester, fileSystem: fs);
+
+      final row = find.text('photo.png');
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+
+      // 背景是“半透明压暗”，不是全透明也不是黑底：
+      // 28% 遮罩 + 62% 深色本体仍给下层界面留出透出度。
+      expect(
+        tester.widget<ModalBarrier>(find.byType(ModalBarrier).last).color,
+        Colors.black.withValues(alpha: 0.28),
+      );
+      expect(
+        tester.widget<Dialog>(find.byType(Dialog)).backgroundColor,
+        Colors.transparent,
+      );
+      final previewDialog = find.byType(Dialog);
+      final surface = Colors.black.withValues(alpha: 0.62);
+      expect(
+        tester
+            .widget<Scaffold>(
+              find.descendant(
+                of: previewDialog,
+                matching: find.byType(Scaffold),
+              ),
+            )
+            .backgroundColor,
+        surface,
+      );
+      expect(
+        tester
+            .widget<AppBar>(
+              find.descendant(of: previewDialog, matching: find.byType(AppBar)),
+            )
+            .backgroundColor,
+        surface,
+      );
+    });
+
+    testWidgets('双击文本文件打开快速预览', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addFile(
+        fs.home,
+        'notes.log',
+        content: utf8.encode('first line\r\n中文内容\nlast line'),
+      );
+      await pumpPanel(tester, fileSystem: fs);
+
+      final row = find.text('notes.log');
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      // 行式列表支持大文件；可见行可选中复制。
+      expect(find.text('first line'), findsOneWidget);
+      expect(find.text('中文内容'), findsOneWidget);
+      expect(find.text('last line'), findsOneWidget);
+      expect(find.byType(SelectionArea), findsOneWidget);
+    });
+
+    testWidgets('超长文本行分块懒构建，不再横向铺满整行', (tester) async {
+      final fs = FakeSftpFileSystem();
+      final surrogate = String.fromCharCode(0x1D5CF);
+      final longLine = '${'a' * 2048}$surrogate${'b' * 8}';
+      fs.addFile(fs.home, 'one-line.json', content: utf8.encode(longLine));
+      await pumpPanel(tester, fileSystem: fs);
+
+      final row = find.text('one-line.json');
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      // 2048 是分块边界；代理对必须完整落到第二块。
+      expect(find.text('a' * 2048), findsOneWidget);
+      final secondChunk = find.text('$surrogate${'b' * 8}');
+      await tester.scrollUntilVisible(
+        secondChunk,
+        500,
+        scrollable: find
+            .descendant(
+              of: find.byType(Dialog),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.text('$surrogate${'b' * 8}'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byType(SingleChildScrollView),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('文本超过快速预览上限时回到下载保存链路', (tester) async {
+      final limit = ValueNotifier(QuickPreviewLimit.mb4);
+      addTearDown(limit.dispose);
+      final gateway = FakeLocalFileGateway()
+        ..downloadTarget = const LocalTarget(
+          path: '/tmp/large.log',
+          name: 'large.log',
+        );
+      final fs = FakeSftpFileSystem();
+      fs.addFile(
+        fs.home,
+        'large.log',
+        content: List.filled(4 * 1024 * 1024 + 1, 97),
+      );
+      await pumpPanel(
+        tester,
+        fileSystem: fs,
+        gateway: gateway,
+        quickPreviewLimit: limit,
+      );
+
+      final row = find.text('large.log');
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      // 超限不展示“预览失败”：预览层直接收掉，接回另存为 / 下载队列。
+      expect(find.byType(Dialog), findsNothing);
+      expect(gateway.bytesOf('/tmp/large.log').length, 4 * 1024 * 1024 + 1);
+    });
+
+    testWidgets('预览上限读取设置作用域，超限时不再发起读取', (tester) async {
+      final limit = ValueNotifier(QuickPreviewLimit.mb4);
+      addTearDown(limit.dispose);
+      final gateway = FakeLocalFileGateway()
+        ..downloadTarget = const LocalTarget(
+          path: '/tmp/large.png',
+          name: 'large.png',
+        );
+      final fs = FakeSftpFileSystem();
+      fs.addFile(
+        fs.home,
+        'small.png',
+        content: List.filled(4 * 1024 * 1024 + 1, 1),
+      );
+      await pumpPanel(
+        tester,
+        fileSystem: fs,
+        gateway: gateway,
+        quickPreviewLimit: limit,
+      );
+
+      final row = find.text('small.png');
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Dialog), findsNothing);
+      expect(gateway.bytesOf('/tmp/large.png').length, 4 * 1024 * 1024 + 1);
+    });
+
+    testWidgets('流式读取途中超限时关闭预览并接回下载', (tester) async {
+      final limit = ValueNotifier(QuickPreviewLimit.mb4);
+      addTearDown(limit.dispose);
+      final gateway = FakeLocalFileGateway()
+        ..downloadTarget = const LocalTarget(
+          path: '/tmp/stream-large.png',
+          name: 'stream-large.png',
+        );
+      final fs = GatedReadFileSystem()..chunkSize = QuickPreviewLimit.mb4.bytes;
+      fs.addFile(
+        fs.home,
+        'stream-large.png',
+        content: List.filled(QuickPreviewLimit.mb4.bytes + 1, 1),
+      );
+      await pumpPanel(
+        tester,
+        fileSystem: fs,
+        gateway: gateway,
+        quickPreviewLimit: limit,
+      );
+
+      final row = find.text('stream-large.png');
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(row, kind: PointerDeviceKind.mouse);
+      await fs.readStarted.future;
+      fs.releaseRead();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Dialog), findsNothing);
+      expect(
+        gateway.bytesOf('/tmp/stream-large.png').length,
+        QuickPreviewLimit.mb4.bytes + 1,
+      );
     });
 
     testWidgets('家目录之外的面包屑：根段的斜杠不与分隔符叠成双斜杠', (tester) async {
@@ -683,6 +910,25 @@ void main() {
         findsOneWidget,
       );
       expect(fs.listCalls, before, reason: '长按只开菜单，不进入目录');
+    });
+
+    testWidgets('长按可预览文件同时给预览和下载入口', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addFile(fs.home, 'app.log');
+      await pumpPanel(tester, width: 390, height: 700, fileSystem: fs);
+
+      await tester.longPress(find.text('app.log'));
+      await tester.pumpAndSettle();
+
+      final menu = find.byType(PopupMenuItem<String>);
+      expect(
+        find.descendant(of: menu, matching: find.text('预览')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: menu, matching: find.text('下载')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('连点目录只发一次列目录请求', (tester) async {

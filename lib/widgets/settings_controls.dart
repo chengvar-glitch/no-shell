@@ -680,7 +680,7 @@ class LanguageSettingsSection extends StatelessWidget {
   }
 }
 
-/// 连接分区：是否允许老旧主机密钥算法（ssh-rsa / SHA-1）。
+/// 连接分区：老旧主机密钥算法兼容与 SFTP 快速预览上限。
 class ConnectionSettingsSection extends StatelessWidget {
   const ConnectionSettingsSection({
     super.key,
@@ -721,7 +721,39 @@ class ConnectionSettingsSection extends StatelessWidget {
             ],
           ),
         ),
+        SettingsRow(
+          label: l10n.quickPreviewLimit,
+          child: const QuickPreviewLimitDropdown(),
+        ),
       ],
+    );
+  }
+}
+
+/// 快速预览上限下拉：选中态与写入都走全局 [QuickPreviewLimitScope]。
+final class QuickPreviewLimitDropdown extends StatelessWidget {
+  const QuickPreviewLimitDropdown({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final notifier = QuickPreviewLimitScope.notifierOf(context);
+    return ValueListenableBuilder<QuickPreviewLimit>(
+      valueListenable: notifier,
+      builder: (context, limit, _) {
+        return DropdownButtonFormField<QuickPreviewLimit>(
+          initialValue: limit,
+          isExpanded: true,
+          style: _dropdownTextStyle(Theme.of(context)),
+          decoration: const InputDecoration(),
+          items: [
+            for (final option in QuickPreviewLimit.values)
+              DropdownMenuItem(value: option, child: Text(option.label)),
+          ],
+          onChanged: (value) {
+            if (value != null) notifier.value = value;
+          },
+        );
+      },
     );
   }
 }

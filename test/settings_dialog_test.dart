@@ -314,17 +314,21 @@ void main() {
   });
 }
 
-/// 只挂一个「打开设置」按钮的最小外壳：设置弹窗依赖终端样式作用域，
-/// 这里按 NoShellApp 的方式补上，避免拉进整棵应用树。
+/// 只挂一个「打开设置」按钮的最小外壳：设置弹窗依赖终端样式与快速预览
+/// 上限作用域，这里按 NoShellApp 的方式补上，避免拉进整棵应用树。
 Widget _settingsHarness({required bool archiveUnreadable}) {
   final style = ValueNotifier<TerminalStylePrefs>(const TerminalStylePrefs());
+  final quickPreviewLimit = ValueNotifier(QuickPreviewLimit.defaultLimit);
   return MaterialApp(
     locale: const Locale('zh'),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     builder: (context, child) => TerminalStyleScope(
       notifier: style,
-      child: child ?? const SizedBox.shrink(),
+      child: QuickPreviewLimitScope(
+        notifier: quickPreviewLimit,
+        child: child ?? const SizedBox.shrink(),
+      ),
     ),
     home: Builder(
       builder: (context) => Scaffold(

@@ -360,6 +360,12 @@ final class GatedReadFileSystem implements SftpFileSystem {
   /// 通道是否已被关闭。
   bool get disposed => _inner.disposed;
 
+  /// 家目录，测试里登记文件时使用。
+  String get home => _inner.home;
+
+  /// 内层假文件系统的读取分块大小。
+  set chunkSize(int value) => _inner.chunkSize = value;
+
   /// 委托给内部假文件系统：内容与目录都由它维护。
   SftpEntry addFile(String dir, String name, {List<int>? content}) =>
       _inner.addFile(dir, name, content: content);

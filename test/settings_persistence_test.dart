@@ -42,6 +42,7 @@ void main() {
         font: TerminalFont.firaCode,
         fontSize: 17,
       ),
+      quickPreviewLimit: QuickPreviewLimit.mb256,
     );
     await persistence.save(saved);
     expect(await persistence.load(), saved, reason: '落盘再读回应完全一致');
@@ -76,6 +77,7 @@ void main() {
     expect(dirty.terminalStyle.preset, TerminalPreset.nord);
     expect(dirty.terminalStyle.font, TerminalFont.jetBrainsMono);
     expect(dirty.terminalStyle.fontSize, TerminalStylePrefs.maxFontSize);
+    expect(dirty.quickPreviewLimit, QuickPreviewLimit.defaultLimit);
 
     // 空 JSON 等同于「上一代默认值」的存档：一律按当今默认读
     // （copyOnSelect 的旧值迁移见下面那组用例）。
@@ -90,6 +92,19 @@ void main() {
     });
     expect(restored.terminalStyle.font, TerminalFont.jetBrainsMono);
     expect(restored.themeMode, ThemeMode.dark);
+  });
+
+  test('快速预览上限默认 16 MB，档位按名字往返且参与相等判定', () {
+    expect(QuickPreviewLimit.defaultLimit, QuickPreviewLimit.mb16);
+    final saved = const AppSettings().copyWith(
+      quickPreviewLimit: QuickPreviewLimit.mb64,
+    );
+    expect(AppSettings.fromJson(saved.toJson()), saved);
+    expect(
+      const AppSettings() ==
+          const AppSettings(quickPreviewLimit: QuickPreviewLimit.mb4),
+      isFalse,
+    );
   });
 
   testWidgets('启动即应用落盘偏好，改动在防抖后写回', (tester) async {
@@ -189,6 +204,31 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     expect(recorder.saves, isEmpty);
     expect(recorder.stored, isNull);
+  });
+
+  testWidgets('设置面板修改快速预览上限并防抖落盘', (tester) async {
+    tester.platformDispatcher.localesTestValue = const [Locale('zh')];
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final persistence = _RecordingPersistence();
+    await tester.pumpWidget(
+      NoShellApp(settings: persistence, credentials: FakeCredentialStore()),
+    );
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('快速预览上限'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('16 MB'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('64 MB').last);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(persistence.saves.last.quickPreviewLimit, QuickPreviewLimit.mb64);
   });
 
   group('连接兼容性开关', () {

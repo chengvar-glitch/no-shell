@@ -1304,6 +1304,36 @@ abstract class AppLocalizations {
   /// **'Cannot determine where to save the file'**
   String get sftpTargetUnavailable;
 
+  /// No description provided for @sftpPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get sftpPreview;
+
+  /// No description provided for @sftpPreviewLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading preview…'**
+  String get sftpPreviewLoading;
+
+  /// No description provided for @sftpPreviewInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'This file cannot be previewed.'**
+  String get sftpPreviewInvalid;
+
+  /// No description provided for @sftpPreviewEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'This file is empty.'**
+  String get sftpPreviewEmpty;
+
+  /// No description provided for @quickPreviewLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick preview limit'**
+  String get quickPreviewLimit;
+
   /// No description provided for @sftpErrorPermission.
   ///
   /// In en, this message translates to:

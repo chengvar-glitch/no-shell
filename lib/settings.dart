@@ -3,6 +3,43 @@ import 'package:xterm/ui.dart';
 
 import 'l10n/generated/app_localizations.dart';
 
+/// SFTP 快速预览的字节上限。预览不是下载：上限只保护“内存里一次装得下”，
+/// 超限仍可走原有下载链路。档位刻意离散，避免用户随手填出一个内存炸弹。
+enum QuickPreviewLimit {
+  mb4(4 * 1024 * 1024),
+  mb16(16 * 1024 * 1024),
+  mb64(64 * 1024 * 1024),
+  mb256(256 * 1024 * 1024);
+
+  const QuickPreviewLimit(this.bytes);
+
+  static const QuickPreviewLimit defaultLimit = mb16;
+
+  final int bytes;
+
+  /// 档位本身是字节数的稳定表示，下拉里用 MB 展示即可（均为整数）。
+  String get label => '${bytes ~/ (1024 * 1024)} MB';
+}
+
+/// 快速预览上限作用域：挂在 MaterialApp.builder 里，设置面板写入、
+/// SFTP 预览读取都走同一个 notifier，不再给深层组件逐层传一个标量。
+final class QuickPreviewLimitScope
+    extends InheritedNotifier<ValueNotifier<QuickPreviewLimit>> {
+  const QuickPreviewLimitScope({
+    super.key,
+    required super.notifier,
+    required super.child,
+  });
+
+  static QuickPreviewLimitScope of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<QuickPreviewLimitScope>()!;
+
+  /// 框架把 [InheritedNotifier.notifier] 声明为可空；本应用的作用域
+  /// 一定不会缺 notifier，这里把非空契约收在一处。
+  static ValueNotifier<QuickPreviewLimit> notifierOf(BuildContext context) =>
+      of(context).notifier!;
+}
+
 /// 终端字体：只提供「随包内置」与「系统等宽」两类，不提供自由填写字体名的入口。
 ///
 /// 内置族名刻意带 `NoShell ` 前缀：它与系统里任何字体都不同名，文本引擎因此

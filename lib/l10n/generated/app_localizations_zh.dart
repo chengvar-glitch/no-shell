@@ -710,6 +710,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sftpTargetUnavailable => '无法确定本地保存位置';
 
   @override
+  String get sftpPreview => '预览';
+
+  @override
+  String get sftpPreviewLoading => '正在加载预览…';
+
+  @override
+  String get sftpPreviewInvalid => '无法预览这个文件。';
+
+  @override
+  String get sftpPreviewEmpty => '文件内容为空。';
+
+  @override
+  String get quickPreviewLimit => '快速预览上限';
+
+  @override
   String get sftpErrorPermission => '没有权限访问该位置';
 
   @override

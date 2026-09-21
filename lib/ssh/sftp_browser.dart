@@ -400,6 +400,11 @@ final class SftpBrowserController extends ChangeNotifier {
     return SftpDownloadOutcome.enqueued;
   }
 
+  /// 预览等只读界面直接取远端字节；下载仍走传输队列，
+  /// 两条路径互不抢队列，也不会把临时预览文件写进用户可见目录。
+  Stream<List<int>> readRemoteFile(String path) =>
+      _requireFileSystem().read(path);
+
   Future<void> _load(String target, {bool keepSelection = false}) async {
     final fileSystem = _fileSystem;
     if (fileSystem == null) return;

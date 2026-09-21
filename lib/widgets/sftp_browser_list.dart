@@ -364,9 +364,9 @@ class _EntryRowState extends State<_EntryRow> {
           // 单击：抬手且没滑才算数（见上）。触屏是「目录进下一层 / 文件切多选」；
           // 宽屏那一路只是给上面兜底——手指点宽屏时按下不算数，选中得靠这里。
           onTap: compact ? () => _onTap(entry) : () => _onPrimaryDown(entry),
-          // 桌面端双击：目录进入，文件直接下载。触屏不挂双击——它会把单击在
-          // 竞技场里扣住 300ms 等第二下（kDoubleTapTimeout），而手机上「抬手
-          // 即进入」要的是立刻响应；重复进入由 navigate 的判重兜住。
+          // 桌面端双击：目录进入，图片 / 文本快速预览，其它文件下载。触屏不挂双击——
+          // 它会把单击在竞技场里扣住 300ms 等第二下（kDoubleTapTimeout），
+          // 而手机上「抬手即进入」要的是立刻响应；重复进入由 navigate 判重兜住。
           onDoubleTap: compact ? null : () => _onActivate(entry),
           onSecondaryTapDown: (details) => _showMenu(
             context,
@@ -516,9 +516,18 @@ class _EntryRowState extends State<_EntryRow> {
   void _onActivate(SftpEntry entry) {
     if (entry.isDirectory) {
       unawaited(_controller.navigate(entry.path));
+    } else if (isSftpQuickPreviewCandidate(entry)) {
+      unawaited(_quickPreviewOrDownload(entry));
     } else {
       unawaited(_download(context, _controller, [entry]));
     }
+  }
+
+  /// 预览超限时收掉预览层，回到此前的默认动作：选择保存位置并下载。
+  Future<void> _quickPreviewOrDownload(SftpEntry entry) async {
+    final outcome = await showSftpQuickPreview(context, _controller, entry);
+    if (outcome != SftpQuickPreviewOutcome.tooLarge || !mounted) return;
+    await _download(context, _controller, [entry]);
   }
 
   void _showMenuFromButton(BuildContext context, SftpEntry entry) {
@@ -548,6 +557,12 @@ class _EntryRowState extends State<_EntryRow> {
       context: context,
       position: position,
       items: [
+        if (!entry.isDirectory && isSftpQuickPreviewCandidate(entry))
+          PopupMenuItem(
+            value: 'preview',
+            height: 38,
+            child: _menuRow(Icons.visibility_outlined, l10n.sftpPreview),
+          ),
         if (!entry.isDirectory)
           PopupMenuItem(
             value: 'download',
@@ -579,6 +594,11 @@ class _EntryRowState extends State<_EntryRow> {
     switch (action) {
       case 'download':
         await _download(context, _controller, [entry]);
+      case 'preview':
+        final outcome = await showSftpQuickPreview(context, _controller, entry);
+        if (outcome == SftpQuickPreviewOutcome.tooLarge && context.mounted) {
+          await _download(context, _controller, [entry]);
+        }
       case 'rename':
         await _rename(context, _controller, entry);
       case 'copy':

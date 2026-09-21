@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -7,11 +10,13 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
+import 'window_caption.dart';
 import '../ssh/local_files.dart';
 import '../ssh/sftp.dart';
 import '../ssh/sftp_browser.dart';
 import '../ssh/sftp_transfer.dart';
 import '../ssh/terminal_session.dart';
+import '../settings.dart';
 import '../theme.dart';
 import 'confirm_dialog.dart';
 import 'file_type_icon.dart';
@@ -19,6 +24,7 @@ import 'session_idle_view.dart';
 
 part 'sftp_browser_actions.dart';
 part 'sftp_browser_list.dart';
+part 'sftp_browser_preview.dart';
 part 'sftp_browser_toolbar.dart';
 part 'sftp_browser_transfer.dart';
 

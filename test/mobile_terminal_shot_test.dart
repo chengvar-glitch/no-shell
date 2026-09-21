@@ -154,6 +154,7 @@ Future<(TerminalSession, ValueNotifier<TerminalStylePrefs>)> _pump(
 
 void main() {
   setUpAll(() async {
+    if (!_generate) return;
     // 终端字体：用随包内置的那一支，族名要和 pubspec 里的声明一致。
     await _loadFont(
       'NoShell JetBrains Mono',
