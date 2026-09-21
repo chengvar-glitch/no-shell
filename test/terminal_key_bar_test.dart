@@ -62,6 +62,7 @@ Future<(TerminalSession, FakeTransport)> _pumpTerminal(
   WidgetTester tester, {
   String output = 'banner\n',
   Future<bool> Function(Uri uri)? openLink,
+  ValueNotifier<TerminalStylePrefs>? style,
 }) async {
   final transport = FakeTransport(lines: [output])..captureOutput = true;
   final session = TerminalSession(
@@ -77,7 +78,7 @@ Future<(TerminalSession, FakeTransport)> _pumpTerminal(
         session: session,
         openLink: openLink ?? (uri) async => true,
       ),
-      style: ValueNotifier(const TerminalStylePrefs()),
+      style: style ?? ValueNotifier(const TerminalStylePrefs()),
     ),
   );
   await tester.pump();
@@ -235,6 +236,35 @@ void main() {
         await tester.pump();
         expect(session.inputModifiers.ctrl, isFalse);
         expect(find.text('Ctrl 待命 · 只对下一个按键生效'), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('键条里的 A- / A+ 直接改全局字号，到界置灰', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final style = ValueNotifier(const TerminalStylePrefs());
+        await _pumpTerminal(tester, style: style);
+        addTearDown(style.dispose);
+
+        await tester.tap(find.text('A+'));
+        await tester.pump();
+        expect(style.value.fontSize, TerminalStylePrefs.defaultFontSize + 1);
+
+        await tester.tap(find.text('A-'));
+        await tester.tap(find.text('A-'));
+        await tester.pump();
+        expect(style.value.fontSize, TerminalStylePrefs.defaultFontSize - 1);
+
+        // 到顶之后 A+ 置灰：点了不再涨，也不会发出无变化的通知。
+        style.value = const TerminalStylePrefs(
+          fontSize: TerminalStylePrefs.maxFontSize,
+        );
+        await tester.pump();
+        await tester.tap(find.text('A+'));
+        await tester.pump();
+        expect(style.value.fontSize, TerminalStylePrefs.maxFontSize);
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

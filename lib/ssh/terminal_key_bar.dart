@@ -40,6 +40,16 @@ class _TerminalKeyBarState extends State<TerminalKeyBar> {
     widget.onKeySent?.call();
   }
 
+  /// 字号只改全局偏好：与设置页的步进、Cmd/Ctrl 加减走同一条落盘链路。
+  /// 越界由 `withFontSize` 夹住，按钮在边界上直接置灰。
+  void _adjustFontSize(int delta) {
+    final notifier = TerminalStyleScope.of(context).notifier;
+    notifier.value = notifier.value.withFontSize(
+      notifier.value.fontSize + delta,
+    );
+    widget.onKeySent?.call();
+  }
+
   void _toggleModifier({required bool ctrl}) {
     final modifiers = widget.session.inputModifiers;
     ctrl ? modifiers.toggleCtrl() : modifiers.toggleAlt();
@@ -78,7 +88,7 @@ class _TerminalKeyBarState extends State<TerminalKeyBar> {
               children: [
                 _collapsed
                     ? _collapsedRow(l10n, colors)
-                    : _keyRow(l10n, colors),
+                    : _keyRow(l10n, prefs),
                 if (armed.isNotEmpty && !_collapsed)
                   Positioned(
                     right: 0,
@@ -93,7 +103,8 @@ class _TerminalKeyBarState extends State<TerminalKeyBar> {
     );
   }
 
-  Widget _keyRow(AppLocalizations l10n, TerminalTheme colors) {
+  Widget _keyRow(AppLocalizations l10n, TerminalStylePrefs prefs) {
+    final colors = prefs.theme;
     final modifiers = widget.session.inputModifiers;
     return Row(
       children: [
@@ -136,6 +147,22 @@ class _TerminalKeyBarState extends State<TerminalKeyBar> {
                 _KeyButton(
                   label: '→',
                   onTap: () => _sendKey(TerminalKey.arrowRight),
+                ),
+                // 字号：触屏上调字号此前只能进设置页点步进（或接物理键盘按
+                // Cmd/Ctrl 加减）。捏合缩放要在 Scrollable 已经认领第一根
+                // 手指之后再拿两指跨度，且逐帧改字号会让 PTY 每帧重排一次，
+                // 所以在键条上给一对明确的加减键。
+                _KeyButton(
+                  label: 'A-',
+                  tooltip: l10n.fontSizeDecrease,
+                  enabled: prefs.fontSize > TerminalStylePrefs.minFontSize,
+                  onTap: () => _adjustFontSize(-1),
+                ),
+                _KeyButton(
+                  label: 'A+',
+                  tooltip: l10n.fontSizeIncrease,
+                  enabled: prefs.fontSize < TerminalStylePrefs.maxFontSize,
+                  onTap: () => _adjustFontSize(1),
                 ),
               ],
             ),
@@ -191,6 +218,7 @@ final class _KeyButton extends StatelessWidget {
     this.icon,
     this.tooltip,
     this.active = false,
+    this.enabled = true,
     this.color,
     required this.onTap,
   }) : assert(label != null || icon != null, '键帽要么有文字要么有图标');
@@ -202,6 +230,9 @@ final class _KeyButton extends StatelessWidget {
   /// 修饰键待命时点亮。
   final bool active;
 
+  /// 置灰（如字号已经到顶）；点了不做事。
+  final bool enabled;
+
   /// 键条配色（终端配色）；不传时用默认深色，仅供无主题场景兜底。
   final TerminalTheme? color;
 
@@ -210,11 +241,12 @@ final class _KeyButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = color;
-    final foreground = palette?.foreground ?? const Color(0xFFD6DEE7);
+    final base = palette?.foreground ?? const Color(0xFFD6DEE7);
+    final foreground = enabled ? base : base.withValues(alpha: 0.35);
     final background = palette?.background ?? const Color(0xFF0A0C0F);
     final Widget content = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
