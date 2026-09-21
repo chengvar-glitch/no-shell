@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../ssh/credential_store.dart';
 import '../ssh/session_manager.dart';
 import '../ssh/session_page.dart';
 import '../ssh/terminal_view.dart';
@@ -9,9 +10,16 @@ import '../widgets/status_badges.dart';
 
 /// 终端 Tab：统一管理活跃 SSH 会话，点击进入全屏终端。
 final class TerminalTab extends StatelessWidget {
-  const TerminalTab({super.key, required this.sessions});
+  const TerminalTab({
+    super.key,
+    required this.sessions,
+    required this.credentials,
+  });
 
   final SessionManager sessions;
+
+  /// 全屏终端页里「新建会话」要按连接流程取凭据，这里原样透传。
+  final CredentialStore credentials;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +50,7 @@ final class TerminalTab extends StatelessWidget {
                           builder: (_) => SessionPage(
                             sessions: sessions,
                             serverId: session.server.id,
+                            credentials: credentials,
                           ),
                         ),
                       ),

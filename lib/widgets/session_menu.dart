@@ -94,6 +94,36 @@ Future<void> showSessionMenu(
   }
 }
 
+/// 点状态胶囊的统一入口：一条会话时直接进会话日志（多会话功能之前就是这个
+/// 行为，界面保持不变），多开了才换成会话菜单——菜单里照样有「会话日志」，
+/// 另外多出切会话与「新建会话」。
+///
+/// 桌面详情头部与移动端两处（主机详情页 / 全屏终端页）共用这一条规则：
+/// 胶囊在哪一端点开，点出来的都是同一个东西。此前移动端两处只挂
+/// [showSessionLogDialog]，「同一台主机开第二条会话」在手机上因此没有入口
+/// （`newSessionFlow` 只在桌面端挂出）。
+Future<void> openSessionPill(
+  BuildContext context, {
+  required SessionManager sessions,
+  required SshServer server,
+  required GlobalKey anchor,
+  required VoidCallback onNewSession,
+}) async {
+  final session = sessions.activeOf(server.id);
+  if (session == null) return;
+  if (sessions.sessionsOf(server.id).length <= 1) {
+    await showSessionLogDialog(context, session: session);
+    return;
+  }
+  await showSessionMenu(
+    context,
+    sessions: sessions,
+    server: server,
+    anchor: anchor,
+    onNewSession: onNewSession,
+  );
+}
+
 /// 菜单里两项固定动作；会话行本身以 [TerminalSession] 作为返回值。
 enum _SessionMenuAction { newSession, log }
 

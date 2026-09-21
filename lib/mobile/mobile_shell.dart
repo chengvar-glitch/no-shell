@@ -79,7 +79,10 @@ class _MobileShellState extends State<MobileShell> {
             credentials: widget.credentials,
             hostKeys: widget.hostKeys,
           ),
-          TerminalTab(sessions: widget.sessions),
+          TerminalTab(
+            sessions: widget.sessions,
+            credentials: widget.credentials,
+          ),
           // 告警依赖 store 的可读状态，且 Shell 不随 store 重建，
           // 因此在这里单独订阅一次，只在设置 Tab 一棵子树内响应。
           ListenableBuilder(

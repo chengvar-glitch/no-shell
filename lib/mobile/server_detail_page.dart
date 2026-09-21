@@ -12,7 +12,7 @@ import '../store.dart';
 import '../widgets/port_forward_panel.dart' show PortForwardPanel;
 import '../widgets/server_detail.dart'
     show OverviewTab, TerminalIdleStyle, TerminalTab;
-import '../widgets/session_log_dialog.dart';
+import '../widgets/session_menu.dart';
 import '../widgets/session_selection.dart';
 import '../widgets/sftp_browser.dart' show SftpTab;
 import '../widgets/status_badges.dart';
@@ -44,6 +44,9 @@ class ServerDetailPage extends StatefulWidget {
 
 class _ServerDetailPageState extends State<ServerDetailPage>
     with SessionSelectionGuard {
+  /// 胶囊自己的 key：会话菜单锚在它下方（与桌面头部、全屏终端页同一套）。
+  final GlobalKey _pillKey = GlobalKey();
+
   @override
   SessionManager get guardedSessions => widget.sessions;
 
@@ -116,6 +119,7 @@ class _ServerDetailPageState extends State<ServerDetailPage>
         }
         final session = widget.sessions.activeOf(server.id);
         final hasActive = session?.isActive ?? false;
+        final sessionCount = widget.sessions.sessionsOf(server.id).length;
         return Scaffold(
           appBar: AppBar(
             title: Row(
@@ -130,10 +134,27 @@ class _ServerDetailPageState extends State<ServerDetailPage>
                 ),
                 const SizedBox(width: 8),
                 StatusPill(
+                  key: _pillKey,
                   status: server.status,
+                  // 多开了才显示计数与「会话菜单」提示：一条会话时胶囊
+                  // 的外观与多会话功能之前完全一样。
+                  sessionCount: sessionCount,
+                  tooltip: sessionCount > 1 ? l10n.sessionMenu : null,
                   onTap: session == null
                       ? null
-                      : () => showSessionLogDialog(context, session: session),
+                      : () => openSessionPill(
+                          context,
+                          sessions: widget.sessions,
+                          server: server,
+                          anchor: _pillKey,
+                          onNewSession: () => newSessionFlow(
+                            context,
+                            sessions: widget.sessions,
+                            server: server,
+                            credentials: widget.credentials,
+                            store: widget.store,
+                          ),
+                        ),
                 ),
               ],
             ),

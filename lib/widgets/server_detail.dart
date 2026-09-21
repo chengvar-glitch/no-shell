@@ -15,7 +15,6 @@ import '../store.dart';
 import '../theme.dart';
 import 'port_forward_panel.dart';
 import 'session_idle_view.dart';
-import 'session_log_dialog.dart';
 import 'session_menu.dart';
 import 'session_selection.dart';
 import 'sftp_browser.dart';
@@ -445,14 +444,10 @@ class _DetailHeader extends StatelessWidget {
 
   /// 点状态胶囊：一条会话时进日志（与多会话功能之前完全一样），
   /// 多开了才换成会话菜单——菜单里照样有「会话日志」。
+  /// 规则本体在 [openSessionPill]，移动端两处共用同一份。
   void _openSessions(BuildContext context) {
-    final session = this.session;
     if (session == null) return;
-    if (sessionCount <= 1) {
-      showSessionLogDialog(context, session: session);
-      return;
-    }
-    showSessionMenu(
+    openSessionPill(
       context,
       sessions: sessions,
       server: server,

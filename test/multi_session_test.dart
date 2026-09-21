@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/l10n/generated/app_localizations.dart';
+import 'package:no_shell/mobile/server_detail_page.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/settings.dart';
 import 'package:no_shell/ssh/session_manager.dart';
+import 'package:no_shell/ssh/session_page.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
 import 'package:no_shell/ssh/terminal_view.dart';
@@ -214,5 +216,81 @@ void main() {
 
     expect(find.text('已连接'), findsNothing);
     expect(find.byTooltip('新建会话'), findsNothing);
+  });
+
+  // 移动端两处（主机详情页 / 全屏终端页）此前只把胶囊接到会话日志上，
+  // 「同一台主机再开一条」在手机上因此没有入口——newSessionFlow 只挂在桌面端。
+  group('移动端入口', () {
+    Widget mobileDetail() => ServerDetailPage(
+      store: store,
+      sessions: sessions,
+      credentials: credentials,
+      serverId: _server.id,
+    );
+
+    Widget fullscreen() => SessionPage(
+      sessions: sessions,
+      serverId: _server.id,
+      credentials: credentials,
+    );
+
+    Future<void> openSecond(WidgetTester tester) async {
+      sessions.openNew(_server, const SshCredentials(password: 'pw'));
+      await _settle(tester);
+    }
+
+    testWidgets('详情页：单会话点胶囊仍是日志，没有计数', (tester) async {
+      await tester.pumpWidget(_host(mobileDetail()));
+      await tester.pump();
+      await connectFirst(tester);
+
+      expect(find.text('已连接 · 2'), findsNothing);
+      await tester.tap(find.byType(StatusPill));
+      await tester.pumpAndSettle();
+      expect(find.text('banner-1'), findsOneWidget);
+    });
+
+    testWidgets('详情页：多开后胶囊带计数，菜单里能再开一条', (tester) async {
+      await tester.pumpWidget(_host(mobileDetail()));
+      await tester.pump();
+      await connectFirst(tester);
+      await openSecond(tester);
+
+      expect(find.text('已连接 · 2'), findsOneWidget);
+
+      await tester.tap(find.byType(StatusPill));
+      await tester.pumpAndSettle();
+      expect(find.text('会话 1'), findsOneWidget);
+
+      // 菜单里的「新建会话」在移动端此前不可达：点它应当直接开出第三条，
+      // 且复用现有会话手头的凭据（不弹凭据框）。
+      await tester.tap(find.text('新建会话'));
+      await _settle(tester);
+
+      expect(sessions.sessionCount, 3);
+      expect(find.text('连接「multi-test」'), findsNothing);
+    });
+
+    testWidgets('全屏终端页：胶囊点开能切到另一条会话', (tester) async {
+      sessions.open(_server, const SshCredentials(password: 'pw'));
+      await _settle(tester);
+      final first = sessions.activeOf(_server.id)!;
+      await openSecond(tester);
+
+      await tester.pumpWidget(_host(fullscreen()));
+      await tester.pumpAndSettle();
+      expect(find.text('已连接 · 2'), findsOneWidget);
+
+      await tester.tap(find.byType(StatusPill));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('会话 1'));
+      await tester.pumpAndSettle();
+
+      expect(identical(sessions.activeOf(_server.id), first), isTrue);
+      expect(
+        tester.widget<SshTerminalView>(find.byType(SshTerminalView)).session,
+        same(first),
+      );
+    });
   });
 }
