@@ -28,7 +28,16 @@ dependencies:
   shared_preferences: ^2.5.5
   url_launcher: ^6.3.2
   window_manager: ^0.5.2
+  # 版本号只是名义值：实际取的是仓库内打了补丁的 third_party/xterm
+  # （见下面的 dependency_overrides 与 third_party/README.md）。
   xterm: ^4.0.0
+
+# 中文输入法上屏重复的修复只能落在 xterm 内部（见 third_party/README.md）：
+# pub 上的 4.0.0 与上游 master 都还没修，所以本地留一份打了补丁的副本。
+# 上游合了对应改动后，删掉这段与 third_party/xterm。
+dependency_overrides:
+  xterm:
+    path: third_party/xterm
 
 dev_dependencies:
   flutter_test:

@@ -1348,8 +1348,12 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                                                 scrollController:
                                                     _scrollController,
                                                 autofocus: true,
-                                                // 移动端软键盘的删除键不走硬件按键事件，需要开启检测。
-                                                deleteDetection: true,
+                                                // 移动端软键盘的删除键不走硬件按键事件，
+                                                // 需要开启检测；桌面端的退格是真实按键，
+                                                // 开了反而把终端内容挂在那个两空格占位符上
+                                                // （见 third_party/README.md）。
+                                                deleteDetection:
+                                                    _isTouchPlatform,
                                                 textStyle: _styleOf(prefs),
                                                 padding: const EdgeInsets.all(
                                                   10,

@@ -3,6 +3,9 @@ include: package:flutter_lints/flutter.yaml
 analyzer:
   exclude:
     - build/**
+    # 本地 fork 的 xterm（见 third_party/README.md）：上游代码不按本仓库的
+    # 规则重排、重格式化，改它只改我们打的那处补丁。
+    - third_party/**
     - android/**
     - ios/**
     - web/**
