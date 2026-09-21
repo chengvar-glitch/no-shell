@@ -693,6 +693,8 @@
   "searchPrevious": "Previous",
   "searchNext": "Next",
   "searchNoResults": "No results",
+  "selectionStart": "Selection start",
+  "selectionEnd": "Selection end",
   "keyBarTitle": "Keys",
   "keyBarExpand": "Show key bar",
   "keyBarCollapse": "Hide key bar",

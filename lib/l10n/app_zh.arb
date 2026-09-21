@@ -568,6 +568,8 @@
   "searchPrevious": "上一个",
   "searchNext": "下一个",
   "searchNoResults": "无结果",
+  "selectionStart": "选区起点",
+  "selectionEnd": "选区终点",
   "keyBarTitle": "快捷键",
   "keyBarExpand": "展开快捷键条",
   "keyBarCollapse": "收起快捷键条",

@@ -31,6 +31,13 @@ const Duration _longPressDelay = Duration(milliseconds: 550);
 /// 就跳浏览器，链接上永远选不中一个词（与侧边栏「双击直连」同一取舍）。
 const Duration _doubleTapWindow = Duration(milliseconds: 260);
 
+/// 选区手柄的触控半径：视觉半径 7，手指落点留到 18（直径 36）。
+/// 手柄挂在字符下方，按上去时手指会盖住它，判定区必须比看得见的那一圈大。
+const double _handleTouchRadius = 18;
+
+/// 手柄拖动越界时的滚动上限（行 / 每次更新）：手指抖一下不该把画面甩飞。
+const double _maxAutoScrollLines = 3;
+
 /// 触屏平台（Android / iOS）：快捷键条与放宽的触控目标只在这里生效。
 ///
 /// 判平台而不是判窗口宽度：窄窗口的桌面用户有物理键盘，给他塞一条软键盘
@@ -171,6 +178,20 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   final TextEditingController _searchField = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
+  /// 选区手柄浮层：换算坐标要用它自己的 render object 当原点（浮层与终端
+  /// 之间隔着 padding，自己按格宽乘会和包对不上，与链接下划线同一道理）。
+  final GlobalKey _selectionOverlayKey = GlobalKey();
+
+  /// 手柄几何的失效信号：选区变化 / 滚动 / 远端输出都要重算。拖选期间选区
+  /// 每帧都在变，只重建手柄那一小层，不牵动整棵终端树。
+  final ValueNotifier<int> _overlayRevision = ValueNotifier<int>(0);
+
+  /// 正在拖的手柄：true 是起点、false 是终点；没在拖时为 null。
+  bool? _handleGrabbed;
+
+  /// 拖手柄时不动的那一端（抓起点时是终点，反之亦然）。
+  CellOffset? _handleFixedCell;
+
   @override
   void initState() {
     super.initState();
@@ -178,8 +199,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _scrollController.addListener(_onScroll);
     // 修饰键按下 / 抬起时指针不会动，但下划线该跟着出现或消失。
     HardwareKeyboard.instance.addHandler(_onKeyEvent);
-    // 远端输出会顶动画面：指针底下的链接可能已经换了一条。
-    widget.session.terminal.addListener(_refreshLinkHover);
+    // 远端输出会顶动画面：指针底下的链接可能已经换了一条，选区手柄的位置
+    // 也跟着挪。
+    widget.session.terminal.addListener(_onTerminalOutput);
   }
 
   @override
@@ -187,8 +209,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session == widget.session) return;
     // 视图被复用到另一条会话上：监听要跟着搬，否则下划线盯着旧终端算。
-    oldWidget.session.terminal.removeListener(_refreshLinkHover);
-    widget.session.terminal.addListener(_refreshLinkHover);
+    oldWidget.session.terminal.removeListener(_onTerminalOutput);
+    widget.session.terminal.addListener(_onTerminalOutput);
     _pointer = null;
     _refreshLinkHover();
   }
@@ -205,14 +227,20 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _clearHighlights();
     _searchField.dispose();
     _searchFocus.dispose();
+    _overlayRevision.dispose();
     HardwareKeyboard.instance.removeHandler(_onKeyEvent);
-    widget.session.terminal.removeListener(_refreshLinkHover);
+    widget.session.terminal.removeListener(_onTerminalOutput);
     _hoveredLink.dispose();
     _linkRepaint.dispose();
     _controller
       ..removeListener(_onSelectionChanged)
       ..dispose();
     super.dispose();
+  }
+
+  void _onTerminalOutput() {
+    _refreshLinkHover();
+    if (_isTouchPlatform) _overlayRevision.value++;
   }
 
   /// 修饰键起落：只在状态真的变了时重算，键盘每敲一下都过这里。
@@ -226,6 +254,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 
   void _onSelectionChanged() {
+    if (_isTouchPlatform) _overlayRevision.value++;
     _copyOnSelectTimer?.cancel();
     if (!_copyOnSelect) return;
     // 选区被点掉（selection 变 null）不算「选完」：没有要复制的东西。
@@ -256,6 +285,14 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
         ? event.position
         : null;
     if (event.kind != PointerDeviceKind.touch) return;
+    // 按在选区手柄上是要拖它：既不算长按（别弹菜单），也不算点链接。
+    // 命中判定自己做（`_isOnHandle`），不靠浮层上的手势识别器。
+    final grabbed = _grabbedHandle(event.position);
+    if (grabbed != null) {
+      _touchOrigin = null;
+      _onHandleDragStart(grabbed);
+      return;
+    }
     // 触屏：单击是「点链接」、长按是「叫我菜单」，两者都在这一串指针事件里判。
     // 用 Listener 而不是 GestureDetector，是为了不参与手势竞技场——xterm
     // 内部已经拿着长按 / 拖动识别器做选词，再去竞技场里抢只会两败俱伤。
@@ -283,6 +320,12 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 按住键拖动（拖选文字）期间不画下划线：指针位置作废，松手时再恢复。
   /// 拖动同时作废长按判定——手指挪了就不是「长按」。
   void _onPointerMove(PointerMoveEvent event) {
+    if (_handleGrabbed != null) {
+      _onHandleDragUpdate(event.position);
+      _pointer = null;
+      _refreshLinkHover();
+      return;
+    }
     final origin = _touchOrigin;
     if (origin != null && (event.position - origin).distance > _linkTapSlop) {
       _longPressTimer?.cancel();
@@ -293,6 +336,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
+    _onHandleDragEnd();
     _longPressTimer?.cancel();
     _touchOrigin = null;
     _longPressFired = false;
@@ -322,6 +366,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
     if (event.kind == PointerDeviceKind.touch) {
       _longPressTimer?.cancel();
+      if (_handleGrabbed != null) {
+        _onHandleDragEnd();
+        return;
+      }
       final origin = _touchOrigin;
       _touchOrigin = null;
       final longPressed = _longPressFired;
@@ -668,6 +716,164 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     );
   }
 
+  /// 手柄中心在浮层坐标系里的位置。
+  ///
+  /// 起点挂在首格左下角、终点挂在末格右下角——手柄落在字符下方，不挡字。
+  /// [clampToView] 为真时把位置夹进可视区：选区有一半滚出屏幕时手柄仍然
+  /// 抓得到，而不是飘到键条或状态栏上去。
+  Offset? _handleCenter({required bool isStart, bool clampToView = false}) {
+    final selection = _controller.selection;
+    final render = _terminalKey.currentState?.renderTerminal;
+    final overlay = _selectionOverlayKey.currentContext?.findRenderObject();
+    if (selection == null || render == null || overlay is! RenderBox) {
+      return null;
+    }
+    final range = selection.normalized;
+    final cell = isStart ? range.begin : range.end;
+    final edge = isStart ? 0.0 : render.cellSize.width;
+    final local = overlay.globalToLocal(
+      render.localToGlobal(
+        render.getOffset(CellOffset(cell.x, cell.y)) +
+            Offset(edge, render.cellSize.height),
+      ),
+    );
+    if (!clampToView) return local;
+    return Offset(
+      local.dx.clamp(0.0, overlay.size.width),
+      local.dy.clamp(0.0, overlay.size.height),
+    );
+  }
+
+  /// 指针落在哪颗手柄上：是起点返回 true，是终点返回 false，都没命中返回
+  /// null（按手柄是要拖它，不是叫菜单、也不是点链接）。
+  bool? _grabbedHandle(Offset globalPosition) {
+    if (_controller.selection == null) return null;
+    final overlay = _selectionOverlayKey.currentContext?.findRenderObject();
+    if (overlay is! RenderBox) return null;
+    final local = overlay.globalToLocal(globalPosition);
+    for (final isStart in const [true, false]) {
+      final center = _handleCenter(isStart: isStart, clampToView: true);
+      if (center != null && (center - local).distance <= _handleTouchRadius) {
+        return isStart;
+      }
+    }
+    return null;
+  }
+
+  /// 手柄只负责**显示**：拖动判定收在下面那几个指针回调里（与链接点击、
+  /// 长按菜单同一处）。浮层上挂手势识别器看着更顺，实际靠不住——它在
+  /// `Stack` 里的命中测试会被终端自己那层 `MouseRegion` 先接走，还会往
+  /// 竞技场里再塞一个平移识别器跟滚动抢。
+  List<Widget> _selectionHandles(TerminalStylePrefs prefs) {
+    if (_controller.selection == null) return const [];
+    final theme = prefs.theme;
+    final l10n = AppLocalizations.of(context);
+    return [
+      for (final isStart in const [true, false])
+        if (_handleCenter(isStart: isStart, clampToView: true)
+            case final center?)
+          Positioned(
+            key: ValueKey(
+              isStart ? 'selection-handle-start' : 'selection-handle-end',
+            ),
+            left: center.dx - _handleTouchRadius,
+            top: center.dy - _handleTouchRadius,
+            child: IgnorePointer(
+              child: Semantics(
+                label: isStart ? l10n.selectionStart : l10n.selectionEnd,
+                child: SizedBox(
+                  width: _handleTouchRadius * 2,
+                  height: _handleTouchRadius * 2,
+                  child: Center(
+                    child: Container(
+                      width: 15,
+                      height: 15,
+                      decoration: BoxDecoration(
+                        color: theme.cursor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: theme.background, width: 2),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+    ];
+  }
+
+  void _onHandleDragStart(bool isStart) {
+    final selection = _controller.selection;
+    if (selection == null) return;
+    final range = selection.normalized;
+    _handleGrabbed = isStart;
+    _handleFixedCell = isStart ? range.end : range.begin;
+    _longPressTimer?.cancel();
+    _linkTapTimer?.cancel();
+  }
+
+  void _onHandleDragUpdate(Offset globalPosition) {
+    final fixed = _handleFixedCell;
+    final render = _terminalKey.currentState?.renderTerminal;
+    final overlay = _selectionOverlayKey.currentContext?.findRenderObject();
+    if (fixed == null || render == null || overlay is! RenderBox) return;
+
+    // 先按越界量滚，再把手指位置换算成格子：滚完这一下，落到手指底下的
+    // 才是用户指着的那一格。
+    _autoScrollWhileDragging(overlay.globalToLocal(globalPosition));
+    final cell = _cellAt(globalPosition);
+    if (cell == null) return;
+
+    final buffer = widget.session.terminal.buffer;
+    var row = cell.y;
+    final lineHeight = render.lineHeight;
+    if (_scrollController.hasClients && lineHeight > 0) {
+      final position = _scrollController.position;
+      final firstRow = (position.pixels / lineHeight).floor();
+      final lastRow =
+          ((position.pixels + position.viewportDimension) / lineHeight).ceil();
+      row = row.clamp(firstRow, lastRow - 1);
+    }
+    // 每次都新建锚点：setSelection 会 dispose 掉上一对，复用同一个锚点
+    // 第二次就被释放了。
+    _controller.setSelection(
+      buffer.createAnchor(fixed.x, fixed.y),
+      buffer.createAnchor(
+        cell.x.clamp(0, widget.session.terminal.viewWidth - 1),
+        row.clamp(0, buffer.height - 1),
+      ),
+    );
+  }
+
+  void _onHandleDragEnd() {
+    _handleGrabbed = null;
+    _handleFixedCell = null;
+  }
+
+  void _autoScrollWhileDragging(Offset localPosition) {
+    final render = _terminalKey.currentState?.renderTerminal;
+    if (render == null || !_scrollController.hasClients) return;
+    final lineHeight = render.lineHeight;
+    if (lineHeight <= 0) return;
+    final position = _scrollController.position;
+    final overshoot = localPosition.dy < 0
+        ? localPosition.dy
+        : (localPosition.dy > position.viewportDimension
+              ? localPosition.dy - position.viewportDimension
+              : 0.0);
+    if (overshoot == 0) return;
+    final lines = (overshoot / lineHeight).clamp(
+      -_maxAutoScrollLines,
+      _maxAutoScrollLines,
+    );
+    final target = (position.pixels + lines * lineHeight).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
+    if (target == position.pixels) return;
+    _scrollController.jumpTo(target);
+  }
+
   Widget _scrollToLatestButton(TerminalStylePrefs prefs) {
     final foreground = prefs.theme.foreground;
     return GestureDetector(
@@ -803,6 +1009,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                                 child: NotificationListener<ScrollNotification>(
                                   onNotification: (notification) {
                                     _refreshLinkHover();
+                                    if (_isTouchPlatform) {
+                                      _overlayRevision.value++;
+                                    }
                                     return false;
                                   },
                                   child: ValueListenableBuilder<TerminalLink?>(
@@ -841,6 +1050,18 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                               ),
                             ),
                           ),
+                          // 选区手柄（触屏）：长按选词之后要能把两端拽开。
+                          // 只重建这一小层——拖选期间选区每帧都在变。
+                          if (_isTouchPlatform)
+                            Positioned.fill(
+                              child: ValueListenableBuilder<int>(
+                                valueListenable: _overlayRevision,
+                                builder: (context, revision, child) => Stack(
+                                  key: _selectionOverlayKey,
+                                  children: _selectionHandles(prefs),
+                                ),
+                              ),
+                            ),
                           // 「回到最新」浮在终端右下角：只在滚上去时出现，
                           // 新输出不再自动把画面拽回底部（xterm 只在用户输入时
                           // 跳到底），刷屏日志后想回底就得有这颗按钮。

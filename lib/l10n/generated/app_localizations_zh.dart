@@ -1146,6 +1146,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchNoResults => '无结果';
 
   @override
+  String get selectionStart => '选区起点';
+
+  @override
+  String get selectionEnd => '选区终点';
+
+  @override
   String get keyBarTitle => '快捷键';
 
   @override

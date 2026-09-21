@@ -534,4 +534,132 @@ void main() {
       expect(find.text('回到最新'), findsNothing);
     });
   });
+
+  group('选区手柄（触屏）', () {
+    /// 选区文本：手柄拖到哪儿，缓冲区里选中的就是哪儿。
+    String selectedText(WidgetTester tester) {
+      final view = tester.widget<TerminalView>(find.byType(TerminalView));
+      final selection = view.controller!.selection;
+      return selection == null ? '' : view.terminal.buffer.getText(selection);
+    }
+
+    Finder handle(String which) =>
+        find.byKey(ValueKey('selection-handle-$which'));
+
+    ScrollableState scrollable(WidgetTester tester) =>
+        tester.state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(TerminalView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+
+    /// 直接给一个选区。手柄拖动本身用程序化选区来测：长按那条路会把菜单
+    /// 弹出来（模态层会挡住后续指针事件），选词与菜单另有专门的用例。
+    void selectRange(WidgetTester tester, int row, int fromX, int toX) {
+      final view = tester.widget<TerminalView>(find.byType(TerminalView));
+      final buffer = view.terminal.buffer;
+      view.controller!.setSelection(
+        buffer.createAnchor(fromX, row),
+        buffer.createAnchor(toX, row),
+      );
+    }
+
+    /// 拖手柄：按住手柄、挪到目标、松手。判定全在自己的 `Listener` 里，
+    /// 没有手势竞技场要过，所以一次 moveTo 就够。
+    Future<void> dragHandle(WidgetTester tester, Offset from, Offset to) async {
+      final drag = await tester.startGesture(
+        from,
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+      await drag.moveTo(to);
+      await tester.pump();
+      await drag.up();
+      await tester.pump();
+    }
+
+    testWidgets('有选区时出现首尾手柄，拖动终点手柄扩展选区', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        await _pumpTerminal(tester, output: 'hello world again\n');
+
+        expect(handle('start'), findsNothing, reason: '没有选区就没有手柄');
+
+        selectRange(tester, 0, 0, 4);
+        await tester.pump();
+
+        expect(handle('start'), findsOneWidget);
+        expect(handle('end'), findsOneWidget);
+        // 末格是开区间：锚到第 4 格选中的是 0..3，也就是 'hell'。
+        expect(selectedText(tester).trim(), 'hell');
+
+        // 把终点手柄往右拖：选区应当跟着长出去。
+        final from = tester.getCenter(handle('end'));
+        final cellWidth = tester
+            .state<TerminalViewState>(find.byType(TerminalView))
+            .renderTerminal
+            .cellSize
+            .width;
+        await dragHandle(tester, from, from + Offset(cellWidth * 7, 0));
+
+        expect(selectedText(tester).trim(), startsWith('hello world'));
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('终点手柄拖出下边界时画面跟着滚，选区落到边上那一行', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final lines = List.generate(200, (i) => 'line $i');
+        await _pumpTerminal(tester, output: '${lines.join('\n')}\n');
+
+        // 先滚到中段，让下方还有可滚的余地。
+        final position = scrollable(tester).position;
+        position.jumpTo(position.maxScrollExtent / 2);
+        await tester.pump();
+
+        // 在可见的第一行上选一段：手柄要落在视野里才拖得到。
+        final render = tester
+            .state<TerminalViewState>(find.byType(TerminalView))
+            .renderTerminal;
+        final firstRow = (position.pixels / render.lineHeight).floor();
+        selectRange(tester, firstRow, 0, 4);
+        await tester.pump();
+        expect(handle('end'), findsOneWidget);
+
+        final before = position.pixels;
+        final from = tester.getCenter(handle('end'));
+        // 一路拖到终端下边界之外。
+        await dragHandle(tester, from, Offset(from.dx + 40, 5000));
+
+        expect(position.pixels, greaterThan(before), reason: '拖出下边界要把画面跟着滚下去');
+        expect(selectedText(tester), isNotEmpty);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('桌面端不摆手柄（那边用鼠标拖选）', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await _pumpTerminal(tester, output: 'hello world\n');
+        // 直接给一个选区（桌面端这一步由鼠标拖选完成）。
+        final view = tester.widget<TerminalView>(find.byType(TerminalView));
+        final buffer = view.terminal.buffer;
+        view.controller!.setSelection(
+          buffer.createAnchor(0, 0),
+          buffer.createAnchor(4, 0),
+        );
+        await tester.pump();
+        expect(handle('start'), findsNothing);
+        expect(handle('end'), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+  });
 }

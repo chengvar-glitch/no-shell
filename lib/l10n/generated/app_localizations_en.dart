@@ -1195,6 +1195,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchNoResults => 'No results';
 
   @override
+  String get selectionStart => 'Selection start';
+
+  @override
+  String get selectionEnd => 'Selection end';
+
+  @override
   String get keyBarTitle => 'Keys';
 
   @override

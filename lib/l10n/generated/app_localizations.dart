@@ -2024,6 +2024,18 @@ abstract class AppLocalizations {
   /// **'No results'**
   String get searchNoResults;
 
+  /// No description provided for @selectionStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Selection start'**
+  String get selectionStart;
+
+  /// No description provided for @selectionEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'Selection end'**
+  String get selectionEnd;
+
   /// No description provided for @keyBarTitle.
   ///
   /// In en, this message translates to:
