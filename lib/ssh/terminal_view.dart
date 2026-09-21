@@ -715,9 +715,17 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
               textInputAction: TextInputAction.search,
               style: TextStyle(fontSize: 13, color: foreground),
               cursorColor: theme.cursor,
+              // 输入框自己铺终端底色：文字色取自终端配色，底却跟着应用
+              // 主题走的话，浅色主题下就是浅灰压白——几乎看不见。
               decoration: InputDecoration(
                 isDense: true,
+                filled: true,
+                fillColor: theme.background.withValues(alpha: 0.55),
                 border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 hintText: l10n.searchHint,
                 hintStyle: TextStyle(
                   fontSize: 13,

@@ -287,9 +287,11 @@ final class _KeyButton extends StatelessWidget {
         cursor: SystemMouseCursors.click,
         child: Container(
           height: 40,
-          constraints: const BoxConstraints(minWidth: 44),
+          // 落点下限给足 40×40；再宽就把方向键挤出 390pt 的屏幕，
+          // 而方向键是这一排里最常用的几颗（横向滚动留给 A- / A+ / 鼠标）。
+          constraints: const BoxConstraints(minWidth: 40),
           margin: const EdgeInsets.only(right: 5),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 7),
           decoration: BoxDecoration(
             color: active
                 ? foreground.withValues(alpha: 0.22)
