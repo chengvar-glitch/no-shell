@@ -1152,6 +1152,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get selectionEnd => '选区终点';
 
   @override
+  String get trackpadMode => '鼠标';
+
+  @override
+  String get trackpadModeHint =>
+      '开启后拖动即远端的鼠标拖动（vim 可视选区 / tmux 拉分割线），关掉则拖动滚动画面';
+
+  @override
+  String get trackpadUnavailable =>
+      '远端程序没开鼠标上报（vim 的 set mouse=a / tmux 的 mouse on）';
+
+  @override
   String get keyBarTitle => '快捷键';
 
   @override

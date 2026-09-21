@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:xterm/core.dart';
 import 'package:xterm/ui.dart';
@@ -19,12 +20,28 @@ import 'terminal_session.dart';
 /// - 修饰键是**粘滞**的（点一次作用于下一个按键），见 [TerminalInputModifiers]：
 ///   触屏上按不出「按住 Ctrl 再按字母」，只有粘滞才用得起来。
 final class TerminalKeyBar extends StatefulWidget {
-  const TerminalKeyBar({super.key, required this.session, this.onKeySent});
+  const TerminalKeyBar({
+    super.key,
+    required this.session,
+    this.onKeySent,
+    this.trackpad = false,
+    this.trackpadAvailable,
+    this.onToggleTrackpad,
+  });
 
   final TerminalSession session;
 
   /// 每次按键后回调：宿主据此把焦点补回终端（焦点一旦丢了，软键盘会收起）。
   final VoidCallback? onKeySent;
+
+  /// 鼠标模式是否开着（拖动转发给远端，而不是滚本地画面）。
+  final bool trackpad;
+
+  /// 远端是否开着鼠标上报；为空或为 false 时鼠标模式那颗键置灰——
+  /// 远端没人接鼠标事件，开了也没用。
+  final ValueListenable<bool>? trackpadAvailable;
+
+  final VoidCallback? onToggleTrackpad;
 
   @override
   State<TerminalKeyBar> createState() => _TerminalKeyBarState();
@@ -162,6 +179,10 @@ class _TerminalKeyBarState extends State<TerminalKeyBar> {
                   enabled: prefs.fontSize < TerminalStylePrefs.maxFontSize,
                   onTap: () => _adjustFontSize(1),
                 ),
+                // 鼠标模式：触屏上拖动默认是滚画面，而远端程序（vim / tmux）
+                // 开了鼠标上报时拖动本该是「按住左键拖」。两者只能二选一，
+                // 所以做成一颗可切换的键，远端着鼠标上报时它才亮起来。
+                if (widget.onToggleTrackpad != null) _trackpadKey(l10n),
               ],
             ),
           ),
@@ -174,6 +195,23 @@ class _TerminalKeyBarState extends State<TerminalKeyBar> {
           onTap: () => setState(() => _collapsed = true),
         ),
       ],
+    );
+  }
+
+  /// 鼠标模式那颗键：可用性跟着远端走，只重建它自己。
+  Widget _trackpadKey(AppLocalizations l10n) {
+    final available = widget.trackpadAvailable;
+    Widget button(bool enabled) => _KeyButton(
+      label: l10n.trackpadMode,
+      tooltip: enabled ? l10n.trackpadModeHint : l10n.trackpadUnavailable,
+      active: widget.trackpad,
+      enabled: enabled,
+      onTap: widget.onToggleTrackpad!,
+    );
+    if (available == null) return button(true);
+    return ValueListenableBuilder<bool>(
+      valueListenable: available,
+      builder: (context, enabled, child) => button(enabled),
     );
   }
 

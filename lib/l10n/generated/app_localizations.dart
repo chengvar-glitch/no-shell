@@ -2036,6 +2036,24 @@ abstract class AppLocalizations {
   /// **'Selection end'**
   String get selectionEnd;
 
+  /// No description provided for @trackpadMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Mouse'**
+  String get trackpadMode;
+
+  /// No description provided for @trackpadModeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag sends mouse drags to the remote (vim visual mode, tmux pane resize); off scrolls locally'**
+  String get trackpadModeHint;
+
+  /// No description provided for @trackpadUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The remote app is not reporting mouse events (vim: set mouse=a, tmux: mouse on)'**
+  String get trackpadUnavailable;
+
   /// No description provided for @keyBarTitle.
   ///
   /// In en, this message translates to:

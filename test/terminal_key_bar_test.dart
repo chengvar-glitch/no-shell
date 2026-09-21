@@ -662,4 +662,93 @@ void main() {
       }
     });
   });
+
+  group('鼠标模式（触屏拖拽转发）', () {
+    /// 让远端「开鼠标上报」：1002 = 按住拖动时上报，1006 = SGR 编码。
+    void remoteTurnsOnMouse(TerminalSession session) =>
+        session.terminal.write('\x1b[?1002h\x1b[?1006h');
+
+    Future<void> dragOnce(WidgetTester tester, Offset at) async {
+      final gesture = await tester.startGesture(
+        at,
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+      await gesture.moveBy(const Offset(40, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+    }
+
+    testWidgets('开着时拖动转发按下 / 移动 / 抬起，按下那一笔与点击同源', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final (session, transport) = await _pumpTerminal(
+          tester,
+          output: 'hello world\n',
+        );
+        remoteTurnsOnMouse(session);
+        await tester.pump();
+
+        // 先点一下：远端开着鼠标上报时点击会转发成按下 + 抬起。
+        final at = _firstCell(tester) + const Offset(2, 2);
+        await _touch(tester, at);
+        await _settleWindows(tester);
+        expect(transport.sent, isNotEmpty, reason: '远端开了鼠标上报，点击应当转发');
+        final tapDown = transport.sent.first;
+
+        transport.sent.clear();
+        // 键条上那颗「鼠标」在远端开着鼠标上报时才亮，点亮即开。
+        await tester.tap(find.text('鼠标'));
+        await tester.pump();
+
+        await dragOnce(tester, at);
+
+        expect(transport.sent, hasLength(3), reason: '按下 / 移动 / 抬起各一笔');
+        expect(
+          transport.sent.first,
+          tapDown,
+          reason: '按下的字节必须与点击一致：一边是包编的，一边是我们编的',
+        );
+        // SGR：\x1b[<32;x;yM —— 移动事件的按钮号加 32。
+        expect(transport.sent[1], startsWith('\x1b[<32;'), reason: '移动事件的按钮号加 32');
+        expect(transport.sent.last, endsWith('m'), reason: 'SGR 抬起是小写 m');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('没开鼠标模式时拖动不转发（照旧滚画面）', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final (session, transport) = await _pumpTerminal(
+          tester,
+          output: 'hello world\n',
+        );
+        remoteTurnsOnMouse(session);
+        await tester.pump();
+
+        await dragOnce(tester, _firstCell(tester) + const Offset(2, 2));
+
+        expect(transport.sent, isEmpty, reason: '默认拖动是滚画面，不发鼠标事件');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('远端没开鼠标上报时那颗键置灰，点了也不生效', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final (_, transport) = await _pumpTerminal(tester, output: 'hello\n');
+
+        await tester.tap(find.text('鼠标'));
+        await tester.pump();
+        await dragOnce(tester, _firstCell(tester) + const Offset(2, 2));
+
+        expect(transport.sent, isEmpty, reason: '远端没人接鼠标事件，开了也没用');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+  });
 }

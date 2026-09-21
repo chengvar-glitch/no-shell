@@ -1201,6 +1201,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selectionEnd => 'Selection end';
 
   @override
+  String get trackpadMode => 'Mouse';
+
+  @override
+  String get trackpadModeHint =>
+      'Drag sends mouse drags to the remote (vim visual mode, tmux pane resize); off scrolls locally';
+
+  @override
+  String get trackpadUnavailable =>
+      'The remote app is not reporting mouse events (vim: set mouse=a, tmux: mouse on)';
+
+  @override
   String get keyBarTitle => 'Keys';
 
   @override

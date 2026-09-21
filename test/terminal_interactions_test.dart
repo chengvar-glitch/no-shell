@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/ssh/terminal_interactions.dart';
+import 'package:no_shell/ssh/terminal_mouse.dart';
 import 'package:xterm/core.dart';
 import 'package:xterm/ui.dart';
 
@@ -295,6 +296,85 @@ void main() {
       // 非 Apple 平台必须是 Ctrl+Shift+F：裸 Ctrl+F 是 readline 的光标右移。
       expect(activator.control, isTrue);
       expect(activator.shift, isTrue);
+    });
+  });
+
+  group('鼠标拖动编码', () {
+    const cell = CellOffset(4, 2);
+    // 1 起算：格 (4,2) → 坐标 (5,3)。
+    test('SGR：按下 / 移动 / 抬起', () {
+      expect(
+        encodeMouseEvent(
+          phase: MouseDragPhase.down,
+          cell: cell,
+          reportMode: MouseReportMode.sgr,
+        ),
+        '\x1b[<0;5;3M',
+      );
+      // 移动事件的按钮号加 32。
+      expect(
+        encodeMouseEvent(
+          phase: MouseDragPhase.move,
+          cell: cell,
+          reportMode: MouseReportMode.sgr,
+        ),
+        '\x1b[<32;5;3M',
+      );
+      expect(
+        encodeMouseEvent(
+          phase: MouseDragPhase.up,
+          cell: cell,
+          reportMode: MouseReportMode.sgr,
+        ),
+        '\x1b[<0;5;3m',
+      );
+    });
+
+    test('urxvt：按钮号整体加 32，抬起固定报 3', () {
+      expect(
+        encodeMouseEvent(
+          phase: MouseDragPhase.down,
+          cell: cell,
+          reportMode: MouseReportMode.urxvt,
+        ),
+        '\x1b[32;5;3M',
+      );
+      expect(
+        encodeMouseEvent(
+          phase: MouseDragPhase.move,
+          cell: cell,
+          reportMode: MouseReportMode.urxvt,
+        ),
+        '\x1b[64;5;3M',
+      );
+      expect(
+        encodeMouseEvent(
+          phase: MouseDragPhase.up,
+          cell: cell,
+          reportMode: MouseReportMode.urxvt,
+        ),
+        '\x1b[35;5;3M',
+      );
+    });
+
+    test('普通模式：三个字节，越界发 NUL', () {
+      expect(
+        encodeMouseEvent(
+          phase: MouseDragPhase.down,
+          cell: const CellOffset(0, 0),
+          reportMode: MouseReportMode.normal,
+        ),
+        '\x1b[M\x20\x21\x22',
+      );
+      // 第 224 列超出普通模式的编码上限（223）。
+      expect(
+        encodeMouseEvent(
+          phase: MouseDragPhase.move,
+          cell: const CellOffset(223, 0),
+          reportMode: MouseReportMode.normal,
+        ),
+        '\x1b[M\x40\x00\x22',
+      );
     });
   });
 }
