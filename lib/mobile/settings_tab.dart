@@ -86,7 +86,6 @@ class SettingsTab extends StatelessWidget {
               _MoreRow(
                 icon: Icons.info_outline,
                 title: l10n.about,
-                subtitle: '${l10n.appName} v$appVersion',
                 onTap: () => showAppAboutDialog(
                   context: context,
                   applicationName: l10n.appName,
@@ -102,19 +101,16 @@ class SettingsTab extends StatelessWidget {
   }
 }
 
-/// 信息 / 动作行：图标 + 标题 + 副标题，给了 [onTap] 就整行可点并带右箭头。
+/// 信息 / 动作行：图标 + 标题，给了 [onTap] 就整行可点并带右箭头。
 /// 左边距与 [SettingsRow] 同一条线，卡片里的内容保持一列。
+///
+/// 不配副标题：行里只在标题下写小字，而这里能写的只有版本号——它已经
+/// 在「更新」那一行（与桌面端同一处），重复一遍只会让人多看一次。
 class _MoreRow extends StatelessWidget {
-  const _MoreRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.onTap,
-  });
+  const _MoreRow({required this.icon, required this.title, this.onTap});
 
   final IconData icon;
   final String title;
-  final String subtitle;
   final VoidCallback? onTap;
 
   @override
@@ -129,33 +125,15 @@ class _MoreRow extends StatelessWidget {
             Icon(icon, size: 18, color: theme.secondaryText),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.92,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: theme.secondaryText,
-                    ),
-                  ),
-                ],
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.92),
+                ),
               ),
             ),
             if (onTap != null)
