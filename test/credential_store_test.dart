@@ -125,7 +125,7 @@ void main() {
     });
 
     test('写进去读得回来，删掉之后读不到', () async {
-      final store = SecureCredentialStore();
+      final store = SecureCredentialStore(singleItem: false);
       expect(
         await store.write(
           serverId,
@@ -147,7 +147,10 @@ void main() {
 
     test('存进去的串解不出来时按「没有凭据」处理，而不是抛异常', () async {
       platform.values['ssh_cred_$serverId'] = 'not-a-credential-payload';
-      expect(await SecureCredentialStore().read(serverId), isNull);
+      expect(
+        await SecureCredentialStore(singleItem: false).read(serverId),
+        isNull,
+      );
     });
   });
 
