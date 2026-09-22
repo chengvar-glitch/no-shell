@@ -201,13 +201,17 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
   }
 
   void onLongPressUp() {
+    _lastLongPressStartDetails = null;
     _stopAutoScroll();
   }
 
   void onDragStart(DragStartDetails details) {
+    // A mouse pan is not a long press: drop any stale long-press origin so
+    // the auto-scroll tick re-selects in the mode of the active gesture.
+    _lastLongPressStartDetails = null;
+    _stopAutoScroll();
     _lastDragStartDetails = details;
     _lastDragPointer = details.localPosition;
-    _stopAutoScroll();
 
     details.kind == PointerDeviceKind.mouse
         ? renderTerminal.selectCharacters(details.localPosition)
@@ -236,7 +240,11 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
   /// from the same view positions so the selection follows the scrolled
   /// content (rubber-band feel, as in native terminal emulators).
   void _updateAutoScroll() {
-    if (_lastDragStartDetails == null || _lastDragPointer == null) return;
+    // Either gesture kind drives auto-scroll: mouse pans via [onDragUpdate],
+    // touch long-press word selection via [onLongPressMoveUpdate].
+    final drag = _lastDragStartDetails;
+    final press = _lastLongPressStartDetails;
+    if (_lastDragPointer == null || (drag == null && press == null)) return;
     if (terminalView.widget.terminal.isUsingAltBuffer) return;
 
     final direction = _autoScrollDirectionOf(_lastDragPointer!);
@@ -260,15 +268,19 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
   }
 
   void _autoScrollTick() {
-    final controller = terminalView.scrollController;
-    if (!controller.hasClients ||
-        _lastDragStartDetails == null ||
-        _lastDragPointer == null) {
+    final drag = _lastDragStartDetails;
+    final press = _lastLongPressStartDetails;
+    if (!terminalView.scrollController.hasClients ||
+        _lastDragPointer == null ||
+        (drag == null && press == null) ||
+        // Entering the alternate screen mid-drag removes the scrollback this
+        // scrolling assumes.
+        terminalView.widget.terminal.isUsingAltBuffer) {
       _stopAutoScroll();
       return;
     }
 
-    final pixels = controller.position.pixels;
+    final pixels = terminalView.scrollController.position.pixels;
     final lineHeight = renderTerminal.lineHeight;
     // The real top of the scrollback: render maps offset directly to buffer
     // rows and clamps them, so overshooting would pile the selection on the
@@ -285,12 +297,14 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
         _stopAutoScroll();
         return;
     }
-    controller.jumpTo(pixels + _autoScrollDirection * lineHeight);
+    terminalView.scrollController.jumpTo(
+      pixels + _autoScrollDirection * lineHeight,
+    );
 
     // The pointer has not moved, but the cell under it changed with the
     // scroll: re-run the selection with the same view positions.
-    final start = _lastDragStartDetails!.localPosition;
-    if (_lastLongPressStartDetails != null) {
+    final start = press?.localPosition ?? drag!.localPosition;
+    if (press != null) {
       renderTerminal.selectWord(start, _lastDragPointer!);
     } else {
       renderTerminal.selectCharacters(start, _lastDragPointer!);
