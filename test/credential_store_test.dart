@@ -151,6 +151,55 @@ void main() {
     });
   });
 
+  group('SecureCredentialStore macOS 聚合档', () {
+    late _MemoryPlatform platform;
+
+    setUp(() {
+      platform = _MemoryPlatform();
+      FlutterSecureStoragePlatform.instance = platform;
+    });
+
+    test('多台主机共用同一个钥匙串条目，且读改写互不覆盖', () async {
+      final store = SecureCredentialStore(singleItem: true);
+      expect(
+        await store.write('srv-1', const SshCredentials(password: 'pw-1')),
+        isTrue,
+      );
+      expect(
+        await store.write('srv-2', const SshCredentials(privateKey: 'key-2')),
+        isTrue,
+      );
+      expect(platform.values.keys.single, 'ssh_credentials_v1');
+
+      expect((await store.read('srv-1'))?.password, 'pw-1');
+      expect((await store.read('srv-2'))?.privateKey, 'key-2');
+    });
+
+    test('旧分条档按需迁移，之后读取只走聚合档', () async {
+      platform.values['ssh_cred_old'] = const SshCredentials(password: 'legacy')
+          .encode();
+      final store = SecureCredentialStore(singleItem: true);
+
+      expect((await store.read('old'))?.password, 'legacy');
+      expect(platform.values.keys.single, 'ssh_credentials_v1');
+      expect((await store.read('old'))?.password, 'legacy');
+    });
+
+    test('删除最后一台主机时清掉聚合档，其它主机只删除对应成员', () async {
+      final store = SecureCredentialStore(singleItem: true);
+      await store.write('srv-1', const SshCredentials(password: 'pw-1'));
+      await store.write('srv-2', const SshCredentials(password: 'pw-2'));
+
+      await store.delete('srv-1');
+      expect(platform.values.keys.single, 'ssh_credentials_v1');
+      expect(await store.read('srv-1'), isNull);
+      expect((await store.read('srv-2'))?.password, 'pw-2');
+
+      await store.delete('srv-2');
+      expect(platform.values, isEmpty);
+    });
+  });
+
   test('supported 为真：原生端一定走系统安全存储，没有「悄悄不存」的分支', () {
     expect(SecureCredentialStore().supported, isTrue);
     expect(createCredentialStore(), isA<SecureCredentialStore>());
