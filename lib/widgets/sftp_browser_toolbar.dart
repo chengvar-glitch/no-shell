@@ -118,6 +118,94 @@ final class _Toolbar extends StatelessWidget {
   }
 }
 
+/// 地址栏下方的 Linux 常用目录胶囊；Windows 远端由 [sftpQuickPaths] 返回空，
+/// 这里便一行都不占。
+final class _QuickPathBar extends StatelessWidget {
+  const _QuickPathBar({required this.controller});
+
+  final SftpBrowserController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final home = controller.home;
+    if (home == null) return const SizedBox.shrink();
+    final targets = sftpQuickPaths(home: home);
+    if (targets.isEmpty) return const SizedBox.shrink();
+    final current = controller.path;
+
+    return SizedBox(
+      height: 30,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        // 胶囊本身就是横向提示条；顶部留出与地址栏的间隔，滚动时不被裁掉。
+        padding: const EdgeInsets.only(top: 6),
+        child: Row(
+          children: [
+            for (final target in targets) ...[
+              _QuickPathPill(
+                label: target.label,
+                tooltip: target.path,
+                active: current == target.path,
+                onTap: () => unawaited(controller.navigate(target.path)),
+              ),
+              const SizedBox(width: 5),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _QuickPathPill extends StatelessWidget {
+  const _QuickPathPill({
+    required this.label,
+    required this.tooltip,
+    required this.active,
+    required this.onTap,
+  });
+
+  final String label;
+  final String tooltip;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.primary;
+    final foreground = active ? color : theme.secondaryText;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: active ? color.withValues(alpha: 0.11) : theme.hoverOverlay,
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: active ? color.withValues(alpha: 0.35) : theme.hairline,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          hoverColor: theme.hoverOverlay,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            child: Text(
+              label,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: foreground,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 紧凑模式的溢出菜单，把桌面端的按钮收进一层。
 final class _CompactMenu extends StatelessWidget {
   const _CompactMenu({

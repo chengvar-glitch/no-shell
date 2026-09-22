@@ -43,6 +43,7 @@ class TerminalView extends StatefulWidget {
     this.keyboardAppearance = Brightness.dark,
     this.cursorType = TerminalCursorType.block,
     this.alwaysShowCursor = false,
+    this.cursorBlink = false,
     this.deleteDetection = false,
     this.shortcuts,
     this.onKeyEvent,
@@ -114,6 +115,10 @@ class TerminalView extends StatefulWidget {
   /// Whether to always show the cursor. This is useful for debugging.
   /// [false] by default.
   final bool alwaysShowCursor;
+
+  /// Whether the focused caret should blink. Remote DECSET 12 still requests
+  /// blinking even when this is false.
+  final bool cursorBlink;
 
   /// Workaround to detect delete key for platforms and IMEs that does not
   /// emit hardware delete event. Prefered on mobile platforms. [false] by
@@ -239,6 +244,7 @@ class TerminalViewState extends State<TerminalView> {
           focusNode: _focusNode,
           cursorType: widget.cursorType,
           alwaysShowCursor: widget.alwaysShowCursor,
+          cursorBlink: widget.cursorBlink,
           onEditableRect: _onEditableRect,
           composingText: _composingText,
         );
@@ -468,6 +474,7 @@ class _TerminalView extends LeafRenderObjectWidget {
     required this.focusNode,
     required this.cursorType,
     required this.alwaysShowCursor,
+    required this.cursorBlink,
     this.onEditableRect,
     this.composingText,
   });
@@ -494,6 +501,8 @@ class _TerminalView extends LeafRenderObjectWidget {
 
   final bool alwaysShowCursor;
 
+  final bool cursorBlink;
+
   final EditableRectCallback? onEditableRect;
 
   final String? composingText;
@@ -512,6 +521,7 @@ class _TerminalView extends LeafRenderObjectWidget {
       focusNode: focusNode,
       cursorType: cursorType,
       alwaysShowCursor: alwaysShowCursor,
+      cursorBlink: cursorBlink,
       onEditableRect: onEditableRect,
       composingText: composingText,
     );
@@ -531,6 +541,7 @@ class _TerminalView extends LeafRenderObjectWidget {
       ..focusNode = focusNode
       ..cursorType = cursorType
       ..alwaysShowCursor = alwaysShowCursor
+      ..cursorBlink = cursorBlink
       ..onEditableRect = onEditableRect
       ..composingText = composingText;
   }

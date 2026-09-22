@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' show max;
 import 'dart:ui';
 
@@ -20,6 +21,10 @@ import 'package:xterm/src/ui/terminal_theme.dart';
 typedef EditableRectCallback = void Function(Rect rect, Rect caretRect);
 
 class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
+  /// GTK / GNOME Terminal uses a 1.06s cycle; this is close enough without
+  /// exposing a setting yet.
+  static const Duration _cursorBlinkPeriod = Duration(milliseconds: 530);
+
   RenderTerminal({
     required Terminal terminal,
     required TerminalController controller,
@@ -32,6 +37,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     required FocusNode focusNode,
     required TerminalCursorType cursorType,
     required bool alwaysShowCursor,
+    required bool cursorBlink,
     EditableRectCallback? onEditableRect,
     String? composingText,
   })  : _terminal = terminal,
@@ -42,6 +48,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         _focusNode = focusNode,
         _cursorType = cursorType,
         _alwaysShowCursor = alwaysShowCursor,
+        _cursorBlink = cursorBlink,
         _onEditableRect = onEditableRect,
         _composingText = composingText,
         _painter = TerminalPainter(
@@ -57,6 +64,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     _terminal = terminal;
     if (attached) _terminal.addListener(_onTerminalChange);
     _resizeTerminalIfNeeded();
+    _syncCursorBlink();
     markNeedsLayout();
   }
 
@@ -133,6 +141,17 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     markNeedsPaint();
   }
 
+  bool _cursorBlink;
+  set cursorBlink(bool value) {
+    if (value == _cursorBlink) return;
+    _cursorBlink = value;
+    _syncCursorBlink();
+    markNeedsPaint();
+  }
+
+  bool _cursorShown = true;
+  Timer? _cursorBlinkTimer;
+
   EditableRectCallback? _onEditableRect;
   set onEditableRect(EditableRectCallback? value) {
     if (value == _onEditableRect) return;
@@ -160,12 +179,48 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   }
 
   void _onFocusChange() {
+    _syncCursorBlink();
     markNeedsPaint();
   }
 
   void _onTerminalChange() {
+    // New remote output means the user (or a full-screen app) is active.
+    // Keep the caret visible and restart the phase, like ordinary terminals.
+    _resetCursorBlink();
     markNeedsLayout();
     _notifyEditableRect();
+  }
+
+  bool get _blinkWanted => _cursorBlink || _terminal.cursorBlinkMode;
+
+  void _resetCursorBlink() {
+    _cursorBlinkTimer?.cancel();
+    _cursorBlinkTimer = null;
+    _cursorShown = true;
+    if (attached && _blinkWanted && _focusNode.hasFocus) {
+      _cursorBlinkTimer = Timer.periodic(
+        _cursorBlinkPeriod,
+        _onCursorBlink,
+      );
+    }
+  }
+
+  void _syncCursorBlink() {
+    if (attached && _blinkWanted && _focusNode.hasFocus) {
+      _cursorBlinkTimer ??= Timer.periodic(
+        _cursorBlinkPeriod,
+        _onCursorBlink,
+      );
+    } else {
+      _cursorBlinkTimer?.cancel();
+      _cursorBlinkTimer = null;
+      _cursorShown = true;
+    }
+  }
+
+  void _onCursorBlink(Timer timer) {
+    _cursorShown = !_cursorShown;
+    markNeedsPaint();
   }
 
   void _onControllerUpdate() {
@@ -182,6 +237,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     _terminal.addListener(_onTerminalChange);
     _controller.addListener(_onControllerUpdate);
     _focusNode.addListener(_onFocusChange);
+    _syncCursorBlink();
   }
 
   @override
@@ -191,6 +247,9 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     _terminal.removeListener(_onTerminalChange);
     _controller.removeListener(_onControllerUpdate);
     _focusNode.removeListener(_onFocusChange);
+    _cursorBlinkTimer?.cancel();
+    _cursorBlinkTimer = null;
+    _cursorShown = true;
   }
 
   @override
@@ -365,8 +424,12 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   }
 
   bool get _shouldShowCursor {
-    return _terminal.cursorVisibleMode || _alwaysShowCursor || _isComposingText;
+    return _cursorShown &&
+        (_terminal.cursorVisibleMode || _alwaysShowCursor || _isComposingText);
   }
+
+  /// Current blink phase; exposed for widget tests.
+  bool get cursorShown => _cursorShown;
 
   double get _viewportHeight {
     return size.height - _padding.vertical;

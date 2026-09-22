@@ -138,6 +138,42 @@ List<({String label, String path, bool isHome})> sftpBreadcrumbs(
   return crumbs;
 }
 
+/// 远端 SFTP 路径是否带 Windows OpenSSH 的盘符形态。
+///
+/// Win32 OpenSSH 把 `C:\Users\me` 暴露成 `/C:/Users/me`；本地 Windows 盘符
+/// （`C:/...` / `C:\...`）也一并认出来。`/mnt/c/...` 是 Unix 路径，不算。
+bool sftpIsWindowsRemotePath(String path) {
+  final trimmed = path.trim();
+  return RegExp(r'^[A-Za-z]:(?:[/\\]|$)').hasMatch(trimmed) ||
+      RegExp(r'^/[A-Za-z]:(?:/|$)').hasMatch(trimmed);
+}
+
+/// 地址栏下方的快捷位置：Linux 常用目录 + 当前会话家目录（`~`）。
+///
+/// 返回顺序就是胶囊顺序；[home] 若与某一项相同则不重复给。Windows OpenSSH
+/// 的家目录带盘符（`/C:/Users/me`），那些 `/etc`、`/var` 对它没有意义，
+/// 因此返回空列表——调用方一行胶囊都不画。
+List<({String label, String path})> sftpQuickPaths({required String home}) {
+  if (home.isEmpty || sftpIsWindowsRemotePath(home)) return const [];
+  final homePath = home == '/' ? '' : home;
+  const standard = [
+    (label: '/etc', path: '/etc'),
+    (label: '/home', path: '/home'),
+    (label: '/root', path: '/root'),
+    (label: '/var', path: '/var'),
+    (label: '/tmp', path: '/tmp'),
+    (label: '/opt', path: '/opt'),
+    (label: '/usr', path: '/usr'),
+    (label: '/srv', path: '/srv'),
+  ];
+  return [
+    (label: '/', path: '/'),
+    if (homePath.isNotEmpty) (label: '~', path: homePath),
+    for (final target in standard)
+      if (target.path != homePath) target,
+  ];
+}
+
 /// 把地址栏里敲进来的一行文本规整成远端绝对路径。
 ///
 /// - `~` / `~/…` 展开成家目录（[home] 未知时原样留下，让服务端报错而不是

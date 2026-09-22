@@ -12,6 +12,21 @@ enum SftpSortField { name, size, modified }
 /// 下载编排结果，供界面决定提示文案。
 enum SftpDownloadOutcome { enqueued, canceled, unavailable, empty }
 
+/// 本次目录载入要如何更新浏览历史。
+enum _SftpHistoryStep {
+  /// 用户发起了一次新导航：丢弃「前进」分支并追加目标。
+  push,
+
+  /// 鼠标侧键 / 后退：沿历史退一格，不追加新记录。
+  back,
+
+  /// 鼠标侧键 / 前进：沿已退出的历史进一格。
+  forward,
+
+  /// 刷新或首次载入：历史保持原样。
+  none,
+}
+
 /// SFTP 面板状态：当前目录、列表、排序过滤、选中项与传输队列。
 ///
 /// 会话层持有本对象，面板只订阅不持有，因而切换 Tab 不会丢失浏览位置、
@@ -75,6 +90,11 @@ final class SftpBrowserController extends ChangeNotifier {
   int _loadToken = 0;
   bool _disposed = false;
 
+  /// 目录浏览历史。[SftpBrowserController.canGoBack] / [canGoForward] 与
+  /// 鼠标侧键共用；游标只落在**成功载入**的目录上，失败路径不入史。
+  final List<String> _history = [];
+  int _historyCursor = -1;
+
   bool _showHidden = false;
   String _query = '';
   SftpSortField _sortField = SftpSortField.name;
@@ -105,6 +125,13 @@ final class SftpBrowserController extends ChangeNotifier {
 
   /// SFTP 通道已就绪且至少载入过一次目录。
   bool get isReady => _fileSystem != null && _path != null;
+
+  /// 是否还有更早的浏览位置（鼠标侧键「后退」可用）。
+  bool get canGoBack => _historyCursor > 0;
+
+  /// 是否还能回到退出的浏览位置（鼠标侧键「前进」可用）。
+  bool get canGoForward =>
+      _historyCursor >= 0 && _historyCursor + 1 < _history.length;
 
   bool get showHidden => _showHidden;
   String get query => _query;
@@ -147,7 +174,7 @@ final class SftpBrowserController extends ChangeNotifier {
         final home = await fileSystem.homeDirectory();
         if (_disposed) return;
         _home = home;
-        await _load(home);
+        await _load(home, history: _SftpHistoryStep.push);
       }
     } on Object catch (error) {
       if (_disposed) return;
@@ -174,7 +201,22 @@ final class SftpBrowserController extends ChangeNotifier {
     if (target.isEmpty || target == _loadedPath) return;
     // 同一目录的请求还在路上：这一次点按就是刚那一下的重复。
     if (target == _loadingTarget) return;
-    await _load(target);
+    await _load(target, history: _SftpHistoryStep.push);
+  }
+
+  /// 回到上一个成功浏览过的目录；没有上一页时不发请求。
+  Future<void> goBack() async {
+    if (!canGoBack) return;
+    await _load(_history[_historyCursor - 1], history: _SftpHistoryStep.back);
+  }
+
+  /// 回到被「后退」离开的目录；没有下一页时不发请求。
+  Future<void> goForward() async {
+    if (!canGoForward) return;
+    await _load(
+      _history[_historyCursor + 1],
+      history: _SftpHistoryStep.forward,
+    );
   }
 
   Future<void> goUp() async {
@@ -182,7 +224,7 @@ final class SftpBrowserController extends ChangeNotifier {
     if (path == null) return;
     final parent = sftpParent(path);
     if (parent == path) return;
-    await _load(parent);
+    await _load(parent, history: _SftpHistoryStep.push);
   }
 
   /// 地址栏补全候选：把 [input] 当作「敲到一半的路径」，列出同目录下同前缀
@@ -405,7 +447,11 @@ final class SftpBrowserController extends ChangeNotifier {
   Stream<List<int>> readRemoteFile(String path) =>
       _requireFileSystem().read(path);
 
-  Future<void> _load(String target, {bool keepSelection = false}) async {
+  Future<void> _load(
+    String target, {
+    bool keepSelection = false,
+    _SftpHistoryStep history = _SftpHistoryStep.none,
+  }) async {
     final fileSystem = _fileSystem;
     if (fileSystem == null) return;
     final token = ++_loadToken;
@@ -422,6 +468,7 @@ final class SftpBrowserController extends ChangeNotifier {
       final listing = await fileSystem.list(target);
       // 期间用户又切换了目录：丢弃这次结果，由最新请求收尾。
       if (token != _loadToken || _disposed) return;
+      _applyHistory(target, history);
       _path = target;
       _loadedPath = target;
       _entries = listing;
@@ -451,6 +498,23 @@ final class SftpBrowserController extends ChangeNotifier {
         _isRefreshing = false;
         notifyListeners();
       }
+    }
+  }
+
+  /// 目录真正载入成功后才移动游标：失败的路径不该把侧键历史带歪。
+  void _applyHistory(String target, _SftpHistoryStep step) {
+    switch (step) {
+      case _SftpHistoryStep.push:
+        if (_historyCursor >= 0 && _history[_historyCursor] == target) return;
+        _history.length = _historyCursor + 1;
+        _history.add(target);
+        _historyCursor = _history.length - 1;
+      case _SftpHistoryStep.back:
+        if (canGoBack) _historyCursor--;
+      case _SftpHistoryStep.forward:
+        if (canGoForward) _historyCursor++;
+      case _SftpHistoryStep.none:
+        break;
     }
   }
 

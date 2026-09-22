@@ -329,6 +329,7 @@ class _ServerDetailState extends State<_ServerDetail>
           onRetry: session == null
               ? null
               : () => widget.sessions.retry(session),
+          cursorBlink: true,
         ),
         SftpTab(
           session: session,
@@ -918,6 +919,7 @@ final class TerminalTab extends StatelessWidget {
     this.onRetry,
     this.idleHint,
     this.idleStyle = TerminalIdleStyle.preview,
+    this.cursorBlink = false,
   });
 
   final SshServer server;
@@ -936,6 +938,9 @@ final class TerminalTab extends StatelessWidget {
 
   /// 未连接时空态的形态，见 [TerminalIdleStyle]。
   final TerminalIdleStyle idleStyle;
+
+  /// Whether to blink the focused caret; test hosts can leave it off.
+  final bool cursorBlink;
 
   @override
   Widget build(BuildContext context) {
@@ -992,6 +997,7 @@ final class TerminalTab extends StatelessWidget {
       onStopAutoReconnect: sessions == null
           ? null
           : () => sessions!.cancelAutoReconnect(session),
+      cursorBlink: cursorBlink,
     );
     final manager = sessions;
     return manager == null

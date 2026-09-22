@@ -29,6 +29,29 @@ void main() {
       expect(sftpParent('/'), '/');
     });
 
+    test('快捷路径只给 Unix 远端，Windows 盘符路径不给', () {
+      final paths = sftpQuickPaths(home: '/home/deploy')
+          .map((target) => target.path)
+          .toList();
+      expect(paths.first, '/');
+      expect(paths.contains('/home/deploy'), isTrue);
+      expect(paths, containsAll(['/etc', '/var', '/tmp', '/usr']));
+
+      // Win32 OpenSSH 的 SFTP 家目录是这种形态；给它看 /etc 只是误导。
+      expect(sftpQuickPaths(home: '/C:/Users/deploy'), isEmpty);
+      expect(
+        sftpIsWindowsRemotePath('/C:/ProgramData'),
+        isTrue,
+        reason: 'SFTP 视图里盘符保留 / 前缀',
+      );
+      expect(sftpIsWindowsRemotePath('/mnt/c/data'), isFalse);
+
+      // 家目录本身是某个常用目录时，用 ~ 表示它，不再重复同名胶囊。
+      final homePaths = sftpQuickPaths(home: '/etc');
+      expect(homePaths.map((target) => target.label), contains('~'));
+      expect(homePaths.map((target) => target.label), isNot(contains('/etc')));
+    });
+
     test('面包屑逐级给出绝对路径', () {
       final crumbs = sftpBreadcrumbs('/var/log/nginx');
       expect(crumbs.map((crumb) => crumb.label), ['/', 'var', 'log', 'nginx']);
@@ -298,6 +321,53 @@ void main() {
       expect(controller.selectedPaths, isEmpty);
 
       await controller.goUp();
+      expect(controller.path, fs.home);
+    });
+
+    test('目录历史支持后退 / 前进，并按新导航截断前进分支', () async {
+      final (:controller, :fs) = await ready();
+      addTearDown(controller.dispose);
+      final etc = fs.addDirectory('/', 'etc');
+      final varDir = fs.addDirectory('/', 'var');
+      final opt = fs.addDirectory('/', 'opt');
+
+      expect(controller.canGoBack, isFalse);
+      expect(controller.canGoForward, isFalse);
+
+      await controller.navigate(etc.path);
+      await controller.navigate(varDir.path);
+      expect(controller.canGoBack, isTrue);
+      expect(controller.canGoForward, isFalse);
+
+      await controller.goBack();
+      expect(controller.path, etc.path);
+      expect(controller.canGoBack, isTrue);
+      expect(controller.canGoForward, isTrue);
+
+      await controller.goForward();
+      expect(controller.path, varDir.path);
+
+      await controller.goBack();
+      await controller.navigate(opt.path);
+      expect(controller.path, opt.path);
+      expect(controller.canGoForward, isFalse, reason: '新导航会丢弃旧的前进分支');
+
+      await controller.goBack();
+      expect(controller.path, etc.path);
+    });
+
+    test('失败导航不进入历史，不影响后退游标', () async {
+      final (:controller, :fs) = await ready();
+      addTearDown(controller.dispose);
+      final logs = fs.addDirectory(fs.home, 'logs');
+
+      fs.listError = const SftpException(SftpErrorKind.permission);
+      await controller.navigate('/nope');
+      fs.listError = null;
+
+      expect(controller.canGoBack, isFalse, reason: '失败路径不入史');
+      await controller.navigate(logs.path);
+      await controller.goBack();
       expect(controller.path, fs.home);
     });
 

@@ -115,6 +115,7 @@ class _SessionPageState extends State<SessionPage> {
                             reconnectPlan: sessions.reconnectPlanOf(session),
                             onStopAutoReconnect: () =>
                                 sessions.cancelAutoReconnect(session),
+                            cursorBlink: true,
                           ),
                   ),
                 ),

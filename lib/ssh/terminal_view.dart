@@ -73,6 +73,7 @@ final class SshTerminalView extends StatefulWidget {
     this.reconnectPlan,
     this.onStopAutoReconnect,
     this.openLink = openTerminalLink,
+    this.cursorBlink = false,
   });
 
   final TerminalSession session;
@@ -81,6 +82,10 @@ final class SshTerminalView extends StatefulWidget {
   /// 默认交给系统浏览器；widget 测试注入假实现——真实现会去碰测试机上
   /// 真实的默认浏览器。
   final Future<bool> Function(Uri uri) openLink;
+
+  /// 聚焦时是否让终端光标闪烁。默认关，界面入口按所在壳显式打开；
+  /// 远端用 DECSET 12 请求闪烁时则不受这个默认值限制。
+  final bool cursorBlink;
 
   /// 失败 / 已结束时的重连动作；为空时不展示重连按钮。
   final VoidCallback? onRetry;
@@ -240,6 +245,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 拖手柄时不动的那一端（抓起点时是终点，反之亦然）。
   CellOffset? _handleFixedCell;
 
+  /// 终端所在的保活 Tab 是否可见。重新露出来时主动把焦点还给终端；
+  /// xterm 的 autofocus 只在视图首次挂载时生效，切 Tab 后不会再来一次。
+  bool _isVisible = true;
+
   @override
   void initState() {
     super.initState();
@@ -253,6 +262,31 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     // 挂上来时远端可能已经开着鼠标上报（另一条会话切过来），先对一次表
     // ——此刻还在 initState，不能触发重建。
     _syncRemoteMouse(allowRebuild: false);
+    // 会话在「终端 Tab 已经可见」时新挂上来（典型是双击直连），不能只靠
+    // xterm 的 autofocus：它常被凭据弹窗 / Tab 切换抢在前面。等首帧布局
+    // 完成后再申请一次焦点。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _isVisible && !_focusNode.hasFocus) {
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Visibility.of 会让本 State 跟随保活 Tab 的可见性变化；用它捕捉
+    // 「隐藏 → 可见」这个时机，双击直连切到终端后键盘马上有落点。
+    final visible = Visibility.of(context);
+    final becameVisible = visible && !_isVisible;
+    _isVisible = visible;
+    if (becameVisible && !_focusNode.hasFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _isVisible && !_focusNode.hasFocus) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
   }
 
   @override
@@ -1389,6 +1423,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                                                       details.globalPosition,
                                                       cell,
                                                     ),
+                                                cursorBlink: widget.cursorBlink,
                                               ),
                                             ),
                                           ),

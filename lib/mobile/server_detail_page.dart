@@ -210,6 +210,7 @@ class _ServerDetailPageState extends State<ServerDetailPage>
                           onRetry: session == null
                               ? null
                               : () => widget.sessions.retry(session),
+                          cursorBlink: true,
                         ),
                       ),
                       _KeepAlive(

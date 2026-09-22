@@ -179,6 +179,60 @@ void main() {
       expect(find.text('3 项'), findsOneWidget);
     });
 
+    testWidgets('地址栏下方提供 Unix 常用目录胶囊，点击直达', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addFile('/etc', 'nginx.conf');
+      await pumpPanel(tester, fileSystem: fs);
+
+      expect(find.text('/etc'), findsOneWidget);
+      await tester.tap(find.text('/etc'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('nginx.conf'), findsOneWidget);
+    });
+
+    testWidgets('Windows 远端不显示常用目录胶囊', (tester) async {
+      final fs = FakeSftpFileSystem(home: '/C:/Users/deploy');
+      await pumpPanel(tester, fileSystem: fs);
+
+      expect(find.text('/etc'), findsNothing);
+      expect(find.text('~'), findsNothing);
+    });
+
+    testWidgets('鼠标侧键后退 / 前进切换目录历史', (tester) async {
+      final fs = FakeSftpFileSystem();
+      final logs = fs.addDirectory(fs.home, 'logs');
+      fs.addFile(logs.path, 'app.log');
+      await pumpPanel(tester, fileSystem: fs);
+
+      // 主键双击进入，侧键事件落在文件行上也不该顺手选中 / 再进入。
+      final logsRow = find.text('logs');
+      await tester.tap(logsRow, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(logsRow, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      expect(find.text('app.log'), findsOneWidget);
+
+      final sideButtonPoint = tester.getCenter(find.text('app.log'));
+
+      Future<void> sideButton(int buttons) async {
+        final gesture = await tester.startGesture(
+          sideButtonPoint,
+          kind: PointerDeviceKind.mouse,
+          buttons: buttons,
+        );
+        await gesture.up();
+        await tester.pumpAndSettle();
+      }
+
+      await sideButton(kBackMouseButton);
+      expect(find.text('logs'), findsOneWidget);
+      expect(find.text('app.log'), findsNothing);
+
+      await sideButton(kForwardMouseButton);
+      expect(find.text('app.log'), findsOneWidget);
+    });
+
     testWidgets('单击选中后出现操作条，删除需确认', (tester) async {
       final fs = FakeSftpFileSystem();
       fs.addFile(fs.home, 'nginx.conf');
@@ -480,7 +534,8 @@ void main() {
       // 根段的「/」本身就是分隔符（GNOME 的做法）。/usr/local 的面包屑
       // 里斜杠字符恰好两个：根段一条 + usr 与 local 之间一条——渲染层若
       // 在根段后再画分隔符就是「/ / usr」三条（修复前的样子）。
-      expect(find.text('/'), findsNWidgets(2));
+      // 地址栏下的快捷胶囊也有一颗「/」，面包屑自己的根段仍是两条。
+      expect(find.text('/'), findsNWidgets(3));
       expect(find.text('usr'), findsOneWidget);
       expect(find.text('local'), findsOneWidget);
     });
@@ -691,9 +746,15 @@ void main() {
         lessThan(390),
         reason: '当前目录要滚进视野',
       );
-      final scroll = tester
-          .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
-          .controller!;
+      final scrollWidget = tester.widget<SingleChildScrollView>(
+        find
+            .ancestor(
+              of: find.text('2026-09…ld'),
+              matching: find.byType(SingleChildScrollView),
+            )
+            .first,
+      );
+      final scroll = scrollWidget.controller!;
       expect(scroll.offset, scroll.position.maxScrollExtent);
 
       // 竖直滚轮也滚这条横向的路径：往回拨就看得见开头那几层。
@@ -703,8 +764,12 @@ void main() {
       await tester.sendEventToBinding(pointer.scroll(const Offset(0, -400)));
       await tester.pumpAndSettle();
       expect(scroll.offset, 0, reason: '一直滚回最左边');
+      final breadcrumb = find.descendant(
+        of: find.byWidget(scrollWidget),
+        matching: find.text('srv'),
+      );
       expect(
-        tester.getTopLeft(find.text('srv')).dx,
+        tester.getTopLeft(breadcrumb).dx,
         greaterThan(0),
         reason: '滚回来就看得见开头那几层',
       );

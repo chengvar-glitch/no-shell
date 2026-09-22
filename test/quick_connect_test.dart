@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/app_locale.dart';
 import 'package:no_shell/home_page.dart';
@@ -93,6 +94,7 @@ void main() {
       store: store,
       sessionFactory: (server, creds, jumps) {
         final transport = FakeTransport(lines: ['banner']);
+        transport.captureOutput = true;
         transports.add(transport);
         return TerminalSession(
           server: server,
@@ -139,6 +141,11 @@ void main() {
       tester.widget<SshTerminalView>(find.byType(SshTerminalView)).session,
       same(sessions.activeOf(_alpha.id)),
     );
+
+    // 键盘事件落在 xterm 的焦点节点上：双击后不需要再点一下终端。
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _settle(tester);
+    expect(transports.single.sent, contains('\r'));
   });
 
   testWidgets('单击只选中且当帧生效：不发起连接，Tab 停在概览', (tester) async {
@@ -169,5 +176,10 @@ void main() {
     expect(sessions.sessionCountOf(_alpha.id), 1);
     expect(transports.single.disposed, isFalse);
     expect(_tabIndexOf(tester), kTerminalTabIndex);
+
+    // 这条会话挂上来时终端 Tab 还是隐藏的；跳回终端必须重新申请焦点。
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _settle(tester);
+    expect(transports.single.sent, contains('\r'));
   });
 }

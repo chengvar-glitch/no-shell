@@ -2,7 +2,7 @@
 
 ## xterm/
 
-`pub.dev` 上 `xterm 4.0.0` 的副本（MIT，许可原文见 `xterm/LICENSE`），改了四处：
+`pub.dev` 上 `xterm 4.0.0` 的副本（MIT，许可原文见 `xterm/LICENSE`），改了五处：
 `lib/src/ui/custom_text_edit.dart` 里的输入去重逻辑（下详）、
 `lib/src/ui/shortcut/shortcuts.dart` 里 Linux/Windows 默认键位表的 Ctrl+A、
 `lib/src/ui/render.dart` 里选区的绘制层次、以及拖选贴边自动滚动
@@ -40,7 +40,7 @@ Linux 上打一个汉字出现三次。同一处逻辑在 macOS 上表现为「�
 配套的仓库侧改动：`deleteDetection` 只在触屏平台打开（桌面端的退格是真实按键事件，
 不需要那个两空格占位符）。
 
-### 其余三处补丁（桌面复制体验）
+### 其余四处补丁
 
 1. **`shortcuts.dart`：Linux/Windows 默认键位表去掉 Ctrl+A 全选**。快捷键判定
    跑在 `terminal.keyInput` 之前，绑了全选，readline 的「回行首」（^A）就按不出
@@ -57,6 +57,11 @@ Linux 上打一个汉字出现三次。同一处逻辑在 macOS 上表现为「�
    选不完超过一屏的内容。滚到回滚顶 / 最新底自动停；全屏程序（alt buffer）
    不滚。配套把 `PanGestureRecognizer` 的 onEnd / onCancel 与长按抬起接进
    手势处理器，用于停掉滚动计时器。
+4. **`render.dart` + `terminal_view.dart`：光标闪烁**。上游解析了 DECSET 12，
+   但 renderer 从不消费它，光标永远是实心一块。这里在聚焦时用 530ms 的周期
+   翻转绘制相位；远端输出会重置相位，避免输入后刚好看到「熄灭」的那半拍。
+   `TerminalView.cursorBlink` 默认关闭，保持旧表现；远端显式请求闪烁仍然生效。
+   应用壳在桌面详情、移动详情与全屏终端显式打开。
 
 ### 怎么升级
 

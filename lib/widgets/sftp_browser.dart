@@ -188,7 +188,16 @@ class _SftpTabState extends State<SftpTab> {
           focusNode: _panelFocus,
           child: Listener(
             // 只旁听按下，不碰手势竞技场；列表行的选中 / 进入照旧。
-            onPointerDown: (_) => _panelFocus.requestFocus(),
+            // 鼠标侧键在这里直接转成目录历史的后退 / 前进；普通主键不受影响。
+            onPointerDown: (event) {
+              _panelFocus.requestFocus();
+              if (event.kind != PointerDeviceKind.mouse) return;
+              if (event.buttons == kBackMouseButton) {
+                unawaited(controller.goBack());
+              } else if (event.buttons == kForwardMouseButton) {
+                unawaited(controller.goForward());
+              }
+            },
             child: _Browser(
               controller: controller,
               pathBarKey: _pathBarKey,
@@ -250,6 +259,7 @@ final class _Browser extends StatelessWidget {
                 onToggleFilter: onToggleFilter,
                 onError: onError,
               ),
+              if (controller.isReady) _QuickPathBar(controller: controller),
               if (filterOpen || controller.query.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 _FilterField(controller: controller, compact: compact),
