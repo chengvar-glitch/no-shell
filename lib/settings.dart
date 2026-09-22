@@ -111,7 +111,7 @@ enum TerminalPreset {
   TerminalTheme get theme => switch (this) {
     TerminalPreset.githubDark => const TerminalTheme(
       cursor: Color(0xFF3FB950),
-      selection: Color(0x264C8DFF),
+      selection: Color(0xFF264F78),
       foreground: Color(0xFFD6DEE7),
       background: Color(0xFF0A0C0F),
       black: Color(0xFF484F58),
@@ -136,7 +136,7 @@ enum TerminalPreset {
     ),
     TerminalPreset.githubLight => const TerminalTheme(
       cursor: Color(0xFF24292F),
-      selection: Color(0x260550AE),
+      selection: Color(0xFFADD6FF),
       foreground: Color(0xFF24292F),
       background: Color(0xFFFFFFFF),
       black: Color(0xFF24292F),

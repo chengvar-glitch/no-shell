@@ -413,6 +413,20 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     final effectFirstLine = firstLine.clamp(0, lines.length - 1);
     final effectLastLine = lastLine.clamp(0, lines.length - 1);
 
+    // Selection is a background layer: it must be painted *before* the text,
+    // otherwise the solid rect covers the glyphs entirely and selected text
+    // becomes unreadable. (Search highlights are the opposite on purpose:
+    // translucent rects painted over the text.) The only cells that still
+    // hide it are ones with their own explicit background / inverse video.
+    if (_controller.selection != null) {
+      _paintSelection(
+        canvas,
+        _controller.selection!,
+        effectFirstLine,
+        effectLastLine,
+      );
+    }
+
     for (var i = effectFirstLine; i <= effectLastLine; i++) {
       _painter.paintLine(
         canvas,
@@ -443,15 +457,6 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       effectFirstLine,
       effectLastLine,
     );
-
-    if (_controller.selection != null) {
-      _paintSelection(
-        canvas,
-        _controller.selection!,
-        effectFirstLine,
-        effectLastLine,
-      );
-    }
   }
 
   /// Paints the text that is currently being composed in IME to [canvas] at
