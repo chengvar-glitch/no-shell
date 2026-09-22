@@ -447,6 +447,11 @@ final class TerminalStyleScope extends InheritedWidget {
   static TerminalStyleScope of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<TerminalStyleScope>()!;
 
+  /// 预览这类非终端内容可以优雅降级：没有作用域（例如独立的组件宿主）
+  /// 时用出厂代码字体，而不是让调用方被迫包一层测试专用作用域。
+  static TerminalStyleScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<TerminalStyleScope>();
+
   @override
   bool updateShouldNotify(TerminalStyleScope oldWidget) => false;
 }

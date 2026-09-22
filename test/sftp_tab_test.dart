@@ -296,6 +296,15 @@ void main() {
       expect(find.text('last line'), findsOneWidget);
       expect(find.byType(SelectionArea), findsOneWidget);
 
+      // 预览正文不是普通界面文案：用内置代码字体和编辑器式行高渲染，
+      // 行号本身禁止进入 SelectionArea，复制出来的仍是代码内容。
+      final codeStyle = tester.widget<Text>(find.text('first line')).style;
+      expect(codeStyle?.fontFamily, TerminalFont.jetBrainsMono.family);
+      expect(codeStyle?.fontSize, 13.5);
+      expect(codeStyle?.height, 1.55);
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+
       // 文本预览必须有实体底色；宿主这里是浅色主题，面板底就是白底，
       // 深色主题由 AppTheme 里的同一语义色切换到深灰面板。
       final previewDialog = find.byType(Dialog);

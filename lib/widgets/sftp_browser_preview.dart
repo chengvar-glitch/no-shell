@@ -28,6 +28,10 @@ Color? _previewBarrierColor(SftpQuickPreviewKind kind) => switch (kind) {
 /// 语义行；分块让 ListView 继续懒构建，也避免横向布局撑爆。
 const int _kTextPreviewChunkLength = 2048;
 
+/// 文本预览的字号独立于终端：预览要贴近代码编辑器的排版，
+/// 但不应该因为用户把终端字号调大而让一次快速查看变得过分拥挤。
+const double _kTextPreviewFontSize = 13.5;
+
 /// 快速预览的类型。
 enum SftpQuickPreviewKind { image, text }
 
@@ -348,6 +352,9 @@ final class _TextPreviewBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final prefs =
+        TerminalStyleScope.maybeOf(context)?.notifier.value ??
+        const TerminalStylePrefs();
     if (lines.isEmpty) {
       return Center(
         child: Text(
@@ -359,27 +366,64 @@ final class _TextPreviewBody extends StatelessWidget {
         ),
       );
     }
+    final foreground = Theme.of(context).colorScheme.onSurface;
+    final codeStyle = TextStyle(
+      fontFamily: prefs.resolvedFontFamily,
+      fontFamilyFallback: prefs.fontFallback,
+      fontSize: _kTextPreviewFontSize,
+      height: 1.55,
+      letterSpacing: 0,
+      color: foreground,
+      // JetBrains Mono / Fira Code 的连字在这里是正文排版的一部分；
+      // 两个 feature 同时声明，命中哪个由字体自身决定。
+      fontFeatures: const [FontFeature('liga'), FontFeature('calt')],
+    );
+    final gutterStyle = TextStyle(
+      fontFamily: prefs.resolvedFontFamily,
+      fontFamilyFallback: prefs.fontFallback,
+      fontSize: 12,
+      height: codeStyle.height,
+      fontFeatures: codeStyle.fontFeatures,
+      color: foreground.withValues(alpha: 0.38),
+    );
+    final gutterWidth = switch (lines.length.toString().length) {
+      <= 3 => 42.0,
+      4 => 51.0,
+      5 => 60.0,
+      6 => 69.0,
+      _ => 78.0,
+    };
     return SelectionArea(
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.only(left: 8, right: 18, top: 12, bottom: 18),
         itemCount: lines.length,
         itemBuilder: (context, index) {
-          final style = TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 13,
-            height: 1.45,
-            color: Theme.of(context).colorScheme.onSurface,
-          );
           final codeSpans = index < codeLines.length ? codeLines[index] : null;
           final text = codeSpans == null
-              ? Text(lines[index], softWrap: true, style: style)
+              ? Text(lines[index], softWrap: true, style: codeStyle)
               : Text.rich(
-                  TextSpan(children: codeSpans, style: style),
+                  TextSpan(children: codeSpans, style: codeStyle),
                   softWrap: true,
                 );
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 1),
-            child: text,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SelectionContainer.disabled(
+                  child: SizedBox(
+                    width: gutterWidth,
+                    child: Text(
+                      '${index + 1}',
+                      textAlign: TextAlign.right,
+                      style: gutterStyle,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: text),
+              ],
+            ),
           );
         },
       ),
