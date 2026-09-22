@@ -1,12 +1,25 @@
 part of 'sftp_browser.dart';
 
-/// 预览外的背景轻微压暗；预览本体再用深色半透明底承载。
+/// 图片预览外的背景轻微压暗；图片本体再用深色半透明底承载。
 /// 叠加后下层界面保留约 29% 透出度：能感觉到上下文，又不干扰读图。
 const double kSftpPreviewScrimOpacity = 0.28;
 const double kSftpPreviewSurfaceOpacity = 0.62;
 
-Color _previewSurfaceColor() =>
-    Colors.black.withValues(alpha: kSftpPreviewSurfaceOpacity);
+/// 文本预览保持全透明，只有图片需要深色半透明底来衬托图像。
+Color _previewSurfaceColor(SftpQuickPreviewKind kind) => switch (kind) {
+  SftpQuickPreviewKind.image => Colors.black.withValues(
+    alpha: kSftpPreviewSurfaceOpacity,
+  ),
+  SftpQuickPreviewKind.text => Colors.transparent,
+};
+
+/// 路由遮罩与图片预览的表面层一起压暗；文本预览不加背景。
+Color? _previewBarrierColor(SftpQuickPreviewKind kind) => switch (kind) {
+  SftpQuickPreviewKind.image => Colors.black.withValues(
+    alpha: kSftpPreviewScrimOpacity,
+  ),
+  SftpQuickPreviewKind.text => Colors.transparent,
+};
 
 /// 超长行按 UTF-16 码元分块后再交给 Flutter 文本布局。
 /// 一个 16 MB 的 minified JSON 如果作为单个 Text 布局，会造出极宽的
@@ -106,7 +119,7 @@ Future<SftpQuickPreviewOutcome> showSftpQuickPreview(
   final result = await showDialog<SftpQuickPreviewOutcome>(
     context: context,
     useSafeArea: true,
-    barrierColor: Colors.black.withValues(alpha: kSftpPreviewScrimOpacity),
+    barrierColor: _previewBarrierColor(kind),
     builder: (_) => _SftpQuickPreviewDialog(
       controller: controller,
       entry: entry,
@@ -256,7 +269,7 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final surfaceColor = _previewSurfaceColor();
+    final surfaceColor = _previewSurfaceColor(widget.kind);
     final isLoading = widget.kind == SftpQuickPreviewKind.text
         ? !_textLoaded
         : _data == null;
