@@ -8,6 +8,80 @@ import 'package:xterm/ui.dart';
 /// 终端便捷交互的公共件：字号缩放键位、复制 / 粘贴 / 全选动作、
 /// 超链接识别。只依赖 xterm 公共 API，web 也要能编译。
 
+/// 双击 / 长按选词的分隔符表。
+///
+/// fork 默认表把 `-` `.` `:` `/` 都当分隔符，而这些字符在 UUID、文件路径、
+/// 域名、IPv6 里是词的一部分——从日志里双击复制一个日志编号
+/// （`c8cf4fd4-ed93-…`）或一条路径是运维的高频动作，iTerm2 / GNOME
+/// Terminal 的双击都能整条带走。这里去掉这四个；另收中文标点（全角冒号、
+/// 逗号、顿号与弯引号），「日志编号：xxx」双击不会把前缀带上。
+final Set<int> kTerminalWordSeparators = {
+  0, // 宽字符占位格的 codepoint，恒为 0
+  ' '.codeUnitAt(0),
+  '\t'.codeUnitAt(0),
+  '"'.codeUnitAt(0),
+  '\''.codeUnitAt(0),
+  '`'.codeUnitAt(0),
+  '\\'.codeUnitAt(0),
+  '*'.codeUnitAt(0),
+  '+'.codeUnitAt(0),
+  ','.codeUnitAt(0),
+  ';'.codeUnitAt(0),
+  '('.codeUnitAt(0),
+  ')'.codeUnitAt(0),
+  '['.codeUnitAt(0),
+  ']'.codeUnitAt(0),
+  '{'.codeUnitAt(0),
+  '}'.codeUnitAt(0),
+  '<'.codeUnitAt(0),
+  '>'.codeUnitAt(0),
+  '|'.codeUnitAt(0),
+  '&'.codeUnitAt(0),
+  '!'.codeUnitAt(0),
+  '?'.codeUnitAt(0),
+  '“'.codeUnitAt(0),
+  '”'.codeUnitAt(0),
+  '‘'.codeUnitAt(0),
+  '’'.codeUnitAt(0),
+  '：'.codeUnitAt(0),
+  '，'.codeUnitAt(0),
+  '；'.codeUnitAt(0),
+  '、'.codeUnitAt(0),
+};
+
+/// Ctrl+C 的处置结论：有选区时复制（Windows Terminal 的默认语义），
+/// 没有选区时仍发 ^C 中断。
+enum TerminalCtrlCDisposition { copy, interrupt }
+
+/// 判定一次按键是不是「该复制的那个 Ctrl+C」。
+///
+/// Apple 平台 Cmd+C 已是复制、终端里 Ctrl+C 从不抢，恒为中断；带 Shift /
+/// Alt / Meta 的组合各自另有含义（Ctrl+Shift+C 是复制快捷键，落到键位表
+/// 那条路），也不拦。判定为 [TerminalCtrlCDisposition.copy] 时调用方必须
+/// 把事件标为已处理，否则 ^C 照发、选区就白选了。
+TerminalCtrlCDisposition resolveCtrlC(
+  KeyEvent event, {
+  required bool hasSelection,
+}) {
+  if (isAppleLikePlatform()) return TerminalCtrlCDisposition.interrupt;
+  if (event.logicalKey != LogicalKeyboardKey.keyC) {
+    return TerminalCtrlCDisposition.interrupt;
+  }
+  if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+    return TerminalCtrlCDisposition.interrupt;
+  }
+  final keyboard = HardwareKeyboard.instance;
+  final plainCtrl =
+      keyboard.isControlPressed &&
+      !keyboard.isShiftPressed &&
+      !keyboard.isAltPressed &&
+      !keyboard.isMetaPressed;
+  if (!plainCtrl) return TerminalCtrlCDisposition.interrupt;
+  return hasSelection
+      ? TerminalCtrlCDisposition.copy
+      : TerminalCtrlCDisposition.interrupt;
+}
+
 /// 终端字号步进意图：[delta] 为 ±1。键位在 [terminalShortcuts] 绑定，
 /// 动作方（SshTerminalView）把结果写回全局终端偏好。
 class TerminalFontSizeAdjustIntent extends Intent {
@@ -76,6 +150,14 @@ Map<ShortcutActivator, Intent> terminalShortcuts() {
         control: true,
         shift: true,
       ): const TerminalSearchIntent(),
+    // X11 / Windows Terminal 的老键位：Shift+Insert 粘贴、Ctrl+Insert 复制。
+    // Apple 平台 Cmd+C/V 已覆盖，不绑。
+    if (!meta)
+      const SingleActivator(LogicalKeyboardKey.insert, shift: true):
+          const PasteTextIntent(SelectionChangedCause.keyboard),
+    if (!meta)
+      const SingleActivator(LogicalKeyboardKey.insert, control: true):
+          CopySelectionTextIntent.copy,
   };
 }
 

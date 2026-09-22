@@ -166,6 +166,10 @@ class TerminalViewState extends State<TerminalView> {
   RenderTerminal get renderTerminal =>
       _viewportKey.currentContext!.findRenderObject() as RenderTerminal;
 
+  /// The scroll controller that drives the terminal viewport. Exposed for
+  /// the selection-drag auto-scroll in [TerminalGestureHandler].
+  ScrollController get scrollController => _scrollController;
+
   @override
   void initState() {
     _focusNode = widget.focusNode ?? FocusNode();

@@ -20,8 +20,9 @@ final _defaultShortcuts = {
       CopySelectionTextIntent.copy,
   SingleActivator(LogicalKeyboardKey.keyV, control: true):
       const PasteTextIntent(SelectionChangedCause.keyboard),
-  SingleActivator(LogicalKeyboardKey.keyA, control: true):
-      const SelectAllTextIntent(SelectionChangedCause.keyboard),
+  // No upstream binding for Ctrl+A / Ctrl+Insert / Shift+Insert: Ctrl+A is
+  // "move to beginning of line" in readline/zsh and must reach the shell.
+  // No terminal emulator binds select-all to it.
 };
 
 final _defaultAppleShortcuts = {

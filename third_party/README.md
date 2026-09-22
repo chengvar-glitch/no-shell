@@ -2,8 +2,10 @@
 
 ## xterm/
 
-`pub.dev` 上 `xterm 4.0.0` 的副本（MIT，许可原文见 `xterm/LICENSE`），只改了一处：
-`lib/src/ui/custom_text_edit.dart` 里的输入去重逻辑。由根 `pubspec.yaml` 的
+`pub.dev` 上 `xterm 4.0.0` 的副本（MIT，许可原文见 `xterm/LICENSE`），改了三处：
+`lib/src/ui/custom_text_edit.dart` 里的输入去重逻辑（下详）、
+`lib/src/ui/shortcut/shortcuts.dart` 里 Linux/Windows 默认键位表的 Ctrl+A、
+以及拖选贴边自动滚动（`lib/src/ui/gesture/`，下详）。由根 `pubspec.yaml` 的
 `dependency_overrides` 挂上，应用实际用的就是这个目录，不是 pub 上的包。
 
 ### 为什么需要这份 fork
@@ -36,6 +38,18 @@ Linux 上打一个汉字出现三次。同一处逻辑在 macOS 上表现为「�
 
 配套的仓库侧改动：`deleteDetection` 只在触屏平台打开（桌面端的退格是真实按键事件，
 不需要那个两空格占位符）。
+
+### 其余两处补丁（桌面复制体验）
+
+1. **`shortcuts.dart`：Linux/Windows 默认键位表去掉 Ctrl+A 全选**。快捷键判定
+   跑在 `terminal.keyInput` 之前，绑了全选，readline 的「回行首」（^A）就按不出
+   来——没有任何主流终端绑这个。全选仍可从右键菜单走。升级回 pub 包时若上游
+   仍绑着，在应用侧的 `terminalShortcuts()` 里把这条覆盖掉即可（表是整体替换）。
+2. **`gesture/`：拖选贴边自动滚动**。鼠标拖选 / 触屏长按拖选到视口上下 32px
+   内时，按帧（16ms）滚动一行并按原起止点重算选区——此前拖到屏幕边就停，
+   选不完超过一屏的内容。滚到回滚顶 / 最新底自动停；全屏程序（alt buffer）
+   不滚。配套把 `PanGestureRecognizer` 的 onEnd / onCancel 与长按抬起接进
+   手势处理器，用于停掉滚动计时器。
 
 ### 怎么升级
 

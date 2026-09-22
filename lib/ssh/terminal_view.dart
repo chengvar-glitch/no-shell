@@ -345,6 +345,21 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     return false;
   }
 
+  /// 智能 Ctrl+C：有选区时复制并把事件截下（Windows Terminal 的默认语义），
+  /// 没有选区时放行——shell 照常收到 ^C 去中断命令。判定标准见
+  /// [resolveCtrlC]；复制落空（没选到东西）也截下事件，不至于再发一个 ^C。
+  KeyEventResult _onTerminalKey(FocusNode node, KeyEvent event) {
+    final disposition = resolveCtrlC(
+      event,
+      hasSelection: _controller.selection != null,
+    );
+    if (disposition != TerminalCtrlCDisposition.copy) {
+      return KeyEventResult.ignored;
+    }
+    unawaited(copyTerminalSelection(widget.session.terminal, _controller));
+    return KeyEventResult.handled;
+  }
+
   void _onSelectionChanged() {
     _hasSelection = _controller.selection != null;
     if (_isTouchPlatform) _overlayRevision.value++;
@@ -1359,6 +1374,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                                                   10,
                                                 ),
                                                 shortcuts: _shortcuts,
+                                                // 智能 Ctrl+C 挂在这里：它必须
+                                                // 跑在键位表与 keyInput 之前。
+                                                onKeyEvent: _onTerminalKey,
                                                 // 悬停在链接上换成手型光标：与下划线同一份判定。
                                                 mouseCursor: link == null
                                                     ? SystemMouseCursors.text

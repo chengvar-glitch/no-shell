@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:xterm/src/core/mouse/button.dart';
@@ -55,9 +58,29 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
 
   RenderTerminal get renderTerminal => terminalView.renderTerminal;
 
+  static const _autoScrollInterval = Duration(milliseconds: 16);
+
+  /// Distance from the viewport edge within which a selection drag keeps the
+  /// view scrolling.
+  static const _autoScrollEdgeZone = 32.0;
+
   DragStartDetails? _lastDragStartDetails;
 
   LongPressStartDetails? _lastLongPressStartDetails;
+
+  /// Pointer position (view-local) of the running selection drag or long
+  /// press; null while none is in progress.
+  Offset? _lastDragPointer;
+
+  Timer? _autoScrollTimer;
+
+  int _autoScrollDirection = 0;
+
+  @override
+  void dispose() {
+    _stopAutoScroll();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,9 +95,11 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
       onTertiaryTapUp: onSecondaryTapUp,
       onLongPressStart: onLongPressStart,
       onLongPressMoveUpdate: onLongPressMoveUpdate,
-      // onLongPressUp: onLongPressUp,
+      onLongPressUp: onLongPressUp,
       onDragStart: onDragStart,
       onDragUpdate: onDragUpdate,
+      onDragEnd: onDragEnd,
+      onDragCancel: onDragCancel,
       onDoubleTapDown: onDoubleTapDown,
     );
   }
@@ -162,20 +187,27 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
 
   void onLongPressStart(LongPressStartDetails details) {
     _lastLongPressStartDetails = details;
+    _lastDragPointer = details.localPosition;
     renderTerminal.selectWord(details.localPosition);
   }
 
   void onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
+    _lastDragPointer = details.localPosition;
+    _updateAutoScroll();
     renderTerminal.selectWord(
       _lastLongPressStartDetails!.localPosition,
       details.localPosition,
     );
   }
 
-  // void onLongPressUp() {}
+  void onLongPressUp() {
+    _stopAutoScroll();
+  }
 
   void onDragStart(DragStartDetails details) {
     _lastDragStartDetails = details;
+    _lastDragPointer = details.localPosition;
+    _stopAutoScroll();
 
     details.kind == PointerDeviceKind.mouse
         ? renderTerminal.selectCharacters(details.localPosition)
@@ -183,9 +215,92 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
   }
 
   void onDragUpdate(DragUpdateDetails details) {
+    _lastDragPointer = details.localPosition;
+    _updateAutoScroll();
     renderTerminal.selectCharacters(
       _lastDragStartDetails!.localPosition,
       details.localPosition,
     );
+  }
+
+  void onDragEnd(DragEndDetails details) {
+    _stopAutoScroll();
+  }
+
+  void onDragCancel() {
+    _stopAutoScroll();
+  }
+
+  /// Keep scrolling while a selection drag holds the pointer inside the edge
+  /// zone at the top / bottom of the viewport, and re-extend the selection
+  /// from the same view positions so the selection follows the scrolled
+  /// content (rubber-band feel, as in native terminal emulators).
+  void _updateAutoScroll() {
+    if (_lastDragStartDetails == null || _lastDragPointer == null) return;
+    if (terminalView.widget.terminal.isUsingAltBuffer) return;
+
+    final direction = _autoScrollDirectionOf(_lastDragPointer!);
+    if (direction == 0) {
+      _stopAutoScroll();
+      return;
+    }
+    _autoScrollDirection = direction;
+    _autoScrollTimer ??= Timer.periodic(_autoScrollInterval, (_) {
+      _autoScrollTick();
+    });
+  }
+
+  /// -1 to scroll toward newer lines (bottom edge), +1 toward the scrollback
+  /// (top edge), 0 when the pointer is outside both edge zones.
+  int _autoScrollDirectionOf(Offset pointer) {
+    final height = renderTerminal.size.height;
+    if (pointer.dy < _autoScrollEdgeZone) return 1;
+    if (pointer.dy > height - _autoScrollEdgeZone) return -1;
+    return 0;
+  }
+
+  void _autoScrollTick() {
+    final controller = terminalView.scrollController;
+    if (!controller.hasClients ||
+        _lastDragStartDetails == null ||
+        _lastDragPointer == null) {
+      _stopAutoScroll();
+      return;
+    }
+
+    final pixels = controller.position.pixels;
+    final lineHeight = renderTerminal.lineHeight;
+    // The real top of the scrollback: render maps offset directly to buffer
+    // rows and clamps them, so overshooting would pile the selection on the
+    // last visible row instead of stopping.
+    final maxOffset = math.max(
+      0.0,
+      terminalView.widget.terminal.buffer.lines.length * lineHeight -
+          renderTerminal.size.height,
+    );
+
+    switch (_autoScrollDirection) {
+      case 1 when pixels >= maxOffset:
+      case -1 when pixels <= 0:
+        _stopAutoScroll();
+        return;
+    }
+    controller.jumpTo(pixels + _autoScrollDirection * lineHeight);
+
+    // The pointer has not moved, but the cell under it changed with the
+    // scroll: re-run the selection with the same view positions.
+    final start = _lastDragStartDetails!.localPosition;
+    if (_lastLongPressStartDetails != null) {
+      renderTerminal.selectWord(start, _lastDragPointer!);
+    } else {
+      renderTerminal.selectCharacters(start, _lastDragPointer!);
+    }
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+    _autoScrollDirection = 0;
+    _lastDragPointer = null;
   }
 }

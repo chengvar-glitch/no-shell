@@ -15,6 +15,7 @@ import 'ssh_agent.dart';
 import 'ssh_credentials.dart';
 import 'ssh_transport.dart';
 import 'terminal_input_modifiers.dart';
+import 'terminal_interactions.dart';
 import 'tunnel_gateway.dart';
 
 enum TerminalPhase { connecting, connected, failed, closed }
@@ -98,6 +99,7 @@ final class TerminalSession extends ChangeNotifier {
   late final Terminal terminal = _SessionTerminal(
     modifiers: inputModifiers,
     maxLines: 50000,
+    wordSeparators: kTerminalWordSeparators,
   );
 
   /// 会话日志：终端画面与回滚的纯文本快照（见 [SessionLog]）。
@@ -306,7 +308,11 @@ final class TerminalSession extends ChangeNotifier {
 /// 包了也会被冲掉、还会打断它在 dispose 时的身份比较。覆盖下面四个方法
 /// 是最短的一条正路，且四条都是 xterm 的公开 API。
 final class _SessionTerminal extends Terminal {
-  _SessionTerminal({required this.modifiers, super.maxLines});
+  _SessionTerminal({
+    required this.modifiers,
+    super.maxLines,
+    super.wordSeparators,
+  });
 
   final TerminalInputModifiers modifiers;
 
