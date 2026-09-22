@@ -46,6 +46,23 @@ void main() {
       expect(comment.style?.color, const Color(0xFF8B949E));
     });
 
+    test('浅色主题换用白底高亮色', () {
+      final lines = highlightSyntaxLines(
+        'final name = "world";\n// done',
+        'dart',
+        brightness: Brightness.light,
+      );
+
+      final first = _leafSpans(lines[0]).toList();
+      final keyword = first.singleWhere((span) => span.text == 'final');
+      final string = first.singleWhere((span) => span.text == '"world"');
+      final comment = _leafSpans(lines[1]).single;
+
+      expect(keyword.style?.color, const Color(0xFFCF222E));
+      expect(string.style?.color, const Color(0xFF0A3069));
+      expect(comment.style?.color, const Color(0xFF6E7781));
+    });
+
     test('保留空行，超长行切成多个懒构建块', () {
       final longLine = '${'a' * 2048}tail';
       final lines = highlightSyntaxLines('$longLine\n\n', 'javascript');

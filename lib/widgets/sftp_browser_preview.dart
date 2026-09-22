@@ -5,13 +5,15 @@ part of 'sftp_browser.dart';
 const double kSftpPreviewScrimOpacity = 0.28;
 const double kSftpPreviewSurfaceOpacity = 0.62;
 
-/// 文本预览保持全透明，只有图片需要深色半透明底来衬托图像。
-Color _previewSurfaceColor(SftpQuickPreviewKind kind) => switch (kind) {
-  SftpQuickPreviewKind.image => Colors.black.withValues(
-    alpha: kSftpPreviewSurfaceOpacity,
-  ),
-  SftpQuickPreviewKind.text => Colors.transparent,
-};
+/// 文本预览用不透明主题面板底色，深浅主题下都保证正文可读；
+/// 图片预览保留深色半透明底，用来衬托带透明通道的图像。
+Color _previewSurfaceColor(BuildContext context, SftpQuickPreviewKind kind) =>
+    switch (kind) {
+      SftpQuickPreviewKind.image => Colors.black.withValues(
+        alpha: kSftpPreviewSurfaceOpacity,
+      ),
+      SftpQuickPreviewKind.text => Theme.of(context).appColors.panelBackground,
+    };
 
 /// 路由遮罩与图片预览的表面层一起压暗；文本预览不加背景。
 Color? _previewBarrierColor(SftpQuickPreviewKind kind) => switch (kind) {
@@ -219,7 +221,11 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
         _textLines = _splitTextPreviewLines(text);
         _textCodeSpans = language == null
             ? const []
-            : highlightSyntaxLines(text, language);
+            : highlightSyntaxLines(
+                text,
+                language,
+                brightness: Theme.of(context).brightness,
+              );
         _textLoaded = true;
       });
       return;
@@ -252,6 +258,7 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
             ColoredBox(color: placeholderColor.withValues(alpha: .12)),
         errorBuilder: (_, _, _) => _InvalidPreview(
           message: AppLocalizations.of(context).sftpPreviewInvalid,
+          onDarkSurface: true,
         ),
       );
     }
@@ -262,6 +269,7 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
       gaplessPlayback: true,
       errorBuilder: (_, _, _) => _InvalidPreview(
         message: AppLocalizations.of(context).sftpPreviewInvalid,
+        onDarkSurface: true,
       ),
     );
   }
@@ -269,7 +277,10 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final surfaceColor = _previewSurfaceColor(widget.kind);
+    final theme = Theme.of(context);
+    final isText = widget.kind == SftpQuickPreviewKind.text;
+    final surfaceColor = _previewSurfaceColor(context, widget.kind);
+    final foregroundColor = isText ? theme.colorScheme.onSurface : Colors.white;
     final isLoading = widget.kind == SftpQuickPreviewKind.text
         ? !_textLoaded
         : _data == null;
@@ -280,7 +291,7 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
         appBar: AppBar(
           backgroundColor: surfaceColor,
           surfaceTintColor: Colors.transparent,
-          foregroundColor: Colors.white,
+          foregroundColor: foregroundColor,
           // macOS 的红绿灯浮在全屏路由 AppBar 上：加宽 leading 槽位，
           // 让自动返回箭头从灯组右侧开始；Windows/Linux 的标题栏
           // 不浮在内容上，保持 Flutter 默认位置。
@@ -304,10 +315,10 @@ class _SftpQuickPreviewDialogState extends State<_SftpQuickPreviewDialog> {
                       const SizedBox(height: 12),
                       Text(
                         l10n.sftpPreviewLoading,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           height: 1.4,
-                          color: Colors.white,
+                          color: foregroundColor,
                         ),
                       ),
                     ],
@@ -341,7 +352,10 @@ final class _TextPreviewBody extends StatelessWidget {
       return Center(
         child: Text(
           AppLocalizations.of(context).sftpPreviewEmpty,
-          style: const TextStyle(fontSize: 13, color: Colors.white),
+          style: TextStyle(
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
         ),
       );
     }
@@ -354,7 +368,7 @@ final class _TextPreviewBody extends StatelessWidget {
             fontFamily: 'monospace',
             fontSize: 13,
             height: 1.45,
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.onSurface,
           );
           final codeSpans = index < codeLines.length ? codeLines[index] : null;
           final text = codeSpans == null
@@ -404,9 +418,12 @@ List<String> _splitTextPreviewLines(String text) {
 }
 
 final class _InvalidPreview extends StatelessWidget {
-  const _InvalidPreview({required this.message});
+  const _InvalidPreview({required this.message, this.onDarkSurface = false});
 
   final String message;
+
+  /// 图片预览错误画在深色半透明底上；文本预览错误跟主题底色走。
+  final bool onDarkSurface;
 
   @override
   Widget build(BuildContext context) {
@@ -418,16 +435,22 @@ final class _InvalidPreview extends StatelessWidget {
           Icon(
             Icons.image_not_supported_outlined,
             size: 40,
-            color: Colors.white.withValues(alpha: 0.72),
+            color:
+                (onDarkSurface
+                        ? Colors.white
+                        : Theme.of(context).colorScheme.onSurface)
+                    .withValues(alpha: 0.72),
           ),
           const SizedBox(height: 12),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               height: 1.4,
-              color: Colors.white,
+              color: onDarkSurface
+                  ? Colors.white
+                  : Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ],

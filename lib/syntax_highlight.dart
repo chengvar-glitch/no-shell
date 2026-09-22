@@ -96,9 +96,9 @@ String? syntaxHighlightLanguage(String fileName) {
   return _kSyntaxHighlightLanguages[extension];
 }
 
-/// 预览深底上的高亮色。颜色取自常见暗色主题的家族，但背景交给
-/// SFTP 预览自己的半透明层；高亮层只负责字色和少量斜体 / 粗体。
-const Map<String, TextStyle> _kSyntaxTheme = {
+/// 预览底色分深浅两套，高亮色也跟着切换；高亮层只负责字色和
+/// 少量斜体 / 粗体，背景交给 SFTP 文本预览的主题底色。
+const Map<String, TextStyle> _kDarkSyntaxTheme = {
   'addition': TextStyle(color: Color(0xFF98C379)),
   'attr': TextStyle(color: Color(0xFFD19A66)),
   'attribute': TextStyle(color: Color(0xFFD19A66)),
@@ -134,12 +134,60 @@ const Map<String, TextStyle> _kSyntaxTheme = {
   'variable': TextStyle(color: Color(0xFFD19A66)),
 };
 
+/// GitHub Light 家族的低饱和深色字；白底上仍保持足够对比度。
+const Map<String, TextStyle> _kLightSyntaxTheme = {
+  'addition': TextStyle(color: Color(0xFF116329)),
+  'attr': TextStyle(color: Color(0xFF953800)),
+  'attribute': TextStyle(color: Color(0xFF953800)),
+  'built_in': TextStyle(color: Color(0xFF0550AE)),
+  'bullet': TextStyle(color: Color(0xFF0550AE)),
+  'comment': TextStyle(color: Color(0xFF6E7781), fontStyle: FontStyle.italic),
+  'deletion': TextStyle(color: Color(0xFFCF222E)),
+  'doctag': TextStyle(color: Color(0xFF8250DF)),
+  'formula': TextStyle(color: Color(0xFF8250DF)),
+  'keyword': TextStyle(color: Color(0xFFCF222E)),
+  'link': TextStyle(color: Color(0xFF0550AE)),
+  'literal': TextStyle(color: Color(0xFF0550AE)),
+  'meta': TextStyle(color: Color(0xFF0550AE)),
+  'meta-string': TextStyle(color: Color(0xFF0A3069)),
+  'name': TextStyle(color: Color(0xFF116329)),
+  'number': TextStyle(color: Color(0xFF0550AE)),
+  'operator': TextStyle(color: Color(0xFF0550AE)),
+  'quote': TextStyle(color: Color(0xFF6E7781), fontStyle: FontStyle.italic),
+  'regexp': TextStyle(color: Color(0xFF116329)),
+  'section': TextStyle(color: Color(0xFF0550AE), fontWeight: FontWeight.bold),
+  'selector-attr': TextStyle(color: Color(0xFF953800)),
+  'selector-class': TextStyle(color: Color(0xFF953800)),
+  'selector-id': TextStyle(color: Color(0xFF0550AE)),
+  'selector-pseudo': TextStyle(color: Color(0xFF953800)),
+  'selector-tag': TextStyle(color: Color(0xFF116329)),
+  'string': TextStyle(color: Color(0xFF0A3069)),
+  'subst': TextStyle(color: Color(0xFF24292F)),
+  'symbol': TextStyle(color: Color(0xFF0550AE)),
+  'tag': TextStyle(color: Color(0xFF116329)),
+  'template-variable': TextStyle(color: Color(0xFF953800)),
+  'title': TextStyle(color: Color(0xFF8250DF)),
+  'type': TextStyle(color: Color(0xFF0550AE)),
+  'variable': TextStyle(color: Color(0xFF953800)),
+};
+
+Map<String, TextStyle> _syntaxTheme(Brightness brightness) =>
+    switch (brightness) {
+      Brightness.dark => _kDarkSyntaxTheme,
+      Brightness.light => _kLightSyntaxTheme,
+    };
+
 /// 把源码解析成“每一行一组叶子 [TextSpan]”。
 ///
 /// 语法结构会跨行（块注释、多行字符串），所以必须先整篇解析再按行摊平；
 /// 反过来逐行解析会把 ```dart\nfoo\n``` 这类结构拆碎。这里只返回叶子
 /// span，后续按 UTF-16 码元切块时就不必再遍历嵌套树。
-List<List<TextSpan>> highlightSyntaxLines(String source, String language) {
+List<List<TextSpan>> highlightSyntaxLines(
+  String source,
+  String language, {
+  Brightness brightness = Brightness.dark,
+}) {
+  final theme = _syntaxTheme(brightness);
   final normalized = source.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
   if (normalized.isEmpty) return const <List<TextSpan>>[<TextSpan>[]];
   try {
@@ -147,7 +195,7 @@ List<List<TextSpan>> highlightSyntaxLines(String source, String language) {
     final lines = <List<TextSpan>>[<TextSpan>[]];
     if (result.nodes == null) return lines;
     for (final node in result.nodes!) {
-      _visitSyntaxNode(node, _kSyntaxTheme['subst'], lines);
+      _visitSyntaxNode(node, theme, theme['subst'], lines);
     }
     return [for (final line in lines) _splitSyntaxPreviewLine(line)];
   } on FormatException {
@@ -164,12 +212,13 @@ List<List<TextSpan>> highlightSyntaxLines(String source, String language) {
 
 void _visitSyntaxNode(
   Node node,
+  Map<String, TextStyle> theme,
   TextStyle? parentStyle,
   List<List<TextSpan>> lines,
 ) {
   final style = node.className == null
       ? parentStyle
-      : (_kSyntaxTheme[node.className!] ?? parentStyle);
+      : (theme[node.className!] ?? parentStyle);
   final value = node.value;
   if (value != null) {
     _appendSyntaxText(value, style, lines);
@@ -178,7 +227,7 @@ void _visitSyntaxNode(
   final children = node.children;
   if (children == null) return;
   for (final child in children) {
-    _visitSyntaxNode(child, style, lines);
+    _visitSyntaxNode(child, theme, style, lines);
   }
 }
 

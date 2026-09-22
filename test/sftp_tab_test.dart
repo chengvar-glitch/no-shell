@@ -295,6 +295,29 @@ void main() {
       expect(find.text('中文内容'), findsOneWidget);
       expect(find.text('last line'), findsOneWidget);
       expect(find.byType(SelectionArea), findsOneWidget);
+
+      // 文本预览必须有实体底色；宿主这里是浅色主题，面板底就是白底，
+      // 深色主题由 AppTheme 里的同一语义色切换到深灰面板。
+      final previewDialog = find.byType(Dialog);
+      expect(
+        tester
+            .widget<Scaffold>(
+              find.descendant(
+                of: previewDialog,
+                matching: find.byType(Scaffold),
+              ),
+            )
+            .backgroundColor,
+        AppPalette.panelLight,
+      );
+      expect(
+        tester
+            .widget<AppBar>(
+              find.descendant(of: previewDialog, matching: find.byType(AppBar)),
+            )
+            .backgroundColor,
+        AppPalette.panelLight,
+      );
     });
 
     testWidgets('超长文本行分块懒构建，不再横向铺满整行', (tester) async {
