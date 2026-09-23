@@ -56,3 +56,7 @@ app.*.map.json
 
 # macOS 本机开发签名覆盖（证书在个人登录钥匙串里，见 tool/setup_dev_codesign.sh）
 macos/Runner/Configs/local.xcconfig
+
+# 本地 deb 打包产物（tool/install_local_linux.sh 的中间目录与成品）
+.deb-pkg/
+*.deb
