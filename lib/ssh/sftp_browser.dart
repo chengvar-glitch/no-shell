@@ -207,16 +207,20 @@ final class SftpBrowserController extends ChangeNotifier {
   /// 回到上一个成功浏览过的目录；没有上一页时不发请求。
   Future<void> goBack() async {
     if (!canGoBack) return;
-    await _load(_history[_historyCursor - 1], history: _SftpHistoryStep.back);
+    await _stepHistory(_history[_historyCursor - 1], _SftpHistoryStep.back);
   }
 
   /// 回到被「后退」离开的目录；没有下一页时不发请求。
   Future<void> goForward() async {
     if (!canGoForward) return;
-    await _load(
-      _history[_historyCursor + 1],
-      history: _SftpHistoryStep.forward,
-    );
+    await _stepHistory(_history[_historyCursor + 1], _SftpHistoryStep.forward);
+  }
+
+  /// 侧键的历史步进：同一目标的请求还在路上时，这一下就是刚才那下的重复，
+  /// 不再发请求——否则同一次载入会被两笔 back 各退一格，游标与画面错位。
+  Future<void> _stepHistory(String target, _SftpHistoryStep step) async {
+    if (target == _loadingTarget) return;
+    await _load(target, history: step);
   }
 
   Future<void> goUp() async {

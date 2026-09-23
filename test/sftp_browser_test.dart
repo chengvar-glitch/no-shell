@@ -356,6 +356,28 @@ void main() {
       expect(controller.path, etc.path);
     });
 
+    test('快速连点后退不会把游标退过头', () async {
+      final (:controller, :fs) = await ready();
+      addTearDown(controller.dispose);
+      final etc = fs.addDirectory('/', 'etc');
+      final varDir = fs.addDirectory('/', 'var');
+
+      await controller.navigate(etc.path);
+      await controller.navigate(varDir.path);
+
+      // 侧键连点：第二下与第一下是同一个目标，还在载入就算重复，
+      // 否则同一次载入被两笔 back 各退一格，游标与画面错位。
+      final first = controller.goBack();
+      final second = controller.goBack();
+      await first;
+      await second;
+
+      expect(controller.path, etc.path);
+      expect(controller.canGoBack, isTrue, reason: '只退了一格，家目录仍在历史里');
+      await controller.goBack();
+      expect(controller.path, fs.home);
+    });
+
     test('失败导航不进入历史，不影响后退游标', () async {
       final (:controller, :fs) = await ready();
       addTearDown(controller.dispose);
