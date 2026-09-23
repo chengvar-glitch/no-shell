@@ -118,8 +118,8 @@ final class _Toolbar extends StatelessWidget {
   }
 }
 
-/// 地址栏下方的 Linux 常用目录胶囊；Windows 远端由 [sftpQuickPaths] 返回空，
-/// 这里便一行都不占。
+/// 地址栏下方的快捷位置胶囊：Unix 远端是常用目录，Windows 远端是
+/// 「~ + 盘符」（探测到几块给几块，见 [SftpBrowserController.drives]）。
 final class _QuickPathBar extends StatelessWidget {
   const _QuickPathBar({required this.controller});
 
@@ -129,7 +129,9 @@ final class _QuickPathBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final home = controller.home;
     if (home == null) return const SizedBox.shrink();
-    final targets = sftpQuickPaths(home: home);
+    final targets = controller.isWindowsRemote
+        ? sftpWindowsQuickPaths(home: home, drives: controller.drives)
+        : sftpQuickPaths(home: home);
     if (targets.isEmpty) return const SizedBox.shrink();
     final current = controller.path;
 
@@ -392,11 +394,17 @@ class _PathBarState extends State<_PathBar> {
   /// 习惯，搬到这儿只会让人敲出 `/home/deploy/logs/etc`）。
   void startEdit() {
     final path = _path;
+    // Windows 远端预填原生盘符写法（`C:\Users\me`）：复制出去贴进资源管理器、
+    // 终端都是原生形态，不再带着 SFTP 内部形态的开头斜杠；贴回地址栏
+    // resolveSftpPath 认这个写法，照样前往。
+    final shown = widget.controller.isWindowsRemote
+        ? sftpPathToWindowsDisplay(path)
+        : path;
     _debounce?.cancel();
     _token++;
     _editor.value = TextEditingValue(
-      text: path,
-      selection: TextSelection(baseOffset: 0, extentOffset: path.length),
+      text: shown,
+      selection: TextSelection(baseOffset: 0, extentOffset: shown.length),
     );
     setState(() {
       _editing = true;

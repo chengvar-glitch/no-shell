@@ -191,12 +191,45 @@ void main() {
       expect(find.text('nginx.conf'), findsOneWidget);
     });
 
-    testWidgets('Windows 远端不显示常用目录胶囊', (tester) async {
+    testWidgets('Windows 远端给「~ + 盘符」胶囊，点击直达盘根', (tester) async {
+      // 根目录按 Win32 OpenSSH 的样子列盘符：条目名带尾斜杠、还有小写形态。
       final fs = FakeSftpFileSystem(home: '/C:/Users/deploy');
+      fs.addDirectory('/', 'c:/');
+      fs.addDirectory('/', 'D:/');
       await pumpPanel(tester, fileSystem: fs);
 
+      // /etc 这类 Unix 常用目录照旧不给，由 ~ 与盘符替代。
       expect(find.text('/etc'), findsNothing);
-      expect(find.text('~'), findsNothing);
+      expect(find.text('~'), findsOneWidget);
+      expect(find.text('C:'), findsOneWidget);
+      expect(find.text('D:'), findsOneWidget);
+
+      await tester.tap(find.text('D:'));
+      await tester.pumpAndSettle();
+      // 请求落在带斜杠的盘根（`/D:` 在 Win32 下指「该盘的当前目录」）。
+      expect(fs.listCalls.last, '/D:/');
+    });
+
+    testWidgets('Windows 远端地址栏预填原生盘符写法，贴回照样前往', (tester) async {
+      final fs = FakeSftpFileSystem(home: '/C:/Users/deploy');
+      fs.addDirectory('/C:', 'Users');
+      await pumpPanel(tester, fileSystem: fs);
+
+      // 编辑态预填 C:\Users\deploy：复制出去贴进资源管理器是原生形态，
+      // 不再带着 SFTP 内部形态的开头斜杠。
+      await tester.tap(find.text('主目录'));
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        r'C:\Users\deploy',
+      );
+
+      // 复制出去的原生写法改一截再回车，同样能识别并前往。
+      await tester.enterText(find.byType(TextField), r'C:\Users');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(fs.listCalls.last, '/C:/Users');
+      expect(find.byType(TextField), findsNothing, reason: '前往后回到面包屑');
     });
 
     testWidgets('鼠标侧键后退 / 前进切换目录历史', (tester) async {

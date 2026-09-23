@@ -148,11 +148,55 @@ bool sftpIsWindowsRemotePath(String path) {
       RegExp(r'^/[A-Za-z]:(?:/|$)').hasMatch(trimmed);
 }
 
+/// 根目录列表里的条目名是不是盘符（Win32 OpenSSH 把 `/` 列成 `c:`、`d:`…）。
+/// 是则归一成大写 `C:` 形态；各版本给的名字带不带尾斜杠都有，一并吃掉。
+String? sftpDriveName(String entryName) {
+  var name = entryName.trim();
+  while (name.length > 2 && (name.endsWith('/') || name.endsWith('\\'))) {
+    name = name.substring(0, name.length - 1);
+  }
+  final match = RegExp(r'^([A-Za-z]):$').firstMatch(name);
+  if (match == null) return null;
+  return '${match.group(1)!.toUpperCase()}:';
+}
+
+/// `/C:` → `/C:/`：Win32 OpenSSH 下不带斜杠的盘符指「该盘的当前目录」
+/// 而不是盘根，浏览路径一律补上斜杠。其余路径原样返回。
+String sftpNormalizedRemotePath(String path) {
+  final match = RegExp(r'^(/[A-Za-z]):$').firstMatch(path.trim());
+  return match == null ? path : '${match.group(1)}:/';
+}
+
+/// 盘符（`C:`）对应的浏览路径；必须带尾斜杠，见 [sftpNormalizedRemotePath]。
+String _driveRootPath(String drive) => '/$drive/';
+
+/// SFTP 盘符路径 → Windows 原生写法：`/C:/Users/me` → `C:\Users\me`。
+/// 只用于 Windows 远端地址栏的编辑态预填——复制出去贴进资源管理器、终端
+/// 都是原生形态，不再带着 SFTP 内部形态的那个开头斜杠。非盘符路径
+/// （如 `/`）原样返回。
+String sftpPathToWindowsDisplay(String path) {
+  if (!sftpIsWindowsRemotePath(path)) return path;
+  final trimmed = path.trim();
+  final withoutRoot = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
+  return withoutRoot.replaceAll('/', r'\');
+}
+
+/// 把 Windows 原生盘符写法（`C:\Users`、`C:/Users`，含 SFTP 的 `/C:/Users`）
+/// 归一成 SFTP 形态：`\` 一并当分隔符换掉，光秃盘符补成盘根（`C:` →
+/// `/C:/`）。不是盘符写法时原样返回。地址栏解析与补全共用这一条规则——
+/// 编辑态预填的就是原生写法，贴回来必须能原路识别。
+String _normalizeDriveInput(String text) {
+  final drive = RegExp(r'^/?([A-Za-z]):(?:[/\\]|$)').firstMatch(text);
+  if (drive == null) return text;
+  final withoutRoot = text.startsWith('/') ? text.substring(1) : text;
+  return sftpNormalizedRemotePath('/${withoutRoot.replaceAll(r'\', '/')}');
+}
+
 /// 地址栏下方的快捷位置：Linux 常用目录 + 当前会话家目录（`~`）。
 ///
 /// 返回顺序就是胶囊顺序；[home] 若与某一项相同则不重复给。Windows OpenSSH
 /// 的家目录带盘符（`/C:/Users/me`），那些 `/etc`、`/var` 对它没有意义，
-/// 因此返回空列表——调用方一行胶囊都不画。
+/// 因此返回空列表——那一侧改由 [sftpWindowsQuickPaths] 给「~ + 盘符」。
 List<({String label, String path})> sftpQuickPaths({required String home}) {
   if (home.isEmpty || sftpIsWindowsRemotePath(home)) return const [];
   final homePath = home == '/' ? '' : home;
@@ -174,10 +218,39 @@ List<({String label, String path})> sftpQuickPaths({required String home}) {
   ];
 }
 
+/// Windows 远端的快捷位置：家目录（`~`）+ 盘符胶囊。
+///
+/// [drives] 是探测到的盘符（[sftpDriveName] 的返回值形态，来自控制器对
+/// 根目录的一次 `list`）；家目录所在盘即使没探测到也给——根目录读不了
+/// （旧版服务端 / 权限）时，用户至少还能一键回到那块盘的根。家目录本身就是
+/// 某块盘的根时用 `~` 表示它，不再重复一颗同名胶囊。
+List<({String label, String path})> sftpWindowsQuickPaths({
+  required String home,
+  Iterable<String> drives = const [],
+}) {
+  if (home.isEmpty || !sftpIsWindowsRemotePath(home)) return const [];
+  final names = <String>{};
+  final homeDrive = RegExp(r'^/?([A-Za-z]):').firstMatch(home.trim())?.group(1);
+  if (homeDrive != null) names.add('${homeDrive.toUpperCase()}:');
+  for (final drive in drives) {
+    final name = sftpDriveName(drive);
+    if (name != null) names.add(name);
+  }
+  final letters = names.toList()..sort();
+  return [
+    (label: '~', path: home),
+    for (final name in letters)
+      if (_driveRootPath(name) != home)
+        (label: name, path: _driveRootPath(name)),
+  ];
+}
+
 /// 把地址栏里敲进来的一行文本规整成远端绝对路径。
 ///
 /// - `~` / `~/…` 展开成家目录（[home] 未知时原样留下，让服务端报错而不是
 ///   静默跳到别处）；`~user` 不认，同样原样留下；
+/// - Windows 盘符写法（`C:\Users` / `C:/Users`，含从编辑态复制出去再贴
+///   回来的那份）归一成 `/C:/Users`；单独的 `C:` 落在盘根；
 /// - 相对路径按 [base]（当前目录）解析；
 /// - 去掉 `.` 与 `..`、合并重复的 `/`、去掉尾斜杠；
 /// - 从终端里粘出来的路径常带成对引号与首尾空白，一并去掉。
@@ -193,6 +266,7 @@ String? resolveSftpPath(String input, {String? home, String? base}) {
     }
   }
   if (text.isEmpty) return null;
+  text = _normalizeDriveInput(text);
   final homePath = home == null || home.isEmpty
       ? null
       : _trimTrailingSlash(home);
@@ -217,13 +291,14 @@ String? resolveSftpPath(String input, {String? home, String? base}) {
 /// 地址栏补全：把「敲到一半的路径」拆成「要列出的目录 + 名称前缀」。
 ///
 /// 末尾带 `/` 时前缀为空（列该目录的全部内容）；没有任何 `/` 时按 [base]
-/// 展开。`~` / `~user` 这类认不出的写法返回 null，调用方不弹候选。
+/// 展开。Windows 原生盘符写法（`C:\Use`）先归一成 SFTP 形态再拆段。
+/// `~` / `~user` 这类认不出的写法返回 null，调用方不弹候选。
 ({String directory, String prefix})? sftpCompletionQuery(
   String input, {
   String? home,
   String? base,
 }) {
-  final text = input.trim();
+  final text = _normalizeDriveInput(input.trim());
   // 单独一个 `~`（以及认不出的 `~user`）不补全：GNOME 的位置栏也是敲到
   // 斜杠才开始给候选，`~` 到回车时才展开成家目录。
   if (text.startsWith('~') && !text.startsWith('~/')) return null;
@@ -260,7 +335,8 @@ String? resolveSftpPath(String input, {String? home, String? base}) {
 }
 
 /// 去掉 `.` / `..` / 空段与重复斜杠，结果一律以 `/` 开头的绝对路径。
-/// 根目录之上的 `..` 停在根目录（与文件管理器一致，不做符号链接解析）。
+/// 根目录之上的 `..` 停在根目录（与文件管理器一致，不做符号链接解析）；
+/// 光秃盘符补成盘根（`/C:` → `/C:/`，见 [sftpNormalizedRemotePath]）。
 String _normalizeSftpPath(String path) {
   final segments = <String>[];
   for (final segment in path.split('/')) {
@@ -271,7 +347,7 @@ String _normalizeSftpPath(String path) {
     }
     segments.add(segment);
   }
-  return '/${segments.join('/')}';
+  return sftpNormalizedRemotePath('/${segments.join('/')}');
 }
 
 /// 太长的一层在面包屑里显示成「开头…结尾」：GNOME 的位置栏就是这么处理

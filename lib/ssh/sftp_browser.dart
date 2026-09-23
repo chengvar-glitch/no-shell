@@ -59,6 +59,9 @@ final class SftpBrowserController extends ChangeNotifier {
   /// 并展开 `~`。通道打开时读一次，读不到就退回逐段路径。
   String? _home;
 
+  /// Windows 远端探测到的盘符（`C:` 形态，升序）。见 [_probeWindowsDrives]。
+  List<String> _drives = const [];
+
   /// 最近一次成功载入的目录。[navigate] 用它判重：
   /// 载入失败的路径仍留在 [_path]（路径栏如实展示），再次进入要能重试。
   String? _loadedPath;
@@ -105,6 +108,14 @@ final class SftpBrowserController extends ChangeNotifier {
 
   /// 登录用户的家目录；未读到时为 null。
   String? get home => _home;
+
+  /// 家目录是否是 Win32 OpenSSH 的盘符形态：决定快捷胶囊给哪一套
+  /// （Windows 给「~ + 盘符」，Unix 给常用目录）。
+  bool get isWindowsRemote => _home != null && sftpIsWindowsRemotePath(_home!);
+
+  /// 探测到的盘符（`C:` 形态，升序）；未探测 / 探测失败时为空——
+  /// 此时胶囊行仍会从家目录推导出所在盘。
+  List<String> get drives => _drives;
 
   /// 过滤 + 排序后的展示序列（长列表按下标直取，避免每帧重排）。
   List<SftpEntry> get entries => _visible;
@@ -175,6 +186,11 @@ final class SftpBrowserController extends ChangeNotifier {
         if (_disposed) return;
         _home = home;
         await _load(home, history: _SftpHistoryStep.push);
+        // 家目录载入成功才探测盘符；探测在后台跑，不拖慢首屏，
+        // 结果到了再补进胶囊行。
+        if (_loadedPath == sftpNormalizedRemotePath(home)) {
+          unawaited(_probeWindowsDrives(fileSystem));
+        }
       }
     } on Object catch (error) {
       if (_disposed) return;
@@ -458,6 +474,9 @@ final class SftpBrowserController extends ChangeNotifier {
   }) async {
     final fileSystem = _fileSystem;
     if (fileSystem == null) return;
+    // 光秃盘符（`/C:`）在 Win32 OpenSSH 下指「该盘的当前目录」而不是盘根，
+    // 面包屑与地址栏都可能给出这种写法：统一补上斜杠，浏览永远落在盘根。
+    target = sftpNormalizedRemotePath(target);
     final token = ++_loadToken;
     final firstLoad = _path == null;
     _error = null;
@@ -502,6 +521,31 @@ final class SftpBrowserController extends ChangeNotifier {
         _isRefreshing = false;
         notifyListeners();
       }
+    }
+  }
+
+  /// Windows 远端探测盘符：Win32 OpenSSH 把根目录列成全部盘（`c:`、
+  /// `d:`…），一次 `list('/')` 就是全部结果。失败不惊动用户——家目录所在盘
+  /// 仍能从家目录推导出来，胶囊照常出现，只是少几块盘。
+  Future<void> _probeWindowsDrives(SftpFileSystem fileSystem) async {
+    final home = _home;
+    if (home == null || !sftpIsWindowsRemotePath(home)) return;
+    try {
+      final entries = await fileSystem.list('/');
+      if (_disposed) return;
+      final drives = <String>{};
+      for (final entry in entries) {
+        if (!entry.isDirectory) continue;
+        final name = sftpDriveName(entry.name);
+        if (name != null) drives.add(name);
+      }
+      final ordered = drives.toList()..sort();
+      // 通知前先做无变化守卫：探测没找到任何盘符时不开这一轮重建。
+      if (listEquals(ordered, _drives)) return;
+      _drives = List.unmodifiable(ordered);
+      notifyListeners();
+    } on Object {
+      // 根目录读不了：停在「家目录所在盘」这一档。
     }
   }
 

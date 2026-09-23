@@ -52,6 +52,58 @@ void main() {
       expect(homePaths.map((target) => target.label), isNot(contains('/etc')));
     });
 
+    test('盘符条目名归一：带不带尾斜杠、大小写都收，其余不认', () {
+      expect(sftpDriveName('c:'), 'C:');
+      expect(sftpDriveName('D:'), 'D:');
+      expect(sftpDriveName('e:/'), 'E:');
+      expect(sftpDriveName('f:\\'), 'F:');
+      expect(sftpDriveName('Users'), isNull);
+      expect(sftpDriveName('c'), isNull);
+      expect(sftpDriveName('C:/Users'), isNull);
+      expect(sftpDriveName(''), isNull);
+    });
+
+    test('光秃盘符路径补上斜杠，其余原样', () {
+      expect(sftpNormalizedRemotePath('/C:'), '/C:/');
+      expect(sftpNormalizedRemotePath('/d:'), '/d:/');
+      expect(sftpNormalizedRemotePath('/C:/Users'), '/C:/Users');
+      expect(sftpNormalizedRemotePath('/etc'), '/etc');
+    });
+
+    test('SFTP 盘符路径 → Windows 原生写法（地址栏编辑态预填）', () {
+      expect(sftpPathToWindowsDisplay('/C:/Users/admin'), r'C:\Users\admin');
+      expect(sftpPathToWindowsDisplay('/C:/'), r'C:\');
+      expect(sftpPathToWindowsDisplay('/etc/nginx'), '/etc/nginx');
+    });
+
+    test('Windows 胶囊：~ + 盘符，家目录所在盘必给', () {
+      final paths = sftpWindowsQuickPaths(
+        home: '/C:/Users/deploy',
+        drives: const ['E:', 'D:'],
+      );
+      expect(paths.map((target) => target.label), ['~', 'C:', 'D:', 'E:']);
+      expect(paths.map((target) => target.path), [
+        '/C:/Users/deploy',
+        '/C:/',
+        '/D:/',
+        '/E:/',
+      ]);
+
+      // 根目录没读到（旧版服务端 / 权限）时至少还有家目录所在盘。
+      final fallback = sftpWindowsQuickPaths(home: '/c:/Users/deploy');
+      expect(fallback.map((target) => target.label), ['~', 'C:']);
+
+      // 家目录本身就是盘根时用 ~ 表示它，不再重复一颗同名胶囊。
+      final atRoot = sftpWindowsQuickPaths(
+        home: '/D:/',
+        drives: const ['D:', 'E:'],
+      );
+      expect(atRoot.map((target) => target.label), ['~', 'E:']);
+
+      // Unix 家目录不属于这里（sftpQuickPaths 管那一侧）。
+      expect(sftpWindowsQuickPaths(home: '/home/deploy'), isEmpty);
+    });
+
     test('面包屑逐级给出绝对路径', () {
       final crumbs = sftpBreadcrumbs('/var/log/nginx');
       expect(crumbs.map((crumb) => crumb.label), ['/', 'var', 'log', 'nginx']);
@@ -100,6 +152,22 @@ void main() {
       expect(resolveSftpPath('~/logs', base: '/'), '~/logs');
     });
 
+    test('Windows 原生盘符写法贴回地址栏照样前往', () {
+      String? resolve(String input) =>
+          resolveSftpPath(input, home: '/C:/Users/deploy', base: '/C:/Users');
+
+      expect(resolve(r'C:\Users\admin'), '/C:/Users/admin');
+      expect(resolve('C:/Users'), '/C:/Users');
+      expect(resolve(r'"C:\Program Files"'), '/C:/Program Files');
+      expect(resolve('C:'), '/C:/', reason: '单独盘符落在盘根');
+      // SFTP 形态照旧；~ 与相对路径不受盘符归一影响。
+      expect(resolve('/C:/Users'), '/C:/Users');
+      expect(resolve('~'), '/C:/Users/deploy');
+      expect(resolve('logs'), '/C:/Users/logs');
+      // `C:` 后面没跟分隔符的不做盘符解释，按相对路径处理。
+      expect(resolve('C:nope'), '/C:/Users/C:nope');
+    });
+
     test('超长的名字中间省略，短的照旧', () {
       expect(elideSftpName('logs', 7), 'logs');
       expect(elideSftpName('2026-09-21', 7), '2026-09-21', reason: '没超就不动它');
@@ -133,6 +201,23 @@ void main() {
         isNull,
         reason: '家目录未知时不补全',
       );
+    });
+
+    test('补全查询：Windows 原生盘符写法先归一再拆段', () {
+      ({String directory, String prefix})? windows(String input) =>
+          sftpCompletionQuery(
+            input,
+            home: '/C:/Users/deploy',
+            base: '/C:/Users',
+          );
+
+      expect(windows(r'C:\Use')?.directory, '/C:/');
+      expect(windows(r'C:\Use')?.prefix, 'Use');
+      expect(windows(r'C:\Users\')?.directory, '/C:/Users');
+      expect(windows(r'C:\Users\')?.prefix, '');
+      expect(windows('C:')?.directory, '/C:/', reason: '单独盘符列盘根');
+      expect(windows('C:')?.prefix, '');
+      expect(windows('C:/Use')?.directory, '/C:/');
     });
 
     test('名称校验拦截路径分隔符与相对路径', () {
@@ -176,6 +261,32 @@ void main() {
       // 重复调用不会再次打开通道。
       await controller.ensureReady();
       expect(fs.listCalls.length, 1);
+    });
+
+    test('Windows 远端后台探测盘符，升序给出；Unix 远端不探测', () async {
+      // 根目录条目名按 Win32 OpenSSH 的两种形态给：`c:` 与带尾斜杠的 `d:/`。
+      final fs = FakeSftpFileSystem(home: '/C:/Users/deploy');
+      fs.addDirectory('/', 'c:');
+      fs.addDirectory('/', 'd:/');
+      final controller = SftpBrowserController(openFileSystem: () async => fs);
+      addTearDown(controller.dispose);
+
+      await controller.ensureReady();
+      expect(controller.isWindowsRemote, isTrue);
+      // 探测在首屏之后后台跑：等它落地。
+      await pumpEventQueue();
+      expect(controller.drives, ['C:', 'D:']);
+
+      final unixFs = FakeSftpFileSystem(home: '/home/deploy');
+      final unixController = SftpBrowserController(
+        openFileSystem: () async => unixFs,
+      );
+      addTearDown(unixController.dispose);
+      await unixController.ensureReady();
+      await pumpEventQueue();
+      expect(unixController.isWindowsRemote, isFalse);
+      expect(unixController.drives, isEmpty);
+      expect(unixFs.listCalls, ['/home/deploy'], reason: '不该多读一次根目录');
     });
 
     test('地址栏补全：同目录同前缀，目录带尾斜杠，点文件不进候选', () async {
