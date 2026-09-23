@@ -194,23 +194,22 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   bool get _blinkWanted => _cursorBlink || _terminal.cursorBlinkMode;
 
   void _resetCursorBlink() {
-    _cursorBlinkTimer?.cancel();
-    _cursorBlinkTimer = null;
+    // 闪烁没在跑（未聚焦 / 未请求）时没有相位可重置。亮着的那半拍也让计时器
+    // 继续走：远端输出往往连着来，每次都重建 Timer.periodic 是白干的。
+    if (_cursorBlinkTimer == null || _cursorShown) return;
     _cursorShown = true;
-    if (attached && _blinkWanted && _focusNode.hasFocus) {
-      _cursorBlinkTimer = Timer.periodic(
-        _cursorBlinkPeriod,
-        _onCursorBlink,
-      );
-    }
+    markNeedsPaint();
+    _restartCursorBlinkTimer();
+  }
+
+  void _restartCursorBlinkTimer() {
+    _cursorBlinkTimer?.cancel();
+    _cursorBlinkTimer = Timer.periodic(_cursorBlinkPeriod, _onCursorBlink);
   }
 
   void _syncCursorBlink() {
     if (attached && _blinkWanted && _focusNode.hasFocus) {
-      _cursorBlinkTimer ??= Timer.periodic(
-        _cursorBlinkPeriod,
-        _onCursorBlink,
-      );
+      _restartCursorBlinkTimer();
     } else {
       _cursorBlinkTimer?.cancel();
       _cursorBlinkTimer = null;

@@ -939,7 +939,7 @@ final class TerminalTab extends StatelessWidget {
   /// 未连接时空态的形态，见 [TerminalIdleStyle]。
   final TerminalIdleStyle idleStyle;
 
-  /// Whether to blink the focused caret; test hosts can leave it off.
+  /// 聚焦时是否让终端光标闪烁；组件测试的宿主可以不开。
   final bool cursorBlink;
 
   @override
