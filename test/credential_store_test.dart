@@ -188,6 +188,30 @@ void main() {
       expect((await store.read('old'))?.password, 'legacy');
     });
 
+    test('聚合档 JSON 损坏时不拦住旧分条档的读取与迁移', () async {
+      platform.values['ssh_credentials_v1'] = '{not json';
+      platform.values['ssh_cred_old'] = const SshCredentials(password: 'legacy')
+          .encode();
+      final store = SecureCredentialStore(singleItem: true);
+
+      // 损坏前还没迁移的主机，凭据不能跟着聚合档一起「消失」。
+      expect((await store.read('old'))?.password, 'legacy');
+      // 读取已按空档重建聚合档并迁移成功。
+      expect((await store.read('old'))?.password, 'legacy');
+      expect(platform.values['ssh_credentials_v1'], contains('legacy'));
+    });
+
+    test('聚合档 JSON 损坏时写入按空档重建，而不是永远写不进', () async {
+      platform.values['ssh_credentials_v1'] = '{broken';
+      final store = SecureCredentialStore(singleItem: true);
+
+      expect(
+        await store.write('srv-1', const SshCredentials(password: 'pw')),
+        isTrue,
+      );
+      expect((await store.read('srv-1'))?.password, 'pw');
+    });
+
     test('删除最后一台主机时清掉聚合档，其它主机只删除对应成员', () async {
       final store = SecureCredentialStore(singleItem: true);
       await store.write('srv-1', const SshCredentials(password: 'pw-1'));

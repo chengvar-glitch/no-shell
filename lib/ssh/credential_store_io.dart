@@ -70,7 +70,8 @@ final class SecureCredentialStore implements CredentialStore {
   @override
   bool get supported => true;
 
-  /// 读聚合档；返回 `null` 表示「没有聚合档」，与 JSON 损坏共用同一兜底。
+  /// 读聚合档；返回 `null` 表示「没有聚合档」。JSON 损坏会抛出，由调用方
+  /// 各自兜底（读回退 legacy 条目，写按空档重建）。
   Future<Map<String, String>?> _readBundle() async {
     final raw = await _storage.read(
       key: _bundleKey,
@@ -99,8 +100,15 @@ final class SecureCredentialStore implements CredentialStore {
   @override
   Future<SshCredentials?> read(String serverId) {
     return _serialized(() async {
+      // 聚合档单独兜底：JSON 损坏只当「聚合档没有这台」，不能拦住下面的
+      // legacy 回退——否则还没迁移的主机凭据会跟着聚合档一起「消失」。
+      Map<String, String>? entries;
       try {
-        final entries = await _readBundle();
+        entries = await _readBundle();
+      } catch (error) {
+        _log('read bundle failed: $error');
+      }
+      try {
         if (entries != null && entries.containsKey(serverId)) {
           return SshCredentials.tryDecode(entries[serverId]);
         }
@@ -157,7 +165,14 @@ final class SecureCredentialStore implements CredentialStore {
 
     return _serialized(() async {
       try {
-        final entries = await _readBundle() ?? <String, String>{};
+        // 聚合档损坏时按空档重建：损坏的内容本就读不出来，继续挡着只会让
+        // 「记住凭据」永远写不进；legacy 条目会在各自被用到时重新迁移。
+        Map<String, String> entries;
+        try {
+          entries = await _readBundle() ?? <String, String>{};
+        } catch (_) {
+          entries = <String, String>{};
+        }
         entries[serverId] = credentials.encode();
         await _writeBundle(entries);
         try {
