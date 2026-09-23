@@ -26,6 +26,9 @@ void main() {
     expect(fileTypeIconAsset('b.DART'), contains('file_type_dartlang.svg'));
     expect(fileTypeIconAsset('c.tar.gz'), contains('file_type_zip.svg'));
     expect(fileTypeIconAsset('dump.sql'), contains('file_type_sql.svg'));
+    // 配置类后缀：.cnf（my.cnf）与 systemd 单元 .service 走配置齿轮。
+    expect(fileTypeIconAsset('my.cnf'), contains('file_type_config.svg'));
+    expect(fileTypeIconAsset('app.service'), contains('file_type_config.svg'));
   });
 
   test('整名映射：Dockerfile 与点开头的隐藏文件取不到扩展名，按名字认', () {

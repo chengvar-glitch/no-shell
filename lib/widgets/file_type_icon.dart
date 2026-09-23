@@ -51,9 +51,12 @@ const Map<String, String> kFileTypeIconByExtension = {
   'xml': 'file_type_xml.svg',
   'ini': 'file_type_config.svg',
   'conf': 'file_type_config.svg',
+  'cnf': 'file_type_config.svg',
   'cfg': 'file_type_config.svg',
   'env': 'file_type_config.svg',
   'properties': 'file_type_config.svg',
+  // systemd 单元也是 ini 形态的配置。
+  'service': 'file_type_config.svg',
   'txt': 'file_type_text.svg',
   'md': 'file_type_markdown.svg',
   'markdown': 'file_type_markdown.svg',
