@@ -36,6 +36,10 @@ final class FakeSftpFileSystem implements SftpFileSystem {
   /// 非 null 时 [write] 抛出该错误。
   SftpException? writeError;
 
+  /// 非 null 时 [rename] 等它完成再执行：把队列钉在「源流已读尽、
+  /// 正等改名」的收尾窗口上，供取消语义测试使用。
+  Completer<void>? renameGate;
+
   /// 非 null 时 [read] 在吐出 [readErrorAfterChunks] 块之后抛出该错误，
   /// 用来覆盖「下载到一半失败」这条路径（此前完全没有测试走到）。
   SftpException? readError;
@@ -131,6 +135,7 @@ final class FakeSftpFileSystem implements SftpFileSystem {
     String path,
     Stream<List<int>> data, {
     void Function(int bytes)? onProgress,
+    bool Function()? isAborted,
   }) async {
     final buffer = <int>[];
     await for (final chunk in data) {
@@ -155,6 +160,8 @@ final class FakeSftpFileSystem implements SftpFileSystem {
 
   @override
   Future<void> rename(String from, String to) async {
+    final gate = renameGate;
+    if (gate != null) await gate.future;
     final parent = sftpParent(from);
     final entries = listings[parent];
     final index = entries?.indexWhere((entry) => entry.path == from) ?? -1;
@@ -336,6 +343,13 @@ final class FakeLocalFileGateway implements LocalFileGateway {
     written.remove(path);
   }
 
+  /// 已存在的本地落点：localFileExists 据此回答，测覆盖确认用。
+  final Set<String> existingLocalFiles = {};
+
+  @override
+  Future<bool> localFileExists(String path) async =>
+      existingLocalFiles.contains(path) || written.containsKey(path);
+
   /// 用内存句柄写出的字节（close 之后可读）。
   List<int> bytesOf(String path) => written[path] ?? const [];
 }
@@ -395,7 +409,8 @@ final class GatedReadFileSystem implements SftpFileSystem {
     String path,
     Stream<List<int>> data, {
     void Function(int bytes)? onProgress,
-  }) => _inner.write(path, data, onProgress: onProgress);
+    bool Function()? isAborted,
+  }) => _inner.write(path, data, onProgress: onProgress, isAborted: isAborted);
 
   @override
   Future<void> createDirectory(String path) => _inner.createDirectory(path);
@@ -461,7 +476,8 @@ final class GatedListFileSystem implements SftpFileSystem {
     String path,
     Stream<List<int>> data, {
     void Function(int bytes)? onProgress,
-  }) => _inner.write(path, data, onProgress: onProgress);
+    bool Function()? isAborted,
+  }) => _inner.write(path, data, onProgress: onProgress, isAborted: isAborted);
 
   @override
   Future<void> createDirectory(String path) => _inner.createDirectory(path);

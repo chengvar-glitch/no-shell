@@ -198,6 +198,45 @@ void main() {
       expect(loaded?.servers, hasLength(1));
       expect(loaded?.servers[0].toJson(), good);
     });
+
+    test('一条转发规则字段类型损坏只跳过该条，主机照常保留', () async {
+      // localPort 是字符串：PortForwardRule.fromJson 里的强转会抛 TypeError。
+      // 这个 TypeError 必须在 SshServer.fromJson 内部被接住，否则会一路
+      // 穿到 server_persistence 的逐主机 catch——整台主机从列表里消失。
+      final good = _fullServer().toJson();
+      final withForwards = {...good}
+        ..['forwards'] = [
+          {'id': 'r1', 'mode': 'local', 'localPort': 'abc'},
+          {'id': 'r2', 'mode': 'local', 'localPort': 8080},
+        ];
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'ssh_servers_v1': jsonEncode([withForwards]),
+      });
+      final persistence = SharedPreferencesServerPersistence();
+      final loaded = _loadedArchive(await persistence.load());
+      expect(loaded?.servers, hasLength(1));
+      expect(loaded?.servers[0].forwards.map((rule) => rule.id), ['r2']);
+    });
+
+    test('JSON 存档的端口越界退回 22，与文本格式对齐', () async {
+      final badPort = {..._fullServer().toJson()}..['port'] = 99999;
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'ssh_servers_v1': jsonEncode([badPort]),
+      });
+      final persistence = SharedPreferencesServerPersistence();
+      final loaded = _loadedArchive(await persistence.load());
+      expect(loaded?.servers.single.port, 22);
+    });
+
+    test('tags 里的非字符串元素被丢弃，不再带走整台主机', () async {
+      final badTags = {..._fullServer().toJson()}..['tags'] = ['ok', 42];
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'ssh_servers_v1': jsonEncode([badTags]),
+      });
+      final persistence = SharedPreferencesServerPersistence();
+      final loaded = _loadedArchive(await persistence.load());
+      expect(loaded?.servers.single.tags, ['ok']);
+    });
   });
 
   group('ServerStore 持久化', () {

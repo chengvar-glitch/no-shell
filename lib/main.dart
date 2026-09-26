@@ -323,6 +323,14 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
 
   Future<void> _flushAndClose() async {
     _saveNow();
+    // 偏好那笔 save 在 _saveNow 里是 unawaited 的：store / snippets 都有
+    // flush 语义、它没有——这里显式等一下，destroy() 抢在
+    // shared_preferences 平台通道写完之前杀进程的话，最后拨的开关就丢了。
+    try {
+      await widget.settings?.save(_currentSettings);
+    } catch (_) {
+      // 写不进去也别挡退出。
+    }
     await (_store.flush(), _snippets.flush()).wait;
     if (!_windowHooked) return;
     await windowManager.destroy();

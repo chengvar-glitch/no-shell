@@ -132,15 +132,19 @@ class _SidebarState extends State<Sidebar> {
           height: 36,
           child: Row(
             children: [
+              // connecting 也算活跃：此刻按下走的是断开，按钮不许再画
+              // 「连接」——connecting 只有几秒，但那几秒所示与所做是反的。
               Icon(
-                server.status == ServerStatus.connected
+                server.status == ServerStatus.connected ||
+                        server.status == ServerStatus.connecting
                     ? Icons.link_off_rounded
                     : Icons.play_arrow_rounded,
                 size: 16,
               ),
               const SizedBox(width: 8),
               Text(
-                server.status == ServerStatus.connected
+                server.status == ServerStatus.connected ||
+                        server.status == ServerStatus.connecting
                     ? l10n.disconnect
                     : l10n.connect,
                 style: const TextStyle(fontSize: 13),
@@ -934,7 +938,9 @@ class _ServerTileState extends State<_ServerTile> {
                     child: IgnorePointer(
                       ignoring: !visible,
                       child: IconButton(
-                        tooltip: server.status == ServerStatus.connected
+                        tooltip:
+                            server.status == ServerStatus.connected ||
+                                server.status == ServerStatus.connecting
                             ? l10n.disconnect
                             : l10n.connect,
                         visualDensity: VisualDensity.compact,
@@ -945,7 +951,8 @@ class _ServerTileState extends State<_ServerTile> {
                         ),
                         iconSize: 17,
                         icon: Icon(
-                          server.status == ServerStatus.connected
+                          server.status == ServerStatus.connected ||
+                                  server.status == ServerStatus.connecting
                               ? Icons.link_off_rounded
                               : Icons.play_arrow_rounded,
                           color: theme.secondaryText,

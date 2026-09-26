@@ -72,6 +72,30 @@ void main() {
       expect(drafts.single.port, 22);
     });
 
+    test('密码的首尾空白是内容：往返不被改写', () {
+      // 密码值只剥格式带来的那一个前导空格；整行 trim 会把尾部的空白
+      // 悄悄裁掉，导出再导入一圈密码就变了。
+      const text = '名称: n\n地址: 192.0.2.1\n密码:  ab c \n';
+      final drafts = parseHostsText(text, defaultGroup: 'g');
+      expect(drafts.single.password, ' ab c ');
+
+      final encoded = encodeHostsText([
+        (
+          server: SshServer(
+            id: 'a',
+            group: 'g',
+            name: 'n',
+            host: '192.0.2.1',
+            username: 'u',
+            authMethod: AuthMethod.password,
+          ),
+          password: ' ab c ',
+        ),
+      ]);
+      final reparsed = parseHostsText(encoded, defaultGroup: 'g');
+      expect(reparsed.single.password, ' ab c ');
+    });
+
     test('没有地址的块被忽略', () {
       final drafts = parseHostsText('名称: 孤块\n端口: 22', defaultGroup: 'g');
       expect(drafts, isEmpty);

@@ -171,7 +171,10 @@ final class DartSsh2Transport implements SshTransport {
         session.stderr
             .cast<List<int>>()
             .transform(decoder)
-            .listen(terminal.write),
+            // 与 stdout 对称地接住错误：通道级异常传进 stderr 流时不能
+            // 漂成未处理异步异常打到 zone；连接关不关由 stdout 与
+            // client.done 那两路决定，这里只负责不炸。
+            .listen(terminal.write, onError: (Object _) {}),
       );
     // 传输层异常断开（shell 流可能还挂着）时兜底上报关闭。
     // 连接建立成功后才注册：此前的失败已经走 attach 抛错，不用抢状态。

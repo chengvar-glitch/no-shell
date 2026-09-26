@@ -89,8 +89,26 @@ final class SharedPreferencesHostKeyStore implements HostKeyStore {
         : HostKeysLoaded(records);
   }
 
+  /// save 的串行尾巴：读-改-写没有并发防护的话，同一主机的并发首连
+  /// （多开会话同时校验）都 load 到 NeverRecorded 再各自 save，后写会
+  /// 覆盖先写、丢掉其中一条指纹，下次用到那条算法就被误判成「疑似中间人」。
+  Future<void>? _saveTail;
+
   @override
-  Future<void> save(String host, int port, HostKeyRecord record) async {
+  Future<void> save(String host, int port, HostKeyRecord record) {
+    final run = (_saveTail ?? Future<void>.value()).then(
+      (_) => _saveAppended(host, port, record),
+    );
+    // 排队本身不允许抛：一次保存失败不该截断后续保存。
+    _saveTail = run.then((_) {}, onError: (Object _) {});
+    return run;
+  }
+
+  Future<void> _saveAppended(
+    String host,
+    int port,
+    HostKeyRecord record,
+  ) async {
     final existing = await load(host, port);
     // 读不出来时不要盲写：那会把用户原有的记录清掉，只留当前这一条。
     final records = switch (existing) {
@@ -156,7 +174,7 @@ enum HostKeyDecision {
 /// 比对本次出示的主机密钥与已记录指纹：
 /// - 读取失败 → 拒绝（unavailable），不写任何东西；
 /// - 从未记录 → 记录当前指纹并放行（firstUse）；
-/// - 指纹命中已记录的任何一条 → 放行（trusted），若算法名是新的则补记一条；
+/// - 指纹命中已记录的任何一条 → 放行（trusted），不写任何东西；
 /// - 都不命中 → 拒绝（mismatch），不改写记录，必须由用户显式清除。
 ///
 /// 命中判据是**指纹**：同一把密钥换算法名（服务器同时提供 ed25519 与 rsa、

@@ -232,16 +232,21 @@ class UpdateCheckService extends ChangeNotifier {
   };
 
   // 无变化守卫用的上一份快照：状态、归类与结论三者都没动过就不通知，
-  // 免得下游整块设置面板白重建一次。
+  // 免得下游整块设置面板白重建一次。status 必须参与比较：check() 进入
+  // checking 时 failure/result 可能都没动（首次检查全是 null、复查时
+  // 结论实例未换），漏了它「检查中」的转圈就永远显示不出来。
+  UpdateCheckStatus? _notifiedStatus;
   Object? _notifiedFailure;
   Object? _notifiedResult;
 
   void _notify() {
     if (_disposed) return;
-    if (identical(_notifiedFailure, _failure) &&
+    if (_notifiedStatus == _status &&
+        identical(_notifiedFailure, _failure) &&
         identical(_notifiedResult, _result)) {
       return;
     }
+    _notifiedStatus = _status;
     _notifiedFailure = _failure;
     _notifiedResult = _result;
     notifyListeners();

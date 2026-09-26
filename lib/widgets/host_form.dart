@@ -198,15 +198,40 @@ class HostFormController {
   ///
   /// 跳板机直接按 [jumpServerId] 构造（不从零拼再补）：取消跳板机就是传 null，
   /// 两端由此得到同一份语义。
-  Future<SshServer?> build({required BuildContext context}) async {
+  ///
+  /// [fallbackGroup] 是外壳解析出的默认分组名（按「已存在者优先」，
+  /// 见 [resolveDefaultGroupName]）：分组以名字为身份，语言切换后 l10n
+  /// 的默认名会变，直接用它会在机器上长出第二个默认分组。
+  Future<SshServer?> build({
+    required BuildContext context,
+    String? fallbackGroup,
+  }) async {
     if (!(formKey.currentState?.validate() ?? false)) return null;
+    // 外壳已经不在了（用户点了保存又瞬间关掉弹窗）就别再写凭据：
+    // 主机不会被入库，写进去的凭据成了没人认领的孤儿、还会随导出备份
+    // 打包带走。先看 mounted 再动钥匙串。
+    if (!context.mounted) return null;
     final id = initial?.id ?? 'srv-${DateTime.now().microsecondsSinceEpoch}';
     await _persistCredentialChange(context, id);
-    if (!context.mounted) return null;
+    if (!context.mounted) {
+      // 凭据已写、主机没入库（外壳在钥匙串写入期间消失）：把这次保存
+      // 刚写进去的那份清掉，别留随导出备份打包的孤儿。
+      final store = credentials;
+      final wrote =
+          credentialReplacement != null ||
+          (password != null && auth == AuthMethod.password);
+      if (store != null && wrote) {
+        await dropStoredCredential(store, id);
+      }
+      return null;
+    }
     return SshServer(
       id: id,
       // 分组下拉里只有已建好的分组，没动过就是默认分组。
-      group: group ?? AppLocalizations.of(context).defaultGroupName,
+      group:
+          group ??
+          fallbackGroup ??
+          AppLocalizations.of(context).defaultGroupName,
       name: name.text.trim(),
       host: host.text.trim(),
       username: username.text.trim(),

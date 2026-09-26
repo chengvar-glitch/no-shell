@@ -60,10 +60,12 @@ List<HostImport> parseHostsText(String text, {required String defaultGroup}) {
         port: port ?? 22,
         username: _nonEmpty(username) ?? address,
         group: _nonEmpty(group) ?? defaultGroup,
-        password: _nonEmpty(password),
+        // 密码不走 _nonEmpty：首尾空白是内容，空串才算「没提供」。
+        password: password,
       ),
     );
-    name = host = username = password = group = null;
+    name = host = username = group = null;
+    password = null;
     port = null;
   }
 
@@ -75,17 +77,23 @@ List<HostImport> parseHostsText(String text, {required String defaultGroup}) {
     }
     if (line.startsWith('#')) continue;
     // 只在首个冒号处切分，值本身可以再含冒号（如 IPv6 地址）。
-    final separator = line.indexOf(_keySeparatorPattern);
+    // 切分必须在**未 trim 的原行**上做：整行 trim 会把密码值尾部的
+    // 空白裁掉——导出再导入一圈，密码就被悄悄改了。
+    final separator = rawLine.indexOf(_keySeparatorPattern);
     if (separator <= 0) continue;
-    final key = _normalizeKey(line.substring(0, separator));
-    final value = line.substring(separator + 1).trim();
+    final key = _normalizeKey(rawLine.substring(0, separator));
+    final String? value = switch (key) {
+      // 密码原样保留（只剥格式空格）；其余字段空白没有意义，照旧 trim。
+      _keyPassword => _passwordValue(rawLine.substring(separator + 1)),
+      _ => rawLine.substring(separator + 1).trim(),
+    };
     switch (key) {
       case _keyName:
         name = value;
       case _keyHost:
         host = value;
       case _keyPort:
-        final parsed = int.tryParse(value);
+        final parsed = int.tryParse(value ?? '');
         if (parsed != null && parsed > 0 && parsed <= 65535) port = parsed;
       case _keyUser:
         username = value;
@@ -97,6 +105,13 @@ List<HostImport> parseHostsText(String text, {required String defaultGroup}) {
   }
   finishBlock();
   return drafts;
+}
+
+/// 密码值：只剥掉格式带来的那一个前导空格（`key: value` 的分隔空格），
+/// 其余首尾空白都是内容的一部分。空值（只写了个 key）按未提供处理。
+String? _passwordValue(String raw) {
+  final value = raw.startsWith(' ') ? raw.substring(1) : raw;
+  return value.isEmpty ? null : value;
 }
 
 /// 导出条目：主机 + 可选的已记住密码（私钥不导出）。

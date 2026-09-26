@@ -16,6 +16,7 @@ import 'shell_layout.dart';
 import 'store.dart';
 import 'update_check.dart';
 import 'widgets/confirm_dialog.dart';
+import 'widgets/group_controls.dart';
 import 'widgets/host_form.dart';
 import 'widgets/server_detail.dart';
 import 'widgets/settings_dialog.dart';
@@ -438,7 +439,13 @@ class _ServerDialogState extends State<_ServerDialog> {
   }
 
   Future<void> _submit() async {
-    final saved = await _form.build(context: context);
+    final saved = await _form.build(
+      context: context,
+      fallbackGroup: resolveDefaultGroupName(
+        widget.servers.map((server) => server.group),
+        AppLocalizations.of(context).defaultGroupName,
+      ),
+    );
     if (saved == null || !mounted) return;
     Navigator.of(context).pop(saved);
   }

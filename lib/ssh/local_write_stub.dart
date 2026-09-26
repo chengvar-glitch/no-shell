@@ -7,6 +7,8 @@ LocalWriteHandle openLocalWrite(String path, {bool ownerOnly = false}) =>
 
 Future<void> deleteLocalFile(String path) async {}
 
+Future<bool> doesLocalFileExist(String path) async => false;
+
 /// web 桩实现：浏览器没有本地文件系统，SFTP 在 web 端本身也不可用。
 String localTemporaryPath(String path) => path;
 

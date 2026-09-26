@@ -93,6 +93,10 @@ const _macBits = 128;
 const _minScryptN = 1024;
 const _maxScryptN = 1 << 20;
 
+/// N 与 r 的**乘积**上限：scrypt 内存 = 128·N·r 字节，1 GiB 即 N·r ≤ 2^23。
+/// N 与 r 各自设上限拦不住组合取值（N=2^20 配 r=32 就是 4 GiB），必须联乘。
+const _maxScryptNr = 1 << 23;
+
 /// 把主机清单文本加密成备份文件内容。
 ///
 /// [params] 只给测试注入低参数用，生产路径不传。
@@ -261,7 +265,9 @@ _Envelope _readEnvelope(String contents) {
       r < 1 ||
       r > 32 ||
       p < 1 ||
-      p > 16) {
+      p > 16 ||
+      // 联乘校验：N·r 决定实际内存（128·N·r），单独的上限拦不住组合取值。
+      n * r > _maxScryptNr) {
     throw const BackupFormatException(BackupProblem.unreadable);
   }
   return _Envelope(

@@ -21,6 +21,14 @@ const int kDefaultsVersion = 2;
 /// 比它旧的存档里，`copyOnSelect` 存着的是那时的出厂默认，不是用户的选择。
 const int kLegacyDefaultsVersion = 1;
 
+/// `copyOnSelect` 出厂默认值变更的那一代（第 2 代从关改开）。
+///
+/// 字段的「原样读回」门控必须锚在**这个字段自己的变更代**上，不能锚在
+/// [kDefaultsVersion]（全局当前代）：阈值跟着全局走的话，将来为其他字段
+/// 改默认值把全局 +1，这一代用户对 `copyOnSelect` 的显式选择会被
+/// 误判成旧档默认、静默重置回出厂值。
+const int kCopyOnSelectDefaultsVersion = 2;
+
 /// 落盘的偏好快照：主题 / 语言 + 终端样式（配色、字体、字号）+ 连接兼容性。
 ///
 /// 只存枚举名而不是索引：以后往枚举中间插值也不会把存档读串。
@@ -116,7 +124,9 @@ class AppSettings {
         // 不是用户按过的值——不这样，改默认值对老用户就永远不生效。代价是
         // 老存档里用户自己关过的开关也会被打开一次。
         // 带上标记之后，存档里的值就是用户的选择，此后原样读回、不再被覆盖。
-        copyOnSelect: savedDefaultsVersion >= kDefaultsVersion
+        // 阈值锚在本字段的变更代（见 [kCopyOnSelectDefaultsVersion]），
+        // 不随全局 kDefaultsVersion 浮动。
+        copyOnSelect: savedDefaultsVersion >= kCopyOnSelectDefaultsVersion
             ? json['terminalCopyOnSelect'] == true
             : const TerminalStylePrefs().copyOnSelect,
       ),

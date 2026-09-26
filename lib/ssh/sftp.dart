@@ -69,10 +69,13 @@ abstract interface class SftpFileSystem {
 
   /// 把字节流写入远端路径，已存在时覆盖。
   /// [onProgress] 为已写入字节数，用于进度展示。
+  /// [isAborted] 周期性查询取消标记：远端停止确认时 `write` 会停在等
+  /// 写入确认上，取消请求靠它把写入摘下来，否则传输永远停在「正在取消」。
   Future<void> write(
     String path,
     Stream<List<int>> data, {
     void Function(int bytes)? onProgress,
+    bool Function()? isAborted,
   });
 
   Future<void> createDirectory(String path);

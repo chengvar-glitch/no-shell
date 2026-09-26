@@ -83,20 +83,23 @@ class _MobileShellState extends State<MobileShell> {
             sessions: widget.sessions,
             credentials: widget.credentials,
           ),
-          // 告警依赖 store 的可读状态，且 Shell 不随 store 重建，
-          // 因此在这里单独订阅一次，只在设置 Tab 一棵子树内响应。
-          ListenableBuilder(
-            listenable: widget.store,
-            builder: (context, _) => SettingsTab(
-              themeMode: widget.themeMode,
-              onThemeModeChanged: widget.onThemeModeChanged,
-              language: widget.language,
-              onLanguageChanged: widget.onLanguageChanged,
-              archiveUnreadable: widget.store.archiveUnreadable,
-              allowLegacyHostKeys: widget.allowLegacyHostKeys,
-              onAllowLegacyHostKeysChanged: widget.onAllowLegacyHostKeysChanged,
-              updateCheck: widget.updateCheck,
-              openReleasePage: widget.openReleasePage,
+          // 告警依赖 store 的可读状态，且 Shell 不随 store 重建。订阅只包住
+          // 告警卡自己：SettingsTab 常驻 IndexedStack，整棵包住的话每次主机
+          // 状态翻转（连接 / 断开都会 notify）都会重排整页设置控件。
+          SettingsTab(
+            themeMode: widget.themeMode,
+            onThemeModeChanged: widget.onThemeModeChanged,
+            language: widget.language,
+            onLanguageChanged: widget.onLanguageChanged,
+            allowLegacyHostKeys: widget.allowLegacyHostKeys,
+            onAllowLegacyHostKeysChanged: widget.onAllowLegacyHostKeysChanged,
+            updateCheck: widget.updateCheck,
+            openReleasePage: widget.openReleasePage,
+            archiveWarning: ListenableBuilder(
+              listenable: widget.store,
+              builder: (context, _) => widget.store.archiveUnreadable
+                  ? const ArchiveWarningCard()
+                  : const SizedBox.shrink(),
             ),
           ),
         ],

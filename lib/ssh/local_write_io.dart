@@ -22,6 +22,9 @@ Future<void> deleteLocalFile(String path) async {
   if (await file.exists()) await file.delete();
 }
 
+/// 落点是否已存在同名文件：下载覆盖确认用。
+Future<bool> doesLocalFileExist(String path) => File(path).exists();
+
 /// 写入中的临时路径：新建文件都先落在这里，成功后再改名到目标。
 /// 与目标同目录，改名才是同卷操作（跨卷 rename 会失败）。
 ///
@@ -34,14 +37,45 @@ String localTemporaryPath(String path) => '$path.noshell-part';
 ///
 /// 覆盖写入如果直接落在目标上，写一半失败就把用户原有的文件毁了；
 /// 先写 `.part` 再改名则失败时目标原封不动。POSIX 下改名能覆盖已存在的
-/// 目标；Windows 不允许，先删一次再试。
+/// 目标；Windows 不允许，需要先把旧目标挪开——绝不能直接删：挪开后的
+/// 第二次改名若再失败（目标被杀软 / 其他进程锁定等），必须把旧文件
+/// 滚回来，否则用户两头皆空。
 Future<void> promoteLocalFile(String temporaryPath, String targetPath) async {
   final temporary = File(temporaryPath);
   try {
     await temporary.rename(targetPath);
+    return;
   } on FileSystemException {
-    await deleteLocalFile(targetPath);
+    // POSIX 走不到这里；Windows 落到下面的挪开-换入-回滚流程。
+  }
+  final backupPath = '$targetPath.noshell-old';
+  File? backup;
+  try {
+    backup = await File(targetPath).rename(backupPath);
+  } on FileSystemException {
+    // 目标本来就不存在（或挪不动）：前者直接换入即可，后者下面会重抛。
+    backup = null;
+  }
+  try {
     await temporary.rename(targetPath);
+  } on FileSystemException {
+    // 换入失败：把旧目标滚回原位，用户原有的文件不能丢。
+    if (backup != null) {
+      try {
+        await backup.rename(targetPath);
+      } on FileSystemException {
+        // 滚不回去时至少文件还在 .noshell-old，不能静默删掉它。
+      }
+    }
+    rethrow;
+  }
+  // 换入成功，旧的那份才真正不需要了。
+  if (backup != null) {
+    try {
+      await backup.delete();
+    } on FileSystemException {
+      // 删不掉就留着，别让收尾失败毁掉已经完成的下载。
+    }
   }
 }
 

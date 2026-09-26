@@ -137,6 +137,10 @@ final class FakeTunnelGateway implements TunnelGateway {
   /// 非 null 时 [listen] 抛出该错误（模拟端口被占用等）。
   Object? listenError;
 
+  /// 非 null 时 [listen] 等它完成再返回：模拟 starting 窗口横跨一次
+  /// 异步间隙（-R/-D 是一次网络往返），供启停竞态测试使用。
+  Completer<void>? listenGate;
+
   /// 非 null 时 [dial] 抛出该错误（模拟本地目标连不上）。
   Object? dialError;
 
@@ -150,6 +154,8 @@ final class FakeTunnelGateway implements TunnelGateway {
   Future<TunnelListener> listen(String host, int port) async {
     final error = listenError;
     if (error != null) throw error;
+    final gate = listenGate;
+    if (gate != null) await gate.future;
     final actual = port == 0 ? assignedPort++ : port;
     final listener = FakeTunnelListener(host: host, port: actual);
     listeners['$host:$port'] = listener;

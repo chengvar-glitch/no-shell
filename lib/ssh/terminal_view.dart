@@ -31,7 +31,9 @@ const Duration _longPressDelay = Duration(milliseconds: 550);
 
 /// 触屏单击链接的延迟：等过双击窗口再打开。xterm 用双击选词，若第一下
 /// 就跳浏览器，链接上永远选不中一个词（与侧边栏「双击直连」同一取舍）。
-const Duration _doubleTapWindow = Duration(milliseconds: 260);
+/// 窗口必须与 xterm 的 kDoubleTapTimeout（300ms）对齐：比它短的话，
+/// 落在 260–300ms 之间的第二击会「应用开了浏览器、xterm 又选了词」两头都做。
+const Duration _doubleTapWindow = Duration(milliseconds: 300);
 
 /// 选区手柄的触控半径：视觉半径 7，手指落点留到 18（直径 36）。
 /// 手柄挂在字符下方，按上去时手指会盖住它，判定区必须比看得见的那一圈大。
@@ -146,6 +148,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   /// 待打开的链接（触屏单击）：等过双击窗口，第二次按下即取消。
   Timer? _linkTapTimer;
+
+  /// 上一次排进双击窗口的触点位置：双击的第二次按下必须落在近处
+  /// （xterm 有 kDoubleTapSlop 容差），隔着半屏的两下不是双击。
+  Offset? _lastScheduledTap;
 
   /// 这一串指针事件是双击的第二下：它的抬手同样不算「点链接」。
   bool _touchDoubleTap = false;
@@ -296,6 +302,17 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     // 视图被复用到另一条会话上：监听要跟着搬，否则下划线盯着旧终端算。
     oldWidget.session.terminal.removeListener(_onTerminalOutput);
     widget.session.terminal.addListener(_onTerminalOutput);
+    // 旧会话的在飞事务全部收掉：选区锚点挂在旧缓冲区的行对象上，留着
+    // 的话复制按钮会用旧行号对新 buffer 取文本（复制到错误内容），手柄
+    // 会错位画在新缓冲区的同号行上；在飞计时器到期会在新会话上、旧坐标
+    // 处弹菜单或把错误内容写进剪贴板。桌面端用 ObjectKey 整树重建绕开
+    // 这一切，移动端走这条复用路径，必须自己清干净。
+    _controller.clearSelection();
+    _onHandleDragEnd();
+    _copyOnSelectTimer?.cancel();
+    _longPressTimer?.cancel();
+    _linkTapTimer?.cancel();
+    _searchRefreshTimer?.cancel();
     // 搜索结果是按**旧会话的缓冲区行号**记的，换会话必须整个丢掉：
     // 留着的话计数是旧的，点「下一个」还会拿旧行号去新缓冲区建锚点。
     _clearHighlights();
@@ -440,7 +457,13 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
         event.kind == PointerDeviceKind.mouse && event.buttons == kPrimaryButton
         ? event.position
         : null;
-    if (event.kind != PointerDeviceKind.touch) return;
+    // 外接鼠标 + 鼠标模式：按下也要转发给远端。此时包内的 tap 转发已被
+    // _setTrackpad 停掉，应用侧再按 kind 挡住的话，远端鼠标就彻底失灵
+    //（比不开鼠标模式还糟）。转发不动（远端没开上报）就原样交给包内选字。
+    if (event.kind != PointerDeviceKind.touch) {
+      if (_mouseModeActive) _beginMouseDrag(event.position);
+      return;
+    }
     // 按在选区手柄上是要拖它：既不算长按（别弹菜单），也不算点链接。
     // 命中判定自己做（`_isOnHandle`），不靠浮层上的手势识别器。
     final grabbed = _grabbedHandle(event.position);
@@ -460,9 +483,15 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     // 内部已经拿着长按 / 拖动识别器做选词，再去竞技场里抢只会两败俱伤。
     _longPressTimer?.cancel();
     // 上一次单击还在双击窗口里：两下都不算「点链接」——双击是选词。
+    // 但双击的第二次按下必须落在近处（xterm 自己也有 slop 容差）：
+    // 窗口内快速点两个不同链接时，第二击不该被当成双击吞掉。
     if (_linkTapTimer?.isActive ?? false) {
       _linkTapTimer!.cancel();
-      _touchDoubleTap = true;
+      final previous = _lastScheduledTap;
+      if (previous != null &&
+          (event.position - previous).distance <= _linkTapSlop) {
+        _touchDoubleTap = true;
+      }
     }
     _touchOrigin = event.position;
     _longPressFired = false;
@@ -571,6 +600,11 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
     final origin = _linkTapOrigin;
     _linkTapOrigin = null;
+    // 外接鼠标的拖动收尾：拖过就别再当一次「点链接」（触屏分支同理）。
+    if (_mouseDragging) {
+      _endMouseDrag();
+      return;
+    }
     if (origin == null) return;
     // 拖着选字松手不算点击。
     if ((event.position - origin).distance > _linkTapSlop) return;
@@ -582,6 +616,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   void _scheduleTouchLinkOpen(Offset globalPosition) {
     if (!_touchTapOpensLinks) return;
     _linkTapTimer?.cancel();
+    _lastScheduledTap = globalPosition;
     _linkTapTimer = Timer(_doubleTapWindow, () {
       unawaited(_openLinkAt(globalPosition));
     });
@@ -1049,6 +1084,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     if (event.kind != PointerDeviceKind.touch) return false;
     _pinchPointers[event.pointer] = event.position;
     if (_pinchPointers.length < 2) return false;
+    // 已在捏合中（第三指落下）：不动 base——此刻重新取基准会拿走当前
+    // 两指跨度与全局字号，捏出来的幅度瞬间归零、预览跳回起点。手上还
+    // 攥着的动作在进入捏合那一帧已经收掉，无需重复。
+    if (_pinching) return true;
     // 两指落下：手上还攥着的动作先收掉——长按计时器、待开的链接、
     // 转发中的鼠标拖动、拖着的选区手柄，都不能跟捏合抢同一串指针。
     _longPressTimer?.cancel();

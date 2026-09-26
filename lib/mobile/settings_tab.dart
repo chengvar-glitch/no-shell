@@ -19,7 +19,7 @@ class SettingsTab extends StatelessWidget {
     required this.onThemeModeChanged,
     required this.language,
     required this.onLanguageChanged,
-    this.archiveUnreadable = false,
+    this.archiveWarning,
     this.allowLegacyHostKeys = false,
     this.onAllowLegacyHostKeysChanged,
     this.updateCheck,
@@ -31,8 +31,9 @@ class SettingsTab extends StatelessWidget {
   final AppLanguage language;
   final ValueChanged<AppLanguage> onLanguageChanged;
 
-  /// 主机存档读不出来：设置页顶部给出告警。
-  final bool archiveUnreadable;
+  /// 主机存档读不出来时设置页顶部的告警卡；由外壳订阅 store 后传入，
+  /// 本控件自己不订阅——整页设置控件不该跟着主机状态翻转重建。
+  final Widget? archiveWarning;
 
   /// 连接老设备时是否允许 ssh-rsa（SHA-1）主机密钥。
   final bool allowLegacyHostKeys;
@@ -62,7 +63,7 @@ class SettingsTab extends StatelessWidget {
         physics: const ClampingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          if (archiveUnreadable) const ArchiveWarningCard(),
+          ?archiveWarning,
           AppearanceSettingsSection(
             themeMode: themeMode,
             onChanged: onThemeModeChanged,

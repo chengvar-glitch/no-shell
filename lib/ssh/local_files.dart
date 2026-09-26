@@ -96,6 +96,10 @@ abstract interface class LocalFileGateway {
 
   /// 清理取消 / 失败留下的半成品文件。
   Future<void> discard(String path);
+
+  /// 落点是否已存在同名文件：下载覆盖确认用（上传链路的同名确认靠远端
+  /// 列目录，下载落点在本地，只能这样问）。
+  Future<bool> localFileExists(String path);
 }
 
 /// 真实实现：file_selector 负责原生对话框，落盘走条件导出的 `local_write`。
@@ -226,6 +230,9 @@ final class NativeLocalFileGateway implements LocalFileGateway {
 
   @override
   Future<void> discard(String path) => deleteLocalFile(path);
+
+  @override
+  Future<bool> localFileExists(String path) => doesLocalFileExist(path);
 }
 
 /// 拼接本地路径：Windows 目录形如 `C:\Users\me`，其余平台用 `/`。

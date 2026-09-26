@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fake_async/fake_async.dart';
@@ -12,17 +13,23 @@ import 'package:no_shell/widgets/settings_controls.dart';
 
 /// 假查询通道：按用例给定的结果或错误作答，一次调用一次应答。
 class _FakeClient implements UpdateCheckClient {
-  _FakeClient({this.release, this.error});
+  _FakeClient({this.release, this.error, this.gate});
 
   ReleaseInfo? release;
   ReleaseLookupException? error;
   int calls = 0;
+
+  /// 非 null 时 [fetchLatestRelease] 等它完成再应答：把检查钉在
+  /// checking 状态上，供「转圈通知」用例断言。
+  Completer<void>? gate;
 
   @override
   Future<ReleaseInfo> fetchLatestRelease() async {
     calls++;
     final error = this.error;
     if (error != null) throw error;
+    final gate = this.gate;
+    if (gate != null) await gate.future;
     return release!;
   }
 }
@@ -154,6 +161,24 @@ void main() {
 
         expect(client.calls, 0);
       });
+    });
+  });
+
+  group('检查中的通知', () {
+    test('进入 checking 必须立即通知：否则首次检查与复查都没有转圈', () async {
+      final gate = Completer<void>();
+      final client = _FakeClient(release: _release('v4.2.0'), gate: gate);
+      final check = service(client: client, persistence: _FakePersistence());
+      var notifications = 0;
+      check.addListener(() => notifications++);
+
+      final running = check.check();
+      await pumpEventQueue();
+      expect(notifications, 1, reason: 'checking 状态必须发通知，转圈才出得来');
+
+      gate.complete();
+      await running;
+      expect(check.status, UpdateCheckStatus.done);
     });
   });
 

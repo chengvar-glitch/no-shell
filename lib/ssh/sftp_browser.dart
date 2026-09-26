@@ -431,10 +431,15 @@ final class SftpBrowserController extends ChangeNotifier {
   }
 
   /// 下载条目：单个走「另存为」，多个走一次目录选择。
+  ///
+  /// [confirmOverwrite] 在落点已存在同名文件时被调用（参数是冲突的文件
+  /// 名）；返回 false（或回调为 null）即取消整批下载——与上传链路同一
+  /// 约定：「重名是否覆盖由调用方先行确认」，下载侧此前漏了这道确认。
   Future<SftpDownloadOutcome> downloadEntries(
     List<SftpEntry> targets,
-    String confirmLabel,
-  ) async {
+    String confirmLabel, {
+    Future<bool> Function(List<String> conflicts)? confirmOverwrite,
+  }) async {
     if (targets.isEmpty) return SftpDownloadOutcome.empty;
     final List<LocalTarget>? destinations;
     if (targets.length == 1) {
@@ -455,6 +460,15 @@ final class SftpBrowserController extends ChangeNotifier {
     // 那时前面的任务已经入队，用户看到的是「下了一半 + 一个异常」。
     if (destinations.length < targets.length) {
       return SftpDownloadOutcome.unavailable;
+    }
+    final conflicts = <String>[
+      for (var i = 0; i < targets.length; i++)
+        if (await localFiles.localFileExists(destinations[i].path))
+          targets[i].name,
+    ];
+    if (conflicts.isNotEmpty) {
+      final allowed = await confirmOverwrite?.call(conflicts) ?? false;
+      if (!allowed) return SftpDownloadOutcome.canceled;
     }
     for (var i = 0; i < targets.length; i++) {
       transfers.enqueueDownload(entry: targets[i], target: destinations[i]);
@@ -576,6 +590,12 @@ final class SftpBrowserController extends ChangeNotifier {
   /// 几百毫秒，那段时间同样是「结构性操作进行中」，提前放开守卫等于允许
   /// 第二个操作挤进刷新窗口。
   Future<void> _mutate(Future<void> Function() action) async {
+    // 控制器已随会话销毁（弹窗 await 期间自动重连把会话整个换掉是典型
+    // 路径）：顶部那笔 notifyListeners 不能落在已 dispose 的对象上
+    // （debug 断言崩溃），操作本身也无处落地。
+    if (_disposed) {
+      throw const SftpException(SftpErrorKind.network);
+    }
     if (_isMutating) {
       throw const SftpException(SftpErrorKind.busy);
     }

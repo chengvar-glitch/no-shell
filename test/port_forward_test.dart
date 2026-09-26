@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/ssh/forward.dart';
@@ -410,6 +412,59 @@ void main() {
 
       expect(env.manager.runningIds, isEmpty);
       expect(notifications, 1);
+    });
+
+    test('启动中 stop：在飞的 start 不把规则复活成运行中', () async {
+      final env = _build();
+      final gate = Completer<void>();
+      env.gateway.listenGate = gate;
+      final starting = env.manager.start(_rule());
+      await settle();
+      expect(env.manager.statusOf('fwd-1').phase, PortForwardPhase.starting);
+
+      final stopped = env.manager.stop('fwd-1');
+      gate.complete(); // 放行在飞的 bind
+      await starting;
+      await stopped;
+      await settle();
+
+      expect(env.manager.runningIds, isEmpty);
+      expect(env.manager.statusOf('fwd-1').phase, PortForwardPhase.stopped);
+      expect(env.gateway.listenerFor('127.0.0.1', 8080)!.closed, isTrue);
+    });
+
+    test('启动中 stopAll（连接瞬断）：规则不被复活成挂在尸体会话上', () async {
+      final env = _build();
+      final gate = Completer<void>();
+      env.gateway.listenGate = gate;
+      final starting = env.manager.start(_rule());
+      await settle();
+
+      env.manager.stopAll();
+      gate.complete();
+      await starting;
+      await settle();
+
+      expect(env.manager.runningIds, isEmpty);
+      expect(env.manager.statusOf('fwd-1').phase, PortForwardPhase.stopped);
+      expect(env.gateway.listenerFor('127.0.0.1', 8080)!.closed, isTrue);
+    });
+
+    test('stop 之后再 start：新代次照常落地', () async {
+      final env = _build();
+      final gate = Completer<void>();
+      env.gateway.listenGate = gate;
+      final first = env.manager.start(_rule());
+      await settle();
+      final stopped = env.manager.stop('fwd-1');
+      gate.complete();
+      await first;
+      await stopped;
+
+      await env.manager.start(_rule());
+      await settle();
+      expect(env.manager.isRunning('fwd-1'), isTrue);
+      expect(env.manager.statusOf('fwd-1').phase, PortForwardPhase.running);
     });
   });
 

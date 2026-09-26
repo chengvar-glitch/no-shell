@@ -70,19 +70,22 @@ final class SessionManager extends ChangeNotifier {
     HopAgentProbe? hopAgentProbe,
     this.autoReconnect = false,
     this.backoff = const ReconnectBackoff(),
-  }) : _sessionFactory =
-           sessionFactory ??
-           // 闭包读取的是**实例字段**（初始化形参不留同名局部变量，
-           // 没有遮蔽）：用户改完设置后新建的会话才带得上新取值。
-           ((server, credentials, jumps) => TerminalSession(
-             server: server,
-             credentials: credentials,
-             hostKeys: hostKeys,
-             allowLegacyHostKeys: allowLegacyHostKeys,
-             jumps: jumps,
-           )),
-       agentKeysProbe = agentKeysProbe ?? _defaultAgentKeysProbe,
-       _injectedHopProbe = hopAgentProbe;
+  }) : agentKeysProbe = agentKeysProbe ?? _defaultAgentKeysProbe,
+       _injectedHopProbe = hopAgentProbe {
+    // 工厂必须在构造体里赋值：初始化列表中的闭包引用不到实例字段
+    // （Dart 在初始化列表里禁用 this），裸名解析成初始化形参、捕获的是
+    // 构造实参快照——设置改动后新建会话就带不上新取值。构造体里
+    // `allowLegacyHostKeys` / `hostKeys` 解析为字段本身，调用时才读。
+    _sessionFactory =
+        sessionFactory ??
+        ((server, credentials, jumps) => TerminalSession(
+          server: server,
+          credentials: credentials,
+          hostKeys: hostKeys,
+          allowLegacyHostKeys: allowLegacyHostKeys,
+          jumps: jumps,
+        ));
+  }
 
   /// 连接老设备时是否允许 `ssh-rsa`（SHA-1）主机密钥；设置面板可改。
   ///
@@ -128,6 +131,13 @@ final class SessionManager extends ChangeNotifier {
     try {
       await transport.attach(terminal, onConnected: () {}, onClosed: () {});
       return const SshCredentials(useAgent: true);
+    } on HostKeyChangedException {
+      // 指纹不符与「agent 没有钥匙」是两回事：吞掉它，连接流程就会先弹
+      // 跳板机密码框、用户输完才看到「疑似中间人」。原样抛给调用方处置。
+      rethrow;
+    } on HostKeyUnavailableException {
+      // 指纹存档读不出来必须 fail closed：同样不能伪装成「没钥匙」。
+      rethrow;
     } on Object {
       return null;
     } finally {
@@ -135,7 +145,9 @@ final class SessionManager extends ChangeNotifier {
     }
   }
 
-  final TerminalSessionFactory _sessionFactory;
+  /// 延迟到构造体里赋值（见构造函数）：工厂闭包必须读实例字段，而
+  /// 初始化列表里引用不到 this。`late final` 允许在构造体里完成这一次赋值。
+  late final TerminalSessionFactory _sessionFactory;
 
   /// 主机 id → 会话列表（创建顺序，也就是界面上会话菜单的顺序）。
   /// 主机没有会话时整个条目被移除，[sessions] 的顺序因此是「主机首次出现的

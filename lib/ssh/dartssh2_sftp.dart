@@ -54,6 +54,7 @@ final class DartSsh2SftpFileSystem implements SftpFileSystem {
     String path,
     Stream<List<int>> data, {
     void Function(int bytes)? onProgress,
+    bool Function()? isAborted,
   }) => _guard(() async {
     final file = await _client.open(
       path,
@@ -70,7 +71,20 @@ final class DartSsh2SftpFileSystem implements SftpFileSystem {
         ),
         onProgress: onProgress,
       );
-      await writer.done;
+      // done 可能永远不来：远端停止确认而连接未断（黑洞网络）时，取消
+      // 请求就是唯一的出路。定时探测 [isAborted]，命中即 abort——它会让
+      // done 立即完成，写入随即收场，而不是把传输钉死在「正在取消」。
+      while (true) {
+        try {
+          await writer.done.timeout(const Duration(milliseconds: 500));
+          return;
+        } on TimeoutException {
+          if (isAborted?.call() ?? false) {
+            writer.abort();
+            await writer.done;
+          }
+        }
+      }
     } finally {
       await file.close();
     }

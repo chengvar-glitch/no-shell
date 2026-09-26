@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/ssh/local_files.dart';
 import 'package:no_shell/ssh/sftp.dart';
@@ -980,6 +982,135 @@ void main() {
       );
       // 一个都不该入队：要么整批下载，要么都不下。
       expect(controller.transfers.transfers, isEmpty);
+    });
+
+    test('落点已存在同名文件：确认通过才下载，拒绝则整批取消', () async {
+      final gateway = FakeLocalFileGateway()
+        ..downloadDirectory = const [
+          LocalTarget(path: '/tmp/a.txt', name: 'a.txt'),
+          LocalTarget(path: '/tmp/b.txt', name: 'b.txt'),
+        ]
+        ..existingLocalFiles.addAll(['/tmp/a.txt']);
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      final a = fs.addFile(fs.home, 'a.txt', content: const [1]);
+      final b = fs.addFile(fs.home, 'b.txt', content: const [2]);
+
+      // 回调为 null（不确认）时不得覆盖。
+      expect(
+        await controller.downloadEntries([a, b], '保存'),
+        SftpDownloadOutcome.canceled,
+      );
+      expect(controller.transfers.transfers, isEmpty);
+
+      // 确认覆盖后照常入队。
+      expect(
+        await controller.downloadEntries(
+          [a, b],
+          '保存',
+          confirmOverwrite: (conflicts) async =>
+              conflicts.length == 1 && conflicts.single == 'a.txt',
+        ),
+        SftpDownloadOutcome.enqueued,
+      );
+      await pumpEventQueue();
+      expect(controller.transfers.transfers, hasLength(2));
+    });
+
+    test('传输失败同样触发 onTransferFinished（失败提示不再无声）', () async {
+      final gateway = FakeLocalFileGateway()..uploads = [_upload('big.bin')];
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      fs.writeError = const SftpException(SftpErrorKind.network);
+      final finished = <SftpTransfer>[];
+      controller.transfers.onTransferFinished = finished.add;
+
+      controller.startUpload(await controller.pickUploads('上传'));
+      await pumpEventQueue();
+
+      expect(finished, hasLength(1));
+      expect(finished.single.state, SftpTransferState.failed);
+    });
+
+    test('源读尽后的收尾窗口取消：效果如实呈现', () async {
+      final gateway = FakeLocalFileGateway()
+        ..uploads = [
+          _upload('conf.bin', content: const [1]),
+        ];
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      // 目标已有旧内容。
+      final target = sftpJoin(fs.home, 'conf.bin');
+      fs.contents[target] = const [9];
+      fs.renameGate = Completer<void>();
+
+      controller.startUpload(await controller.pickUploads('上传'));
+      await pumpEventQueue(); // write 已完成，卡在 rename 上
+      controller.transfers.transfers.single.cancel();
+      fs.renameGate!.complete();
+      await pumpEventQueue();
+
+      // rename 在取消之后仍执行了（它是一次原子的远端请求，无法中途
+      // 撤回）：目标被替换，状态必须报 done——「已取消 + 文件被覆盖」
+      // 才是骗人。
+      expect(
+        controller.transfers.transfers.single.state,
+        SftpTransferState.done,
+      );
+      expect(fs.contents[target], const [1]);
+    });
+
+    test('rename 前收到取消：目标原样保留，状态报取消', () async {
+      final gateway = FakeLocalFileGateway()
+        ..uploads = [
+          _upload('conf.bin', content: const [1]),
+        ];
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      final target = sftpJoin(fs.home, 'conf.bin');
+      fs.contents[target] = const [9];
+      // 写入本身卡住：取消会让 isAborted 命中（真实适配器靠它捅破
+      // done 的等待；假实现里 write 在流上同步收尾，这里用流不出块
+      // 之前的取消覆盖同一条路径——_guarded 抛 _TransferCanceled）。
+      final slow = Completer<void>();
+      gateway.uploads = [
+        LocalUpload(
+          name: 'conf.bin',
+          length: 1,
+          openRead: () async* {
+            await slow.future;
+            yield const [1];
+          },
+        ),
+      ];
+      controller.startUpload(gateway.uploads);
+      await pumpEventQueue();
+      controller.transfers.transfers.single.cancel();
+      slow.complete();
+      await pumpEventQueue();
+
+      expect(
+        controller.transfers.transfers.single.state,
+        SftpTransferState.canceled,
+      );
+      expect(fs.contents[target], const [9]);
+    });
+
+    test('队列销毁后入队：任务标记失败而不是断言崩溃', () async {
+      final (:controller, :fs) = await ready();
+      addTearDown(controller.dispose);
+      final queue = SftpTransferQueue(
+        fileSystem: () => fs,
+        localFiles: FakeLocalFileGateway(),
+      );
+      queue.dispose();
+
+      final transfer = queue.enqueueUpload(
+        source: _upload('x.bin'),
+        remoteDir: fs.home,
+      );
+      expect(transfer.state, SftpTransferState.failed);
+      expect(queue.transfers, isEmpty);
     });
   });
 }

@@ -39,6 +39,11 @@ final class SftpTransfer extends ChangeNotifier {
   SftpTransferState _state = SftpTransferState.queued;
   SftpErrorKind? _errorKind;
   bool _cancelRequested = false;
+
+  /// 收尾的改名（远端 rename / 本地 promote）已经执行：此后到达的取消
+  /// 请求改变不了「目标已被新内容替换」这个既成事实。状态必须如实——
+  /// 效果已发生却报「已取消」等于骗用户（取消后文件还是被覆盖了）。
+  bool _effectApplied = false;
   DateTime? _startedAt;
   DateTime? _finishedAt;
   DateTime? _lastProgressNotifyAt;
@@ -134,6 +139,11 @@ final class SftpTransfer extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 收尾改名已执行（见 [_effectApplied]）。
+  void _markEffectApplied() {
+    _effectApplied = true;
+  }
+
   void _fail(Object error) {
     _errorKind = error is SftpException ? error.kind : SftpErrorKind.other;
     _finish(SftpTransferState.failed);
@@ -205,8 +215,18 @@ final class SftpTransferQueue extends ChangeNotifier {
           temporaryPath,
           _guarded(source, transfer),
           onProgress: transfer._report,
+          // 源流读尽后写入确认还在路上：此刻的取消请求必须能捅破
+          // 对 done 的等待（远端停止确认时它永远不来）。
+          isAborted: () => transfer.isCancelRequested || _disposed,
         );
+        // 源流已读尽、写入已确认：改名前再查一次取消。漏了它，用户在
+        // 收尾窗口点的取消会照常覆盖目标，随后却被标成「已取消」。
+        if (transfer.isCancelRequested || _disposed) {
+          throw const _TransferCanceled();
+        }
         await fileSystem().rename(temporaryPath, remotePath);
+        // rename 已落地：此后到达的取消不再把结果标成「已取消」。
+        transfer._markEffectApplied();
       } on Object {
         // 失败 / 取消留下的半截内容是临时文件，删它不动目标。
         await _discardRemote(temporaryPath);
@@ -237,17 +257,39 @@ final class SftpTransferQueue extends ChangeNotifier {
       final sink = localFiles.openWrite(temporaryPath, ownerOnly: true);
       var written = 0;
       var unflushed = 0;
-      try {
-        await for (final chunk in fileSystem().read(entry.path)) {
-          // 取消，或队列已在传输途中被销毁（会话断开 / 删主机）：
-          // 立刻收手，别继续往一个已经没人要的文件里写。
+      // 取消观察器：每 200ms 查一次取消标记。远端卡死时 read 流不再来块，
+      // 只靠块间检查的话「正在取消」会永远停着；轮询信号把 moveNext 从
+      // 卡死里捞出来。finally 里收掉，正常结束不留轮询。
+      final cancelSignal = Completer<void>();
+      unawaited(() async {
+        while (!cancelSignal.isCompleted) {
           if (transfer.isCancelRequested || _disposed) {
-            throw const _TransferCanceled();
+            cancelSignal.complete();
+            return;
           }
-          sink.add(chunk);
-          written += chunk.length;
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+        }
+      }());
+      final chunks = StreamIterator(fileSystem().read(entry.path));
+      try {
+        while (true) {
+          // 取消（或队列已销毁）命中即收手，别继续往一个已经没人要的
+          // 文件里写。cancelSignal 保证远端不发块时也能等到这一天；
+          // 正常收尾时它也会完成，此时不抛、当 EOF 处理。
+          final moved = await Future.any<bool>([
+            chunks.moveNext(),
+            cancelSignal.future.then<bool>((_) {
+              if (transfer.isCancelRequested || _disposed) {
+                throw const _TransferCanceled();
+              }
+              return false;
+            }),
+          ]);
+          if (!moved) break;
+          sink.add(chunks.current);
+          written += chunks.current.length;
           transfer._report(written);
-          unflushed += chunk.length;
+          unflushed += chunks.current.length;
           if (unflushed >= _flushThreshold) {
             unflushed = 0;
             await sink.flush();
@@ -255,12 +297,25 @@ final class SftpTransferQueue extends ChangeNotifier {
         }
         await sink.flush();
         await sink.close();
+        // 源读尽后的收尾（flush / close / promote）同样可能撞上取消：
+        // 漏了它，用户在收尾窗口点的取消会照常覆盖落点，随后却被标成
+        // 「已取消」。
+        if (transfer.isCancelRequested || _disposed) {
+          throw const _TransferCanceled();
+        }
         await localFiles.promote(temporaryPath, target.path);
+        // promote 已落地：此后到达的取消不再把结果标成「已取消」。
+        transfer._markEffectApplied();
       } on Object {
         await _closeQuietly(sink);
         // 中断的下载只清掉临时文件，落点上原有的文件保持不动。
         await localFiles.discard(temporaryPath);
         rethrow;
+      } finally {
+        if (!cancelSignal.isCompleted) cancelSignal.complete();
+        // 取消订阅尽力而为：远端卡死时流的取消传播可能等不来数据，
+        // 挂在它上面会把整个收尾拖死。正常 EOF 时它立即完成。
+        unawaited(chunks.cancel().then<void>((_) {}, onError: (_) {}));
       }
     });
   }
@@ -296,6 +351,15 @@ final class SftpTransferQueue extends ChangeNotifier {
     SftpTransfer transfer,
     Future<void> Function(SftpTransfer) run,
   ) {
+    // 队列已被销毁（弹窗 await 期间自动重连把会话整个换掉是典型路径）：
+    // 任务不能再进队，也不能 notifyListeners——对已 dispose 的
+    // ChangeNotifier 通知在 debug 下直接断言崩溃，release 下则是
+    // 「用户以为传上了、实际什么都没发生」。标记失败让调用方拿到
+    // 一个如实的结果。
+    if (_disposed) {
+      transfer._fail(const SftpException(SftpErrorKind.network));
+      return transfer;
+    }
     _transfers.add(transfer);
     _pending.add(_PendingJob(transfer, run));
     notifyListeners();
@@ -325,11 +389,17 @@ final class SftpTransferQueue extends ChangeNotifier {
           if (_disposed) return;
           transfer._fail(error);
           notifyListeners();
+          // 失败同样要走完成回调：面板按状态映射文案（sftpUploadFailed /
+          // sftpDownloadFailed），漏了它，失败就是无声的——用户切走 Tab
+          // 后永远等不到提示。
+          try {
+            onTransferFinished?.call(transfer);
+          } catch (_) {}
           continue;
         }
         if (_disposed) return;
         transfer._finish(
-          canceled || transfer.isCancelRequested
+          canceled || (transfer.isCancelRequested && !transfer._effectApplied)
               ? SftpTransferState.canceled
               : SftpTransferState.done,
         );

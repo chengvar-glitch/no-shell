@@ -427,7 +427,10 @@ class _ServerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final connected = server.status == ServerStatus.connected;
+    // connecting 也算活跃：此刻按下走的是断开，按钮不许再画「连接」。
+    final active =
+        server.status == ServerStatus.connected ||
+        server.status == ServerStatus.connecting;
     final subtitle = server.accountWithPort;
     return ListTile(
       onTap: onTap,
@@ -446,9 +449,9 @@ class _ServerTile extends StatelessWidget {
         style: TextStyle(fontSize: 12, color: theme.secondaryText),
       ),
       trailing: IconButton(
-        tooltip: connected ? l10n.disconnect : l10n.connect,
+        tooltip: active ? l10n.disconnect : l10n.connect,
         icon: Icon(
-          connected ? Icons.link_off_rounded : Icons.play_arrow_rounded,
+          active ? Icons.link_off_rounded : Icons.play_arrow_rounded,
           color: theme.secondaryText,
         ),
         onPressed: onToggleConnect,

@@ -265,13 +265,15 @@ class SshServer {
     name: (json['name'] as String?) ?? '',
     host: (json['host'] as String?) ?? '',
     username: (json['username'] as String?) ?? '',
-    port: (json['port'] as num?)?.toInt() ?? 22,
+    // 越界端口退回 22，与文本格式的 1–65535 校验对齐：坏数据不该能
+    // 加载进内存再把用户连到不存在的端口上。
+    port: _portFromJson(json['port']),
     authMethod:
         AuthMethod.values.asNameMap()[json['authMethod']] ??
         AuthMethod.privateKey,
     tags: [
       for (final tag in (json['tags'] as List<Object?>? ?? const []))
-        tag as String,
+        if (tag is String) tag,
     ],
     notes: json['notes'] as String?,
     lastConnectedAt: switch (json['lastConnectedAt']) {
@@ -283,11 +285,28 @@ class SshServer {
       _ => null,
     },
     // 一条坏规则只跳过那一条：转发规则是附加配置，不该带走整台主机。
+    // PortForwardRule.fromJson 里的字段强转（as num?）遇类型脏数据会抛
+    // TypeError，必须在这一层接住，否则会被 server_persistence 的逐主机
+    // catch 接走——整台主机从列表里消失。
     forwards: [
       for (final item in (json['forwards'] as List<Object?>? ?? const []))
-        if (item is Map) PortForwardRule.fromJson(item.cast<String, Object?>()),
+        if (item is Map) ?_ruleFromJson(item),
     ],
   );
+
+  /// 解析一条转发规则；类型脏数据返回 null（跳过该条），不让它外抛。
+  static PortForwardRule? _ruleFromJson(Map<Object?, Object?> item) {
+    try {
+      return PortForwardRule.fromJson(item.cast<String, Object?>());
+    } on TypeError {
+      return null;
+    }
+  }
+
+  static int _portFromJson(Object? raw) {
+    final port = (raw as num?)?.toInt() ?? 22;
+    return port >= 1 && port <= 65535 ? port : 22;
+  }
 }
 
 /// 渲染用的分组视图：名字 + 成员 + 折叠态。

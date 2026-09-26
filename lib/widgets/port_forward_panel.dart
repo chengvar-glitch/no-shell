@@ -7,6 +7,7 @@ import '../models.dart';
 import '../ssh/port_forward_runtime.dart';
 import '../ssh/session_manager.dart';
 import '../ssh/ssh_transport.dart';
+import '../ssh/terminal_session.dart';
 import '../store.dart';
 import '../theme.dart';
 import 'confirm_dialog.dart';
@@ -65,7 +66,12 @@ class PortForwardPanel extends StatelessWidget {
     PortForwardManager? manager,
   ) {
     final rules = server.forwards;
-    final connected = manager != null;
+    // 断开的会话仍留在 sessions 里等重连，manager 也还在——只判 manager
+    // 非空的话，「先连接」提示消失、开关照常可拨，-L 会真的把本地端口
+    // 监听起来（连上即断的黑洞）。必须看会话真的处于 connected。
+    final connected =
+        manager != null &&
+        sessions.activeOf(server.id)?.phase == TerminalPhase.connected;
     if (rules.isEmpty) {
       return _EmptyState(onCreate: () => _edit(context, server, null));
     }
@@ -140,9 +146,15 @@ class PortForwardPanel extends StatelessWidget {
   ) async {
     final result = await _showForwardRuleDialog(context, existing: existing);
     if (result == null) return;
+    // 编辑运行中的规则必须先停：规则 id 保持不变（刻意为之，否则转发
+    // 管理会失联），不停的话 manager 继续按旧配置转发，界面却显示
+    // 新配置「运行中」——用户以为暴露的入口已经换掉，实际旧端口还在监听。
+    final session = sessions.activeOf(server.id);
+    final wasRunning = session?.forwards.isRunning(result.id) ?? false;
     // 不碰 context：弹窗关闭后这颗 BuildContext 可能已经失效，
     // 而这个写入只依赖 store，跨异步缺口用它没有任何必要。
     _replaceRule(server, result);
+    if (wasRunning) unawaited(session!.forwards.stop(result.id));
   }
 
   /// 覆盖写入一条规则：同 id 替换，新 id 追加。
@@ -328,8 +340,14 @@ class _RuleCard extends StatelessWidget {
                           statusLabel,
                           style: TextStyle(fontSize: 11, color: color),
                         ),
+                        // 「实际端口」只在不同于请求值时展示。-R 的实际端口
+                        // 来自服务端监听，对应的请求值是 remotePort 而不是
+                        // localPort——比错了固定端口的远程转发也会冗余展示。
                         if (boundPort != null &&
-                            boundPort != rule.localPort) ...[
+                            boundPort !=
+                                (rule.mode == PortForwardMode.remote
+                                    ? rule.remotePort
+                                    : rule.localPort)) ...[
                           const SizedBox(width: 8),
                           Text(
                             l10n.portForwardBoundPort(boundPort),

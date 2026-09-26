@@ -84,7 +84,23 @@ Future<void> _download(
   ];
   if (files.isEmpty) return;
   final l10n = AppLocalizations.of(context);
-  final outcome = await controller.downloadEntries(files, l10n.save);
+  final outcome = await controller.downloadEntries(
+    files,
+    l10n.save,
+    // 落点已有同名文件时先确认再覆盖——桌面「另存为」的原生警告只护住
+    // 单文件那一路，移动端与批量下载在这里补上同一道闸。
+    confirmOverwrite: (conflicts) async {
+      if (!context.mounted) return false;
+      return await showConfirmDialog(
+            context,
+            title: l10n.sftpOverwriteTitle,
+            body: l10n.sftpOverwriteBody(conflicts.length),
+            confirmLabel: l10n.sftpOverwrite,
+            destructive: false,
+          ) ==
+          true;
+    },
+  );
   if (!context.mounted) return;
   if (outcome == SftpDownloadOutcome.unavailable) {
     showToast(context, l10n.sftpTargetUnavailable);

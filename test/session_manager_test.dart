@@ -182,6 +182,24 @@ void main() {
       expect(offSession.allowLegacyHostKeys, isFalse);
     });
 
+    test('构造后再改字段，默认工厂的新会话立即带上新取值（快照 vs 字段）', () async {
+      // 与上一条不同：这里构造时传 false、之后才改 true。若默认工厂
+      // 的闭包捕获的是初始化形参（构造实参快照）而不是实例字段，
+      // 这条用例必红——旧实现正是栽在这里。
+      final store = ServerStore(seed: [_server()]);
+      final sessions = SessionManager(store: store);
+      addTearDown(sessions.dispose);
+      expect(sessions.allowLegacyHostKeys, isFalse);
+
+      sessions.allowLegacyHostKeys = true;
+      final session = sessions.open(
+        _server(),
+        const SshCredentials(password: 'pw'),
+      );
+      await pumpEventQueue();
+      expect(session.allowLegacyHostKeys, isTrue);
+    });
+
     test('连接失败归类为错误状态，暴露错误种类', () async {
       final store = ServerStore(seed: [_server()]);
       final sessions = _manager(store, [

@@ -166,8 +166,18 @@ final class _ChannelAgentClient implements SshAgentClient {
     _channel.add(_encodeFrame(payload));
     return completer.future.timeout(
       _requestTimeout,
-      onTimeout: () =>
-          throw const SshAgentFailureException('agent did not answer in time'),
+      onTimeout: () {
+        // 超时即毒化整条通道：agent 协议没有请求 id，应答严格按序配对，
+        // 一条请求石沉大海后对不上号的不只是它自己——摘掉 completer 会让
+        // 迟到的应答错配给下一个请求，留着则会级联超时。与坏帧同一处置：
+        // 全部判失败并断开，让下一次请求重建干净的通道。
+        const failure = SshAgentFailureException(
+          'agent did not answer in time',
+        );
+        _failAll(failure);
+        unawaited(close());
+        throw failure;
+      },
     );
   }
 

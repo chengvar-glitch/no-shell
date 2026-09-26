@@ -220,9 +220,36 @@ Future<SshCredentials?> _hopCredentials(
 
   // 无感 agent：这一跳没存过凭据时，先静默试本机 agent 的钥匙（逐跳都有份）；
   // 上一次认证刚失败过就不再试，直接弹窗。
-  final hopAgentCredentials = authFailedBefore
-      ? null
-      : await sessions.hopAgentProbe(server, upstream);
+  // 指纹不符 / 指纹存档读不出来不是「没有凭据」：拿密码框掩盖等于让用户
+  // 先白输一遍密码、安全警示推迟到正式连接才出现。保留错误现场，终止连接。
+  SshCredentials? hopAgentCredentials;
+  if (!authFailedBefore) {
+    try {
+      hopAgentCredentials = await sessions.hopAgentProbe(server, upstream);
+    } on HostKeyChangedException catch (error) {
+      if (!context.mounted) return null;
+      final l10n = AppLocalizations.of(context);
+      final reason = l10n.hostKeyChangedMsgWithFingerprint(
+        error.keyType,
+        error.fingerprint,
+      );
+      await showInfoDialog(
+        context,
+        title: l10n.jumpHopFailure(server.name, reason),
+        body: l10n.hostKeyForgetConfirmBody(error.host),
+      );
+      return null;
+    } on HostKeyUnavailableException {
+      if (!context.mounted) return null;
+      final l10n = AppLocalizations.of(context);
+      await showInfoDialog(
+        context,
+        title: l10n.jumpHopFailure(server.name, l10n.hostKeyChangedMsg),
+        body: l10n.hostKeyUnavailableMsg,
+      );
+      return null;
+    }
+  }
   if (hopAgentCredentials != null) return hopAgentCredentials;
   if (!context.mounted) return null;
 

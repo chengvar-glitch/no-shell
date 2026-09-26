@@ -144,7 +144,9 @@ class _SessionPageState extends State<SessionPage> {
                     duration: const Duration(milliseconds: 180),
                     child: _header(
                       context,
-                      server?.name ?? 'SSH',
+                      // 主机刚被删时 store 里查不到，但会话对象里还留着它的
+                      // SshServer 副本，名字照常有；没有会话时头部本就不可见。
+                      server?.name ?? session?.server.name ?? '',
                       session,
                       count,
                     ),

@@ -16,6 +16,22 @@ import 'confirm_dialog.dart';
 /// 表单不再接受手输分组名（旧版一个框既选组又建组，敲个新名字就当场建组）；
 /// 新建分组走分组菜单（`runGroupAction` 的新建分支），建好这里就能选到。
 /// 控件就是一个官方下拉，不套任何自制外壳。
+/// 默认分组名的「已存在者优先」解析：分组以名字为身份，而界面语言切换后
+/// l10n 给出的默认名会变——新建主机硬用当前语言的默认名，同一台机器就会
+/// 长出两个默认分组。已建分组里出现任一语言的默认名时沿用那一份，都没有
+/// 才落到当前语言的默认名（全新安装的新建场景）。
+const _knownDefaultGroupNames = ['默认分组', 'Default group'];
+
+String resolveDefaultGroupName(
+  Iterable<String> existingGroups,
+  String localizedName,
+) {
+  for (final name in _knownDefaultGroupNames) {
+    if (existingGroups.contains(name)) return name;
+  }
+  return localizedName;
+}
+
 class GroupField extends StatelessWidget {
   const GroupField({
     super.key,
@@ -203,8 +219,14 @@ Future<void> _deleteGroupFlow(
       if (entry.name != group) entry.name,
   ];
   // 成员去向：优先默认分组，其次任意其它分组；都没有就只能劝住这次删除。
-  final moveTo = others.contains(l10n.defaultGroupName)
-      ? l10n.defaultGroupName
+  // 默认分组的名字按「已存在者优先」解析：硬用当前语言的名字，语言切换后
+  // 迁移目标可能变成一个还不存在的分组，成员会被错迁去 others.first。
+  final preferredDefault = resolveDefaultGroupName(
+    others,
+    l10n.defaultGroupName,
+  );
+  final moveTo = others.contains(preferredDefault)
+      ? preferredDefault
       : (others.isEmpty ? group : others.first);
   if (count > 0 && moveTo == group) {
     showToast(context, l10n.groupKeepOne);

@@ -4,6 +4,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../ssh/credential_store.dart';
 import '../store.dart';
+import '../widgets/group_controls.dart';
 import '../widgets/host_form.dart';
 
 /// 移动端新建 / 编辑主机页（桌面端继续使用弹窗表单）。
@@ -46,7 +47,13 @@ class _ServerEditPageState extends State<ServerEditPage> {
   }
 
   Future<void> _save() async {
-    final saved = await _form.build(context: context);
+    final saved = await _form.build(
+      context: context,
+      fallbackGroup: resolveDefaultGroupName(
+        widget.store.groups().map((entry) => entry.name),
+        AppLocalizations.of(context).defaultGroupName,
+      ),
+    );
     if (saved == null || !mounted) return;
     widget.store.upsert(saved);
     Navigator.of(context).pop();

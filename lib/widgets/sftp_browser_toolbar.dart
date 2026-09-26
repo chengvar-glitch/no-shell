@@ -246,6 +246,8 @@ final class _CompactMenu extends StatelessWidget {
         PopupMenuItem(
           value: 'upload',
           height: 38,
+          // 与桌面工具条同一守卫：忙时上传会把文件传进过期目录。
+          enabled: !busy,
           child: Text(l10n.sftpUpload),
         ),
         PopupMenuItem(

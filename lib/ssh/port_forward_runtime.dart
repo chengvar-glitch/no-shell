@@ -72,6 +72,13 @@ final class PortForwardManager extends ChangeNotifier {
   final Map<String, _RunningForward> _running = {};
   final Map<String, PortForwardStatus> _statuses = {};
 
+  /// 每条规则的启动代次：stop / stopAll 时 +1。start 在 await 归来后校验
+  /// 代次——「starting」窗口可能横跨一次网络往返，这期间发生的 stop、
+  /// stopAll、断开（stopAll）都靠它识别；否则在飞的 start 会把刚被停掉的
+  /// 规则复活成 running（挂死在尸体会话上的「运行中」），或与并发 stop
+  /// 交错出「监听真在跑、状态却是 failed、开关永远打不开」的死局。
+  final Map<String, int> _generations = {};
+
   /// 所有已建立的连接，dispose 时一并销毁；管道自己结束时自行摘除。
   final Set<DuplexChannel> _liveChannels = {};
 
@@ -85,13 +92,31 @@ final class PortForwardManager extends ChangeNotifier {
 
   bool isRunning(String ruleId) => _running.containsKey(ruleId);
 
+  void _bumpGeneration(String ruleId) {
+    _generations[ruleId] = (_generations[ruleId] ?? 0) + 1;
+  }
+
   /// 启动一条转发；已在运行时是空操作（幂等，自动启动与用户点按都走它）。
   Future<void> start(PortForwardRule rule) async {
-    if (_disposed || _running.containsKey(rule.id)) return;
+    if (_disposed) return;
+    if (_running.containsKey(rule.id)) {
+      // 已在跑还来 start：把状态校正成 running 再返回。不能静默早退——
+      // 历史上可能残留一份过期的 failed 状态（与并发 stop 交错的结果），
+      // 而入口守卫会挡住所有后续 start，开关就永远锁死在 failed 上。
+      _setStatus(
+        PortForwardStatus(
+          ruleId: rule.id,
+          phase: PortForwardPhase.running,
+          boundPort: _running[rule.id]!.boundPort,
+        ),
+      );
+      return;
+    }
     if (!rule.isRunnable) {
       _fail(rule.id, ForwardErrorKind.other, 'Port forward rule is incomplete');
       return;
     }
+    final generation = _generations[rule.id] ?? 0;
     _setStatus(
       PortForwardStatus(ruleId: rule.id, phase: PortForwardPhase.starting),
     );
@@ -101,8 +126,14 @@ final class PortForwardManager extends ChangeNotifier {
         PortForwardMode.remote => await _startRemote(rule),
         PortForwardMode.dynamic => await _startDynamic(rule),
       };
-      // 启动是异步的：这期间用户可能已经断开（dispose 只看到 _running 里没有它）。
+      // 启动是异步的：这期间用户可能已经断开（dispose 只看到 _running 里没有它），
+      // 也可能已经把它停掉（代次变了）或另一个 start 已先落地。
       if (_disposed) {
+        await running.shutdown();
+        return;
+      }
+      if ((_generations[rule.id] ?? 0) != generation ||
+          _running.containsKey(rule.id)) {
         await running.shutdown();
         return;
       }
@@ -115,6 +146,9 @@ final class PortForwardManager extends ChangeNotifier {
         ),
       );
     } on Object catch (error) {
+      // 代次已变（期间被停掉）：失败属于一个用户已经放弃的启动，别把
+      // 停止后的干净状态又改写成 failed。
+      if (_disposed || (_generations[rule.id] ?? 0) != generation) return;
       _fail(rule.id, forwardErrorFrom(error).kind, error.toString());
     }
   }
@@ -130,6 +164,7 @@ final class PortForwardManager extends ChangeNotifier {
   /// 停掉一条转发；没在跑时是空操作。状态回到「未启动」，
   /// 失败原因一并清掉——否则下次启动前会一直挂着上一次的报错。
   Future<void> stop(String ruleId) async {
+    _bumpGeneration(ruleId);
     final running = _running.remove(ruleId);
     _setStatus(PortForwardStatus(ruleId: ruleId));
     await running?.shutdown();
@@ -144,6 +179,11 @@ final class PortForwardManager extends ChangeNotifier {
     // 才收到远端关闭）不该再往空表里写一遍。
     if (_disposed) return;
     final pending = _running.values.toList();
+    // 在飞的 start 也要一并作废：连接刚建立就断开时，autoStart 的 bind
+    // 还在路上，不 bump 代次它会把规则复活成挂死在尸体会话上的「运行中」。
+    for (final ruleId in {..._running.keys, ..._statuses.keys}) {
+      _bumpGeneration(ruleId);
+    }
     _running.clear();
     var changed = false;
     for (final ruleId in _statuses.keys.toList()) {

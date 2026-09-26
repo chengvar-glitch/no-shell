@@ -185,10 +185,10 @@ final class _CredentialsDialogState extends State<_CredentialsDialog> {
     Navigator.of(context).pop(
       CredentialsSubmission(
         credentials: switch (_auth) {
-          AuthMethod.password => SshCredentials(
-            password: _password.text,
-            passphrase: _passphraseOrNull(),
-          ),
+          // passphrase 只属于密钥认证：密码分支不带它。三个输入框是 State
+          // 级、跨认证方式存活的，先在密钥页填过 passphrase 再切回密码的
+          // 残留值不该跟着密码落盘（白存一份不属于该方式的机密）。
+          AuthMethod.password => SshCredentials(password: _password.text),
           AuthMethod.privateKey => SshCredentials(
             privateKey: _privateKey.text,
             passphrase: _passphraseOrNull(),

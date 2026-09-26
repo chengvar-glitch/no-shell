@@ -136,6 +136,10 @@ void main() {
       final nonPowerOfTwoN = clone()..['N'] = 1000;
       final badR = clone()..['r'] = 0;
       final badP = clone()..['p'] = 0;
+      // N 与 r 各自合法、乘积超限：128·N·r 会吃 4 GiB，必须被联乘校验拦下。
+      final bigProduct = clone()
+        ..['N'] = 1 << 20
+        ..['r'] = 32;
       final missingN = clone()..remove('N');
       final shortSalt = clone()..['salt'] = base64.encode(const [1, 2, 3]);
       final shortNonce = clone()..['nonce'] = base64.encode(const [1, 2, 3]);
@@ -150,6 +154,7 @@ void main() {
         nonPowerOfTwoN,
         badR,
         badP,
+        bigProduct,
         missingN,
         shortSalt,
         shortNonce,

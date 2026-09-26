@@ -85,8 +85,10 @@ async def main() -> None:
 
     class SmokeServer(asyncssh.SSHServer):
         # 只接受 smoke/smoke，避免暴露系统账户。
+        # begin_auth 返回 False 是「免密放行」——必须恒为 True，
+        # 让 validate_password 去拒绝非 smoke 用户。
         def begin_auth(self, username: str) -> bool:
-            return username == 'smoke'
+            return True
 
         def password_auth_supported(self) -> bool:
             return True
