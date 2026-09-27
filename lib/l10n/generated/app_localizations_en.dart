@@ -1364,4 +1364,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String shortcutShortcutsHelpWithShortcut(String shortcut) {
     return 'Keyboard shortcuts ($shortcut)';
   }
+
+  @override
+  String sessionOrdinal(int n, int total) {
+    return 'Session $n/$total';
+  }
+
+  @override
+  String switchedToSession(int n) {
+    return 'Switched to session $n';
+  }
 }

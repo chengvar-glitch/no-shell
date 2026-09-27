@@ -2317,6 +2317,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keyboard shortcuts ({shortcut})'**
   String shortcutShortcutsHelpWithShortcut(String shortcut);
+
+  /// No description provided for @sessionOrdinal.
+  ///
+  /// In en, this message translates to:
+  /// **'Session {n}/{total}'**
+  String sessionOrdinal(int n, int total);
+
+  /// No description provided for @switchedToSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched to session {n}'**
+  String switchedToSession(int n);
 }
 
 class _AppLocalizationsDelegate

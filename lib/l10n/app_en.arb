@@ -806,5 +806,24 @@
         "type": "String"
       }
     }
+  },
+  "sessionOrdinal": "Session {n}/{total}",
+  "@sessionOrdinal": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "switchedToSession": "Switched to session {n}",
+  "@switchedToSession": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
   }
 }

@@ -1311,4 +1311,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String shortcutShortcutsHelpWithShortcut(String shortcut) {
     return '键盘快捷键（$shortcut）';
   }
+
+  @override
+  String sessionOrdinal(int n, int total) {
+    return '会话 $n/$total';
+  }
+
+  @override
+  String switchedToSession(int n) {
+    return '已切到会话 $n';
+  }
 }

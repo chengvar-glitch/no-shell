@@ -681,5 +681,24 @@
         "type": "String"
       }
     }
+  },
+  "sessionOrdinal": "会话 {n}/{total}",
+  "@sessionOrdinal": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "switchedToSession": "已切到会话 {n}",
+  "@switchedToSession": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
   }
 }

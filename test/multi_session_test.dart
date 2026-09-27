@@ -12,6 +12,7 @@ import 'package:no_shell/ssh/terminal_view.dart';
 import 'package:no_shell/store.dart';
 import 'package:no_shell/theme.dart';
 import 'package:no_shell/widgets/server_detail.dart';
+import 'package:no_shell/widgets/session_switch_flash.dart';
 import 'package:no_shell/widgets/sftp_browser.dart';
 import 'package:no_shell/widgets/status_badges.dart';
 
@@ -54,6 +55,13 @@ Widget _host(Widget child) {
 Future<void> _settle(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 10));
+}
+
+/// 等切换浮条走完 1.4s 常驻 + 淡出：不排空它的 Timer，测试会以
+/// 「悬挂 timer」失败；浮条文案带「已切到」前缀，也不会和菜单行撞车。
+Future<void> _expireFlash(WidgetTester tester) async {
+  await tester.pump(const Duration(milliseconds: 1500));
+  await tester.pump(const Duration(milliseconds: 300));
 }
 
 void main() {
@@ -131,7 +139,7 @@ void main() {
     await _settle(tester);
     final second = sessions.activeOf(_server.id)!;
 
-    expect(find.text('已连接 · 2'), findsOneWidget);
+    expect(find.text('会话 2/2'), findsOneWidget);
     // 当前会话是刚开的那条，终端视图也挂在它身上。
     expect(
       tester.widget<SshTerminalView>(find.byType(SshTerminalView)).session,
@@ -165,6 +173,58 @@ void main() {
 
     // SFTP 面板也绑在切换后的那条会话上。
     expect(tester.widget<SftpTab>(find.byType(SftpTab)).session, same(first));
+
+    // 排掉切换浮条的计时器（开第二条 + 菜单切换各触发一次）。
+    await _expireFlash(tester);
+  });
+
+  testWidgets('切换反馈：胶囊序号跟着翻，浮条报出切到了哪条再淡出', (tester) async {
+    await tester.pumpWidget(_host(panel()));
+    await connectFirst(tester);
+    final first = sessions.activeOf(_server.id)!;
+    sessions.openNew(_server, const SshCredentials(password: 'pw'));
+    await _settle(tester);
+    await _expireFlash(tester); // 先排掉「开出第二条」那次浮条
+
+    // ⌘1 切回第一条：胶囊文字从 2/2 翻到 1/2。
+    sessions.activate(first);
+    await _settle(tester);
+    expect(find.text('会话 1/2'), findsOneWidget);
+
+    // 浮条出现，报出切到了第几条；整层 IgnorePointer，终端照常收事件。
+    expect(find.text('已切到会话 1'), findsOneWidget);
+    final flash = tester.widget<SessionSwitchFlash>(
+      find.byType(SessionSwitchFlash),
+    );
+    expect(flash.serverId, _server.id);
+
+    // 1.4 秒后淡出：透明度回到 0，文字留在树上但不再可见。
+    await tester.pump(const Duration(milliseconds: 1500));
+    await tester.pump(const Duration(milliseconds: 300));
+    final opacity = tester
+        .widget<AnimatedOpacity>(
+          find.descendant(
+            of: find.byType(SessionSwitchFlash),
+            matching: find.byType(AnimatedOpacity),
+          ),
+        )
+        .opacity;
+    expect(opacity, 0);
+    expect(find.text('已切到会话 1'), findsOneWidget);
+
+    // 单会话主机不触发浮条：关掉一条只剩一条时不再提示。
+    sessions.closeSession(sessions.activeOf(_server.id)!);
+    await _settle(tester);
+    await _expireFlash(tester);
+    sessions.closeSession(sessions.activeOf(_server.id)!);
+    await _settle(tester);
+    expect(
+      find.descendant(
+        of: find.byType(SessionSwitchFlash),
+        matching: find.text('已切到会话 2'),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('菜单里能看到远端标题，切换回合并关掉一条', (tester) async {
@@ -189,6 +249,7 @@ void main() {
     expect(sessions.sessionCount, 1);
     expect(identical(sessions.activeOf(_server.id), second), isTrue);
     expect(transports.first.disposed, isTrue);
+    await _expireFlash(tester);
   });
 
   testWidgets('⊕ 与菜单都能再开一条：复用现有会话手头的凭据，不弹凭据框', (tester) async {
@@ -202,7 +263,8 @@ void main() {
     expect(sessions.ordinalOf(sessions.activeOf(_server.id)!), 2);
     // 凭据框没出现（复用第一条会话内存里的密码，没走安全存储）。
     expect(find.text('连接「multi-test」'), findsNothing);
-    expect(find.text('已连接 · 2'), findsOneWidget);
+    expect(find.text('会话 2/2'), findsOneWidget);
+    await _expireFlash(tester);
   });
 
   testWidgets('会话全失败时胶囊显示聚合状态与条数', (tester) async {
@@ -256,7 +318,7 @@ void main() {
       await connectFirst(tester);
       await openSecond(tester);
 
-      expect(find.text('已连接 · 2'), findsOneWidget);
+      expect(find.text('会话 2/2'), findsOneWidget);
 
       await tester.tap(find.byType(StatusPill));
       await tester.pumpAndSettle();
@@ -269,6 +331,7 @@ void main() {
 
       expect(sessions.sessionCount, 3);
       expect(find.text('连接「multi-test」'), findsNothing);
+      await _expireFlash(tester);
     });
 
     /// 头部是否亮着：它被包在 IgnorePointer 里，收起时连点都不接。
@@ -339,7 +402,7 @@ void main() {
 
       await tester.pumpWidget(_host(fullscreen()));
       await tester.pumpAndSettle();
-      expect(find.text('已连接 · 2'), findsOneWidget);
+      expect(find.text('会话 2/2'), findsOneWidget);
 
       await tester.tap(find.byType(StatusPill));
       await tester.pumpAndSettle();
@@ -351,6 +414,7 @@ void main() {
         tester.widget<SshTerminalView>(find.byType(SshTerminalView)).session,
         same(first),
       );
+      await _expireFlash(tester);
     });
   });
 }

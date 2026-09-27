@@ -139,6 +139,9 @@ class _ServerDetailPageState extends State<ServerDetailPage>
                   // 多开了才显示计数与「会话菜单」提示：一条会话时胶囊
                   // 的外观与多会话功能之前完全一样。
                   sessionCount: sessionCount,
+                  activeOrdinal: session == null
+                      ? 0
+                      : widget.sessions.ordinalOf(session),
                   tooltip: sessionCount > 1 ? l10n.sessionMenu : null,
                   onTap: session == null
                       ? null

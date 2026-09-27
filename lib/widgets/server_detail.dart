@@ -17,6 +17,7 @@ import 'port_forward_panel.dart';
 import 'session_idle_view.dart';
 import 'session_menu.dart';
 import 'session_selection.dart';
+import 'session_switch_flash.dart';
 import 'sftp_browser.dart';
 import 'status_badges.dart';
 import 'window_caption.dart';
@@ -492,6 +493,7 @@ class _DetailHeader extends StatelessWidget {
           key: pillKey,
           status: server.status,
           sessionCount: sessionCount,
+          activeOrdinal: session == null ? 0 : sessions.ordinalOf(session),
           tooltip: multi ? l10n.sessionMenu : null,
           onTap: session == null ? null : () => _openSessions(context),
         ),
@@ -945,6 +947,8 @@ final class TerminalTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = this.session;
+    // 局部变量让可空字段空提升进下方闭包。
+    final manager = sessions;
     final l10n = AppLocalizations.of(context);
     if (session == null && idleStyle == TerminalIdleStyle.plain) {
       return SessionIdleView(
@@ -974,7 +978,25 @@ final class TerminalTab extends StatelessWidget {
             child: RepaintBoundary(
               child: session == null
                   ? _buildIdleOutput(context, prefs)
-                  : _terminalWithReconnect(context, session),
+                  : Stack(
+                      children: [
+                        Positioned.fill(
+                          child: _terminalWithReconnect(context, session),
+                        ),
+                        // 切会话的瞬时提示（⌘1…⌘9 / 菜单切过去那条的回执）：
+                        // IgnorePointer 浮层，不占布局、不挡终端。
+                        if (manager != null)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: SessionSwitchFlash(
+                              sessions: manager,
+                              serverId: server.id,
+                            ),
+                          ),
+                      ],
+                    ),
             ),
           );
         },
