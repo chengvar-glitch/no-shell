@@ -87,7 +87,7 @@
   "windowMaximize": "Maximize",
   "windowRestore": "Restore",
   "windowClose": "Close",
-  "searchHint": "Search name, host, or tag…",
+  "searchHint": "Find in terminal",
   "noMatchingHosts": "No matching hosts",
   "about": "About",
   "selectHostToStart": "Select a host to get started",
@@ -695,7 +695,6 @@
   "openLink": "Open Link",
   "scrollToBottom": "Jump to latest",
   "searchTerminal": "Find",
-  "searchHint": "Find in terminal",
   "searchPrevious": "Previous",
   "searchNext": "Next",
   "searchNoResults": "No results",
@@ -771,5 +770,41 @@
   "updateFailedServer": "The release server returned an error. Try again later.",
   "updateFailedMalformed": "The release information could not be read",
   "updateFailedUnsupported": "Update check is not available on this platform",
-  "updateOpenFailed": "Could not open the release page"
+  "updateOpenFailed": "Could not open the release page",
+  "newConnectionWithShortcut": "New connection ({shortcut})",
+  "@newConnectionWithShortcut": {
+    "placeholders": {
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  },
+  "keyboardShortcuts": "Keyboard Shortcuts",
+  "shortcutSectionGeneral": "General",
+  "shortcutSectionTerminal": "Terminal",
+  "shortcutSearchHosts": "Search hosts",
+  "shortcutOpenSettings": "Open settings",
+  "shortcutToggleSidebar": "Collapse / expand sidebar",
+  "shortcutSwitchSession": "Switch session (1–9)",
+  "shortcutShortcutsHelp": "Shortcut help",
+  "shortcutFontZoom": "Adjust terminal font size",
+  "shortcutFontReset": "Reset terminal font size",
+  "shortcutFindInTerminal": "Find in terminal",
+  "shortcutCopyPaste": "Copy / Paste / Select all",
+  "shortcutOpenSettingsWithShortcut": "Settings ({shortcut})",
+  "@shortcutOpenSettingsWithShortcut": {
+    "placeholders": {
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  },
+  "shortcutShortcutsHelpWithShortcut": "Keyboard shortcuts ({shortcut})",
+  "@shortcutShortcutsHelpWithShortcut": {
+    "placeholders": {
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  }
 }

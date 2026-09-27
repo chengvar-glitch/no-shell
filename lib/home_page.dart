@@ -20,6 +20,7 @@ import 'widgets/group_controls.dart';
 import 'widgets/host_form.dart';
 import 'widgets/server_detail.dart';
 import 'widgets/settings_dialog.dart';
+import 'widgets/shortcut_help_dialog.dart';
 import 'widgets/sidebar.dart';
 
 /// 桌面端左右分栏骨架：左侧连接侧边栏（固定宽度，可整体收起），右侧详情面板。
@@ -92,6 +93,10 @@ class _HomePageState extends State<HomePage> {
   /// 窗口宽度跨过 640px 时整套骨架会被换掉，State 连同它一起销毁重建。
   late final ShellLayoutState _layout = widget.layout ?? ShellLayoutState();
 
+  /// 侧边栏搜索框的焦点（⌘F / Ctrl+F 直达搜索）：节点在这里创建、
+  /// 交给 Sidebar 挂上输入框，谁创建谁 dispose。
+  final FocusNode _searchFocus = FocusNode();
+
   String? get _selectedId => _layout.selectedId;
 
   bool get _sidebarCollapsed => _layout.sidebarCollapsed;
@@ -114,6 +119,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     widget.store.removeListener(_onStoreChanged);
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -145,6 +151,11 @@ class _HomePageState extends State<HomePage> {
 
   void _openSettings() {
     unawaited(_showSettings());
+  }
+
+  /// ⌘/ / Ctrl+/：快捷键帮助弹窗。
+  void _openShortcutHelp() {
+    unawaited(showShortcutHelpDialog(context));
   }
 
   Future<void> _showSettings() async {
@@ -211,6 +222,20 @@ class _HomePageState extends State<HomePage> {
     if (server == null) return;
     final session = widget.sessions.byOrdinal(server.id, ordinal);
     if (session != null) widget.sessions.activate(session);
+  }
+
+  /// ⌘F / Ctrl+F：跳到侧边栏搜索框。侧边栏收着就先展开再聚焦；
+  /// 聚焦安排在帧回调里，因为展开动画的第一帧搜索框还没挂上焦点节点。
+  /// 终端聚焦时按下的 ⌘F 不会走到这里——终端自己的键位表是更近的
+  /// 祖先，Apple 平台它先接走（终端内查找）；非 Apple 平台终端查找是
+  /// Ctrl+Shift+F，Ctrl+F 始终归侧边栏。
+  void _focusSearch() {
+    if (_sidebarCollapsed) {
+      setState(() => _layout.sidebarCollapsed = false);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocus.requestFocus();
+    });
   }
 
   Future<void> _importHosts() => importHostsFlow(
@@ -303,6 +328,25 @@ class _HomePageState extends State<HomePage> {
             _newSessionShortcut,
         const SingleActivator(LogicalKeyboardKey.keyT, control: true):
             _newSessionShortcut,
+        // 全局动作：新建连接 / 搜索主机 / 设置 / 快捷键帮助。
+        // 搜索与设置的键位说明分别标注在新建按钮 tooltip 与设置行上，
+        // 汇总见 ⌘/ 打开的快捷键帮助弹窗。
+        const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
+            unawaited(_editOrCreate()),
+        const SingleActivator(LogicalKeyboardKey.keyN, control: true): () =>
+            unawaited(_editOrCreate()),
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+            _focusSearch,
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            _focusSearch,
+        const SingleActivator(LogicalKeyboardKey.comma, meta: true):
+            _openSettings,
+        const SingleActivator(LogicalKeyboardKey.comma, control: true):
+            _openSettings,
+        const SingleActivator(LogicalKeyboardKey.slash, meta: true):
+            _openShortcutHelp,
+        const SingleActivator(LogicalKeyboardKey.slash, control: true):
+            _openShortcutHelp,
         for (var i = 0; i < _sessionDigitKeys.length; i++) ...{
           SingleActivator(_sessionDigitKeys[i], meta: true): () =>
               _activateSession(i + 1),
@@ -331,6 +375,7 @@ class _HomePageState extends State<HomePage> {
               onCreateSession: _newSession,
               onToggleSidebar: _toggleSidebar,
               onOpenSettings: _openSettings,
+              searchFocusNode: _searchFocus,
               onImportHosts: _importHosts,
               onExportHosts: _exportHosts,
               updateCheck: widget.updateCheck,

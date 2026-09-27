@@ -35,7 +35,7 @@
   "windowMaximize": "最大化",
   "windowRestore": "还原",
   "windowClose": "关闭",
-  "searchHint": "搜索名称、主机或标签…",
+  "searchHint": "在终端里查找",
   "noMatchingHosts": "没有匹配的主机",
   "about": "关于",
   "selectHostToStart": "选择左侧主机开始",
@@ -570,7 +570,6 @@
   "openLink": "打开链接",
   "scrollToBottom": "回到最新",
   "searchTerminal": "查找",
-  "searchHint": "在终端里查找",
   "searchPrevious": "上一个",
   "searchNext": "下一个",
   "searchNoResults": "无结果",
@@ -646,5 +645,41 @@
   "updateFailedServer": "发布服务器返回错误，请稍后重试",
   "updateFailedMalformed": "读不出发布信息",
   "updateFailedUnsupported": "当前平台不支持检测更新",
-  "updateOpenFailed": "无法打开发布页"
+  "updateOpenFailed": "无法打开发布页",
+  "newConnectionWithShortcut": "新建连接（{shortcut}）",
+  "@newConnectionWithShortcut": {
+    "placeholders": {
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  },
+  "keyboardShortcuts": "键盘快捷键",
+  "shortcutSectionGeneral": "通用",
+  "shortcutSectionTerminal": "终端",
+  "shortcutSearchHosts": "搜索主机",
+  "shortcutOpenSettings": "打开设置",
+  "shortcutToggleSidebar": "收起 / 展开侧边栏",
+  "shortcutSwitchSession": "切换会话（1–9）",
+  "shortcutShortcutsHelp": "快捷键帮助",
+  "shortcutFontZoom": "调整终端字号",
+  "shortcutFontReset": "恢复默认字号",
+  "shortcutFindInTerminal": "终端内查找",
+  "shortcutCopyPaste": "复制 / 粘贴 / 全选",
+  "shortcutOpenSettingsWithShortcut": "设置（{shortcut}）",
+  "@shortcutOpenSettingsWithShortcut": {
+    "placeholders": {
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  },
+  "shortcutShortcutsHelpWithShortcut": "键盘快捷键（{shortcut}）",
+  "@shortcutShortcutsHelpWithShortcut": {
+    "placeholders": {
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  }
 }

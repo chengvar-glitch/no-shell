@@ -1313,4 +1313,55 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateOpenFailed => 'Could not open the release page';
+
+  @override
+  String newConnectionWithShortcut(String shortcut) {
+    return 'New connection ($shortcut)';
+  }
+
+  @override
+  String get keyboardShortcuts => 'Keyboard Shortcuts';
+
+  @override
+  String get shortcutSectionGeneral => 'General';
+
+  @override
+  String get shortcutSectionTerminal => 'Terminal';
+
+  @override
+  String get shortcutSearchHosts => 'Search hosts';
+
+  @override
+  String get shortcutOpenSettings => 'Open settings';
+
+  @override
+  String get shortcutToggleSidebar => 'Collapse / expand sidebar';
+
+  @override
+  String get shortcutSwitchSession => 'Switch session (1–9)';
+
+  @override
+  String get shortcutShortcutsHelp => 'Shortcut help';
+
+  @override
+  String get shortcutFontZoom => 'Adjust terminal font size';
+
+  @override
+  String get shortcutFontReset => 'Reset terminal font size';
+
+  @override
+  String get shortcutFindInTerminal => 'Find in terminal';
+
+  @override
+  String get shortcutCopyPaste => 'Copy / Paste / Select all';
+
+  @override
+  String shortcutOpenSettingsWithShortcut(String shortcut) {
+    return 'Settings ($shortcut)';
+  }
+
+  @override
+  String shortcutShortcutsHelpWithShortcut(String shortcut) {
+    return 'Keyboard shortcuts ($shortcut)';
+  }
 }

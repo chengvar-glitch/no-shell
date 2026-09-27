@@ -2227,6 +2227,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not open the release page'**
   String get updateOpenFailed;
+
+  /// No description provided for @newConnectionWithShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'New connection ({shortcut})'**
+  String newConnectionWithShortcut(String shortcut);
+
+  /// No description provided for @keyboardShortcuts.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyboard Shortcuts'**
+  String get keyboardShortcuts;
+
+  /// No description provided for @shortcutSectionGeneral.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get shortcutSectionGeneral;
+
+  /// No description provided for @shortcutSectionTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal'**
+  String get shortcutSectionTerminal;
+
+  /// No description provided for @shortcutSearchHosts.
+  ///
+  /// In en, this message translates to:
+  /// **'Search hosts'**
+  String get shortcutSearchHosts;
+
+  /// No description provided for @shortcutOpenSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open settings'**
+  String get shortcutOpenSettings;
+
+  /// No description provided for @shortcutToggleSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse / expand sidebar'**
+  String get shortcutToggleSidebar;
+
+  /// No description provided for @shortcutSwitchSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch session (1–9)'**
+  String get shortcutSwitchSession;
+
+  /// No description provided for @shortcutShortcutsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Shortcut help'**
+  String get shortcutShortcutsHelp;
+
+  /// No description provided for @shortcutFontZoom.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust terminal font size'**
+  String get shortcutFontZoom;
+
+  /// No description provided for @shortcutFontReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset terminal font size'**
+  String get shortcutFontReset;
+
+  /// No description provided for @shortcutFindInTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Find in terminal'**
+  String get shortcutFindInTerminal;
+
+  /// No description provided for @shortcutCopyPaste.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy / Paste / Select all'**
+  String get shortcutCopyPaste;
+
+  /// No description provided for @shortcutOpenSettingsWithShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings ({shortcut})'**
+  String shortcutOpenSettingsWithShortcut(String shortcut);
+
+  /// No description provided for @shortcutShortcutsHelpWithShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyboard shortcuts ({shortcut})'**
+  String shortcutShortcutsHelpWithShortcut(String shortcut);
 }
 
 class _AppLocalizationsDelegate

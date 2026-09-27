@@ -11,6 +11,7 @@ import '../theme.dart';
 import '../update_check.dart';
 import 'group_controls.dart';
 import 'settings_controls.dart';
+import 'shortcut_help_dialog.dart';
 import 'status_badges.dart';
 import 'app_icon_mark.dart';
 import 'window_caption.dart';
@@ -37,6 +38,7 @@ class Sidebar extends StatefulWidget {
     required this.onOpenSettings,
     required this.onImportHosts,
     required this.onExportHosts,
+    this.searchFocusNode,
     this.updateCheck,
   });
 
@@ -64,6 +66,10 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onImportHosts;
   final VoidCallback onExportHosts;
+
+  /// 搜索框的焦点节点；由宿主页面持有（⌘F 直达搜索）。为 null 时输入框
+  /// 自理焦点，行为与从前一致。
+  final FocusNode? searchFocusNode;
 
   /// 版本检测；为 null 时底部设置入口不挂「有新版本」红点。
   final UpdateCheckService? updateCheck;
@@ -439,7 +445,8 @@ class _SidebarState extends State<Sidebar> {
     ),
     _headerAction(
       icon: Icons.add_rounded,
-      tooltip: AppLocalizations.of(context).newConnection,
+      tooltip: AppLocalizations.of(context)
+          .newConnectionWithShortcut(newConnectionShortcut),
       onPressed: widget.onCreate,
       size: 19,
     ),
@@ -477,6 +484,7 @@ class _SidebarState extends State<Sidebar> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: TextField(
         controller: _searchController,
+        focusNode: widget.searchFocusNode,
         onChanged: (value) => _query.value = value,
         style: const TextStyle(fontSize: 13),
         decoration: InputDecoration(
@@ -579,6 +587,8 @@ class _SidebarState extends State<Sidebar> {
 
   /// 底部只剩设置入口：主题 / 语言 / 导入导出都收进了设置与头部，
   /// 这里保留一个带文字的整行入口，比一枚孤零零的图标更好找。
+  /// 行尾是设置与快捷键帮助的键位标注（⌘, / ⌘/），帮助弹窗从行尾的
+  /// 键盘按钮进——快捷键没有菜单项可挂，这是它的常驻入口。
   Widget _buildFooter(ThemeData theme) {
     final l10n = AppLocalizations.of(context);
     return Column(
@@ -587,33 +597,77 @@ class _SidebarState extends State<Sidebar> {
         // 不再画横线：列表底部留白 + 这一行的悬停底色已经把它和主机列表分开。
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-          child: InkWell(
-            onTap: widget.onOpenSettings,
-            borderRadius: BorderRadius.circular(8),
-            hoverColor: theme.rowHover,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Row(
-                children: [
-                  _SettingsEntryIcon(updateCheck: widget.updateCheck),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      l10n.navSettings,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.88,
-                        ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Tooltip(
+                  message: l10n.shortcutOpenSettingsWithShortcut(
+                    openSettingsShortcut,
+                  ),
+                  child: InkWell(
+                    onTap: widget.onOpenSettings,
+                    borderRadius: BorderRadius.circular(8),
+                    hoverColor: theme.rowHover,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: [
+                          _SettingsEntryIcon(updateCheck: widget.updateCheck),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              l10n.navSettings,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.88,
+                                ),
+                              ),
+                            ),
+                          ),
+                          // 键位标注：悬停提示之外的常驻提示，窄行放不下
+                          // 完整句子，只放键位本身。
+                          Text(
+                            openSettingsShortcut,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: theme.secondaryText.withValues(
+                                alpha: 0.75,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+              // 快捷键帮助（⌘/）：图标按钮不抢焦点体系之外的任何东西，
+              // 弹窗是只读的，看完即走。
+              IconButton(
+                tooltip: l10n.shortcutShortcutsHelpWithShortcut(
+                  shortcutsHelpShortcut,
+                ),
+                icon: Icon(
+                  Icons.keyboard_outlined,
+                  size: 18,
+                  color: theme.secondaryText,
+                ),
+                onPressed: () => showShortcutHelpDialog(context),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 34,
+                  height: 34,
+                ),
+              ),
+            ],
           ),
         ),
       ],

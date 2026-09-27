@@ -301,7 +301,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byTooltip('新建连接'));
+    await tester.tap(find.byWidgetPredicate((w) => w is Tooltip && (w.message?.startsWith('新建连接') ?? false)));
     await tester.pumpAndSettle();
 
     await tester.enterText(
