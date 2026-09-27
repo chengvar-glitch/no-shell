@@ -6,6 +6,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../settings.dart';
 import '../theme.dart';
 import '../widgets/session_menu.dart';
+import '../widgets/session_switch_flash.dart';
 import '../widgets/status_badges.dart';
 import 'connect_flow.dart';
 import 'credential_store.dart';
@@ -120,6 +121,17 @@ class _SessionPageState extends State<SessionPage> {
                   ),
                 ),
               ),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                // 切会话的瞬时提示：浮在终端上方、头部之下，IgnorePointer
+                // 不吃终端的点击。
+                child: SessionSwitchFlash(
+                  sessions: sessions,
+                  serverId: widget.serverId,
+                ),
+              ),
               // 唤出条：translucent 只把自己加进命中结果、不吃掉事件，
               // 终端照样收得到这一下轻点（Listener 也不进手势竞技场）。
               Positioned(
@@ -202,6 +214,8 @@ class _SessionPageState extends State<SessionPage> {
                   // 多开了才显示计数：一条会话时胶囊的外观与多会话功能
                   // 之前完全一样。
                   sessionCount: count,
+                  // 多会话时文字直接回答「第几条 / 共几条」：切换跟着翻。
+                  activeOrdinal: widget.sessions.ordinalOf(session),
                   tooltip: count > 1 ? l10n.sessionMenu : null,
                   onTap: () {
                     _showHeader();

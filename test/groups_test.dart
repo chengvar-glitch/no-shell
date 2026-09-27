@@ -246,7 +246,11 @@ void main() {
     testWidgets('新建连接的分组只能从已有分组里选，不再手输', (tester) async {
       final store = await pumpDesktop(tester);
 
-      await tester.tap(find.byTooltip('新建连接'));
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is Tooltip && (w.message?.startsWith('新建连接') ?? false),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.enterText(
         find.widgetWithText(TextFormField, '名称'),
@@ -296,7 +300,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('新建连接'));
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is Tooltip && (w.message?.startsWith('新建连接') ?? false),
+        ),
+      );
       await tester.pumpAndSettle();
 
       // 一个分组都还没建：候选只有默认分组，下拉照常可用（不禁用，也不加

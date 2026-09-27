@@ -1260,4 +1260,65 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get updateOpenFailed => '无法打开发布页';
+
+  @override
+  String newConnectionWithShortcut(String shortcut) {
+    return '新建连接（$shortcut）';
+  }
+
+  @override
+  String get keyboardShortcuts => '键盘快捷键';
+
+  @override
+  String get shortcutSectionGeneral => '通用';
+
+  @override
+  String get shortcutSectionTerminal => '终端';
+
+  @override
+  String get shortcutSearchHosts => '搜索主机';
+
+  @override
+  String get shortcutOpenSettings => '打开设置';
+
+  @override
+  String get shortcutToggleSidebar => '收起 / 展开侧边栏';
+
+  @override
+  String get shortcutSwitchSession => '切换会话（1–9）';
+
+  @override
+  String get shortcutShortcutsHelp => '快捷键帮助';
+
+  @override
+  String get shortcutFontZoom => '调整终端字号';
+
+  @override
+  String get shortcutFontReset => '恢复默认字号';
+
+  @override
+  String get shortcutFindInTerminal => '终端内查找';
+
+  @override
+  String get shortcutCopyPaste => '复制 / 粘贴 / 全选';
+
+  @override
+  String shortcutOpenSettingsWithShortcut(String shortcut) {
+    return '设置（$shortcut）';
+  }
+
+  @override
+  String shortcutShortcutsHelpWithShortcut(String shortcut) {
+    return '键盘快捷键（$shortcut）';
+  }
+
+  @override
+  String sessionOrdinal(int n, int total) {
+    return '会话 $n/$total';
+  }
+
+  @override
+  String switchedToSession(int n) {
+    return '已切到会话 $n';
+  }
 }

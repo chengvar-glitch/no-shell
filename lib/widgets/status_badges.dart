@@ -58,12 +58,19 @@ class StatusDot extends StatelessWidget {
 ///
 /// [sessionCount] 大于 1 时胶囊多出 ` · N` 与一枚 `⌄`：这台主机开了多条
 /// 会话，点开是会话菜单（见 `session_menu.dart`）而不是单条会话的日志。
+///
+/// [activeOrdinal] 是**当前显示的那条**会话的编号（1 起，来自
+/// `SessionManager.ordinalOf`）。多会话时给了它，胶囊文字就从
+/// 「已连接 · N」换成「会话 n/N」——条数只回答「开了几条」，序号才回答
+/// 「现在看的是哪条」；切换会话时这行字跟着翻，是键盘切换的常驻反馈。
+/// 连接状态不丢：圆点颜色仍由 [status] 表达。
 class StatusPill extends StatelessWidget {
   const StatusPill({
     super.key,
     required this.status,
     this.onTap,
     this.sessionCount = 0,
+    this.activeOrdinal = 0,
     this.tooltip,
   });
 
@@ -73,6 +80,9 @@ class StatusPill extends StatelessWidget {
 
   /// 该主机挂着的会话数；0 / 1 时胶囊与只有一个会话时完全一样。
   final int sessionCount;
+
+  /// 当前会话的展示编号（1 起）；0 表示未知 / 单会话，不参与文案。
+  final int activeOrdinal;
 
   /// 悬停提示；为空时按「点开的是会话日志」给提示。
   final String? tooltip;
@@ -90,6 +100,12 @@ class StatusPill extends StatelessWidget {
       ServerStatus.idle => l10n.statusIdle,
     };
     final multi = sessionCount > 1;
+    // 多会话且有当前序号：文字直接回答「第几条 / 共几条」，切换时跟着翻。
+    final text = multi && activeOrdinal > 0
+        ? l10n.sessionOrdinal(activeOrdinal, sessionCount)
+        : multi
+        ? l10n.statusWithCount(label, sessionCount)
+        : label;
     final pill = Container(
       // 左 8 右 7：chevron 字形自带约 1pt 右侧留白，扣掉它两边看起来才等宽。
       padding: const EdgeInsets.fromLTRB(8, 4, 7, 4),
@@ -107,7 +123,7 @@ class StatusPill extends StatelessWidget {
           ),
           const SizedBox(width: 5),
           Text(
-            multi ? l10n.statusWithCount(label, sessionCount) : label,
+            text,
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,

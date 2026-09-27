@@ -114,5 +114,30 @@ void main() {
       // 箭头比文字还重就会抢注意力：11pt 已比文字的 11px 视觉重量低一档。
       expect(arrow.size, 11);
     });
+
+    testWidgets('多会话且给了当前序号：文字直接回答「第几条 / 共几条」', (tester) async {
+      await pump(
+        tester,
+        const StatusPill(
+          status: ServerStatus.connected,
+          sessionCount: 3,
+          activeOrdinal: 2,
+        ),
+      );
+
+      expect(find.text('会话 2/3'), findsOneWidget);
+      // 序号只换文字：箭头（可展开的提示）照旧。
+      expect(find.byIcon(Icons.expand_more_rounded), findsOneWidget);
+    });
+
+    testWidgets('序号为 0（未知 / 单会话）：退回计数文案，不显示会话字样', (tester) async {
+      await pump(
+        tester,
+        const StatusPill(status: ServerStatus.connected, sessionCount: 3),
+      );
+
+      expect(find.text('已连接 · 3'), findsOneWidget);
+      expect(find.textContaining('会话'), findsNothing);
+    });
   });
 }
