@@ -59,8 +59,9 @@ Future<void> _onPlatform(
 }
 
 Future<(TerminalSession, FakeTransport)> _pumpTerminal(
-  WidgetTester tester,
-) async {
+  WidgetTester tester, {
+  Widget Function(Widget child)? wrap,
+}) async {
   final transport = FakeTransport()..captureOutput = true;
   final session = TerminalSession(
     server: _server,
@@ -69,9 +70,10 @@ Future<(TerminalSession, FakeTransport)> _pumpTerminal(
   );
   await session.start();
   addTearDown(session.dispose);
+  final view = SshTerminalView(session: session, openLink: (uri) async => true);
   await tester.pumpWidget(
     _host(
-      SshTerminalView(session: session, openLink: (uri) async => true),
+      wrap == null ? view : wrap(view),
       ValueNotifier(const TerminalStylePrefs()),
     ),
   );
@@ -84,6 +86,37 @@ Future<(TerminalSession, FakeTransport)> _pumpTerminal(
 Future<void> _send(WidgetTester tester, TextEditingValue value) async {
   tester.testTextInput.updateEditingValue(value);
   await tester.pump();
+}
+
+/// 一块 390×844 的手机屏（dpr 3）；键盘高度由 `tester.view.viewInsets` 驱动，
+/// 与真机上一样先过 MediaQuery 再落到 Scaffold 的 body 上。
+void _usePhoneScreen(WidgetTester tester) {
+  tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+}
+
+/// 逐帧推键盘高度（逻辑像素），模拟平台的弹起 / 收起动画。
+///
+/// [systemBottomPad] 非零时同时按真机引擎的口径回填 `view.padding`
+/// （`viewPadding` 减掉 insets）：键盘一弹起，系统底栏那一截就跟着塌掉。
+Future<void> _animateKeyboard(
+  WidgetTester tester, {
+  required double from,
+  required double to,
+  int frames = 16,
+  double systemBottomPad = 0,
+}) async {
+  for (var i = 1; i <= frames; i++) {
+    final inset = from + (to - from) * i / frames;
+    tester.view.viewInsets = FakeViewPadding(bottom: inset * 3);
+    if (systemBottomPad > 0) {
+      tester.view.padding = FakeViewPadding(
+        bottom: (systemBottomPad - inset).clamp(0, systemBottomPad) * 3,
+      );
+    }
+    await tester.pump(const Duration(milliseconds: 16));
+  }
 }
 
 void main() {
@@ -168,6 +201,109 @@ void main() {
         await _pumpTerminal(tester);
 
         expect(tester.testTextInput.editingState?['text'], '  ');
+      });
+    });
+  });
+
+  group('软键盘弹起不带着终端一起重排', () {
+    testWidgets('动画期间行列数不动，停稳后才落定一次', (tester) async {
+      await _onPlatform(TargetPlatform.linux, () async {
+        _usePhoneScreen(tester);
+        final (session, _) = await _pumpTerminal(tester);
+        // 终端给远端的 window-change 就挂在这条回调上（真机由传输层接）。
+        final resizes = <(int, int)>[];
+        session.terminal.onResize = (w, h, _, _) => resizes.add((w, h));
+        final rows = session.terminal.viewHeight;
+
+        await _animateKeyboard(tester, from: 0, to: 320);
+
+        // 逐帧转发就是十六次 window-change：远端 shell / vim 会跟着重画
+        // 十六遍，手机上看到的就是「切到终端 Tab、键盘弹起」时画面抖。
+        expect(resizes, isEmpty);
+        expect(session.terminal.viewHeight, rows);
+
+        // 盒子没被压扁，只是上面多出来的一截被裁掉了——底边仍贴着槽位，
+        // 也就是提示符与光标所在的那一行纹丝不动。
+        final terminal = tester.getRect(find.byType(TerminalView));
+        final host = tester.getRect(find.byType(SshTerminalView));
+        expect(terminal.bottom, host.bottom);
+        expect(terminal.height, greaterThan(host.height));
+
+        // 键盘停稳：一次性落定到最终尺寸。
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(resizes, hasLength(1));
+        expect(session.terminal.viewHeight, lessThan(rows));
+        expect(
+          tester.getRect(find.byType(TerminalView)),
+          tester.getRect(find.byType(SshTerminalView)),
+          reason: '落定之后盒子回到槽位大小，不再有裁掉的部分',
+        );
+      });
+    });
+
+    testWidgets('收起键盘同样只落定一次', (tester) async {
+      await _onPlatform(TargetPlatform.linux, () async {
+        _usePhoneScreen(tester);
+        final (session, _) = await _pumpTerminal(tester);
+        await _animateKeyboard(tester, from: 0, to: 320);
+        await tester.pump(const Duration(milliseconds: 300));
+        final rowsUp = session.terminal.viewHeight;
+
+        final resizes = <(int, int)>[];
+        session.terminal.onResize = (w, h, _, _) => resizes.add((w, h));
+
+        await _animateKeyboard(tester, from: 320, to: 0);
+        expect(resizes, isEmpty, reason: '收起时同样不该逐帧重排');
+        expect(session.terminal.viewHeight, rowsUp);
+
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(resizes, hasLength(1));
+        expect(session.terminal.viewHeight, greaterThan(rowsUp));
+      });
+    });
+
+    testWidgets('不是键盘引起的高度变化立刻生效', (tester) async {
+      await _onPlatform(TargetPlatform.linux, () async {
+        _usePhoneScreen(tester);
+        final (session, _) = await _pumpTerminal(tester);
+        await tester.pump(const Duration(milliseconds: 300));
+        final resizes = <(int, int)>[];
+        session.terminal.onResize = (w, h, _, _) => resizes.add((w, h));
+
+        // 键盘高度没动，只是可用高度变了（折叠键条 / 拖窗口边缘）：
+        // 没有理由等落定，行列数当帧就该跟上。
+        tester.view.physicalSize = const Size(390 * 3, 500 * 3);
+        await tester.pump();
+
+        expect(resizes, isNotEmpty);
+      });
+    });
+
+    testWidgets('系统底栏那一截同时塌掉时也只落定一次', (tester) async {
+      await _onPlatform(TargetPlatform.linux, () async {
+        _usePhoneScreen(tester);
+        // iPhone 的 home indicator（Android 是导航条）：键盘弹起后那一截不用
+        // 再单独留出（insets 已经盖住它），槽位少掉的是「键盘高度 − 底栏」，
+        // 与键盘高度并不相等。按键盘高度补差会多补一截，所以保持的目标是
+        // 「动画前的槽高」而不是「键盘高度」。
+        tester.view.viewPadding = const FakeViewPadding(bottom: 34 * 3);
+        tester.view.padding = const FakeViewPadding(bottom: 34 * 3);
+        final (session, _) = await _pumpTerminal(
+          tester,
+          wrap: (child) => SafeArea(child: child),
+        );
+        final slotBefore = tester.getRect(find.byType(SshTerminalView)).height;
+        final resizes = <(int, int)>[];
+        session.terminal.onResize = (w, h, _, _) => resizes.add((w, h));
+
+        await _animateKeyboard(tester, from: 0, to: 320, systemBottomPad: 34);
+        expect(resizes, isEmpty);
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(resizes, hasLength(1));
+
+        // 确认槽位与键盘高度真的不是一回事：少掉 320 − 34。
+        final slotAfter = tester.getRect(find.byType(SshTerminalView)).height;
+        expect(slotBefore - slotAfter, closeTo(320 - 34, 1));
       });
     });
   });

@@ -42,6 +42,14 @@ const double _handleTouchRadius = 18;
 /// 手柄拖动越界时的滚动上限（行 / 每次更新）：手指抖一下不该把画面甩飞。
 const double _maxAutoScrollLines = 3;
 
+/// 软键盘的高度停稳这么久之后，才把新的行列数交给终端。
+///
+/// 键盘弹起 / 收起是**逐帧**动画（Android 上一帧一个高度），而终端每少一行
+/// 就要重排行列、并给远端发一次 window-change（SIGWINCH）。逐帧转发等于远端
+/// shell / vim / tmux 跟着重画十几遍，用户看到的就是切到终端 Tab、键盘弹起
+/// 时画面抖。所以动画期间的行列数不动，停稳了再一次性落定。
+const Duration _keyboardSettleDelay = Duration(milliseconds: 150);
+
 /// 触屏平台（Android / iOS）：快捷键条与放宽的触控目标只在这里生效。
 ///
 /// 判平台而不是判窗口宽度：窄窗口的桌面用户有物理键盘，给他塞一条软键盘
@@ -255,6 +263,25 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// xterm 的 autofocus 只在视图首次挂载时生效，切 Tab 后不会再来一次。
   bool _isVisible = true;
 
+  /// 本视图画在哪块 FlutterView 上。软键盘高度只有它那一层没被动过，
+  /// 见 [_insetOfView]。
+  FlutterView? _view;
+
+  /// 最近一次读到的软键盘高度（逻辑像素）；它一变就说明键盘在动。
+  double _keyboardInset = 0;
+
+  /// 上一次布局拿到的槽位高度。
+  double _slotHeight = 0;
+
+  /// 正把终端盒子按在 [_gridHeight] 这份槽高上（键盘还在动）。
+  bool _holdingGrid = false;
+
+  /// 保持的那份槽高：键盘动画开始前（或上一次落定后）的高度。
+  double _gridHeight = 0;
+
+  /// 键盘高度连续 [_keyboardSettleDelay] 不再变化后落定一次。
+  Timer? _keyboardSettleTimer;
+
   @override
   void initState() {
     super.initState();
@@ -292,6 +319,17 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
           _focusNode.requestFocus();
         }
       });
+    }
+    // 键盘高度只能直接问 FlutterView，而它变化不会让这里收到通知（Scaffold
+    // 把 body 那层的 viewInsets 摘成了 0，MediaQuery 整个都不动），所以每帧
+    // 在布局期读一次——见 [_keyboardHold]。
+    final view = View.of(context);
+    if (!identical(view, _view)) {
+      _view = view;
+      // 第一次挂上（或换了窗口）：基准就是当时上报的键盘高度。挂上来时键盘
+      // 可能已经弹着（从别的入口切进终端 Tab 的典型节奏），不先对一次表，
+      // 第一帧就会被当成「键盘刚动了一下」而去保持一个不存在的旧尺寸。
+      _keyboardInset = _insetOfView(view);
     }
   }
 
@@ -332,6 +370,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _longPressTimer?.cancel();
     _linkTapTimer?.cancel();
     _searchRefreshTimer?.cancel();
+    _keyboardSettleTimer?.cancel();
     // 顺序要紧：先摘掉选区的监听（highlight.dispose() 会回调控制器，那时
     // _onSelectionChanged 还可能重新挂一个复制计时器），再清高亮，控制器
     // 本身留到最后 dispose——往已 dispose 的控制器里通知会直接断言失败。
@@ -679,6 +718,59 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   /// 快捷键条只在触屏平台挂载（见 [_isTouchPlatform]）。
   bool get _showKeyBar => _isTouchPlatform;
+
+  /// [view] 上报的软键盘高度（逻辑像素）。
+  ///
+  /// **不能**改成读 `MediaQuery.viewInsetsOf`：`resizeToAvoidBottomInset` 打开
+  /// 时（终端的所有宿主都走默认值）Scaffold 会把 body 那层的 viewInsets 摘成
+  /// 0（`MediaQuery.removeViewInsets`），而键盘动画期间那层 MediaQuery 的其余
+  /// 字段一个都不变，body 子树因此连重建都不会发生。FlutterView 上那份没人动过，
+  /// 除以 devicePixelRatio 就是同一口径（`MediaQueryData.fromView` 也这么算）。
+  double _insetOfView(FlutterView view) =>
+      view.viewInsets.bottom / view.devicePixelRatio;
+
+  /// 这一帧终端盒子要按哪一份槽高来摆（build 里那个 `OverflowBox` 用它）。
+  ///
+  /// 键盘弹起 / 收起会把槽位逐帧压矮 / 撑高（Android 上一帧一个高度），而终端
+  /// 每变一行都要重排行列、给远端发一次 window-change（SIGWINCH）——逐帧转发
+  /// 等于远端 shell / vim / tmux 跟着重画十六遍，用户看到的就是切到终端 Tab、
+  /// 键盘弹起时画面抖。所以这里把盒子**按在键盘动画开始前的那份槽高上**：
+  /// 行列数不动，多出来的上半截裁掉（底边仍贴着槽位，提示符与光标不挪窝），
+  /// 键盘停稳 [_keyboardSettleDelay] 之后再一次性落定，整段动画只发一次。
+  ///
+  /// 目标取的是槽高而不是键盘高度：iPhone 的 home indicator、Android 的导航条
+  /// 那一截 padding 也会在键盘弹起时同时塌掉（`removePadding` 把它算进 padding），
+  /// 按键盘高度补差会漏掉它。按「动画前的槽高」来摆，宿主怎么组合都不差。
+  ///
+  /// 非键盘引起的布局变化（折叠键条、展开查找栏、拖窗口）不动键盘高度，
+  /// 这里根本不进保持态，当帧就跟着槽位走。
+  ///
+  /// 只在**布局期**调用：键盘高度变化既不会通知 `didChangeDependencies`，
+  /// 也不会让本组件重建，LayoutBuilder 是唯一能逐帧进来的时机，所以读键盘、
+  /// 记槽高、排落定计时都收在这一个方法里。
+  double _keyboardHold(double slot) {
+    final view = _view;
+    if (view != null) {
+      final inset = _insetOfView(view);
+      if (inset != _keyboardInset) {
+        _keyboardInset = inset;
+        // 动画的第一帧：目标就是上一帧的槽高——那时还没被键盘压过。
+        if (!_holdingGrid && _slotHeight > 0) _gridHeight = _slotHeight;
+        _holdingGrid = true;
+        _keyboardSettleTimer?.cancel();
+        _keyboardSettleTimer = Timer(_keyboardSettleDelay, () {
+          if (!mounted) return;
+          setState(() {
+            _gridHeight = _slotHeight;
+            _holdingGrid = false;
+          });
+        });
+      }
+    }
+    final hold = _holdingGrid ? _gridHeight - slot : 0.0;
+    _slotHeight = slot;
+    return hold;
+  }
 
   /// 键条上的键不该把焦点带走：焦点一丢软键盘就收起，连按几下 Esc 会变成
   /// 「收起键盘」。只在真的丢了焦点时补回来——用户自己按返回键收键盘时焦点
@@ -1349,6 +1441,81 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     }
   }
 
+  /// 终端本体：指针监听、滚动通知与 xterm 视图。
+  ///
+  /// 单独摘出来是因为它外面还套着「键盘动画期间按住行列数」的那层盒子
+  /// （见 [_keyboardHold] 与 build 里的 `OverflowBox`），嵌在 build 里写
+  /// 会一路缩进到没法看。
+  Widget _terminalSurface(TerminalStylePrefs prefs) => MouseRegion(
+    // 指针离开终端：下划线跟着消失。
+    onExit: _onPointerExit,
+    child: Listener(
+      onPointerHover: _onPointerHover,
+      onPointerMove: _onPointerMove,
+      onPointerDown: _onPointerDown,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: _onPointerCancel,
+      // 滚轮 / 拖动滚动条也会顶动画面，通知往上冒到这里。
+      child: NotificationListener<ScrollMetricsNotification>(
+        // 视口尺寸 / 可滚范围变了（展开查找栏、折叠
+        // 键条、软键盘弹起、转屏）也要重算手柄：
+        // 这类变化不一定伴随滚动事件。
+        onNotification: (notification) {
+          if (_isTouchPlatform && _hasSelection) {
+            _overlayRevision.value++;
+          }
+          return false;
+        },
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            _refreshLinkHover();
+            if (_isTouchPlatform && _hasSelection) {
+              _overlayRevision.value++;
+            }
+            return false;
+          },
+          child: ValueListenableBuilder<TerminalLink?>(
+            valueListenable: _hoveredLink,
+            builder: (context, link, _) => _withGesturePhysics(
+              _withScrollbar(
+                prefs,
+                TerminalView(
+                  widget.session.terminal,
+                  key: _terminalKey,
+                  controller: _controller,
+                  theme: prefs.theme,
+                  focusNode: _focusNode,
+                  // 自己拿着滚动控制器：滚动条与
+                  // 「回到最新」都要读同一个位置。
+                  scrollController: _scrollController,
+                  autofocus: true,
+                  // 移动端软键盘的删除键不走硬件按键事件，
+                  // 需要开启检测；桌面端的退格是真实按键，
+                  // 开了反而把终端内容挂在那个两空格占位符上
+                  // （见 third_party/README.md）。
+                  deleteDetection: _isTouchPlatform,
+                  textStyle: _styleOf(prefs),
+                  padding: const EdgeInsets.all(10),
+                  shortcuts: _shortcuts,
+                  // 智能 Ctrl+C 挂在这里：它必须
+                  // 跑在键位表与 keyInput 之前。
+                  onKeyEvent: _onTerminalKey,
+                  // 悬停在链接上换成手型光标：与下划线同一份判定。
+                  mouseCursor: link == null
+                      ? SystemMouseCursors.text
+                      : SystemMouseCursors.click,
+                  onSecondaryTapUp: (details, cell) =>
+                      _showContextMenu(details.globalPosition, cell),
+                  cursorBlink: widget.cursorBlink,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final phase = widget.session.phase;
@@ -1391,85 +1558,41 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                       child: Stack(
                         children: [
                           Positioned.fill(
-                            child: MouseRegion(
-                              // 指针离开终端：下划线跟着消失。
-                              onExit: _onPointerExit,
-                              child: Listener(
-                                onPointerHover: _onPointerHover,
-                                onPointerMove: _onPointerMove,
-                                onPointerDown: _onPointerDown,
-                                onPointerUp: _onPointerUp,
-                                onPointerCancel: _onPointerCancel,
-                                // 滚轮 / 拖动滚动条也会顶动画面，通知往上冒到这里。
-                                child: NotificationListener<ScrollMetricsNotification>(
-                                  // 视口尺寸 / 可滚范围变了（展开查找栏、折叠
-                                  // 键条、软键盘弹起、转屏）也要重算手柄：
-                                  // 这类变化不一定伴随滚动事件。
-                                  onNotification: (notification) {
-                                    if (_isTouchPlatform && _hasSelection) {
-                                      _overlayRevision.value++;
-                                    }
-                                    return false;
-                                  },
-                                  child: NotificationListener<ScrollNotification>(
-                                    onNotification: (notification) {
-                                      _refreshLinkHover();
-                                      if (_isTouchPlatform && _hasSelection) {
-                                        _overlayRevision.value++;
-                                      }
-                                      return false;
-                                    },
-                                    child: ValueListenableBuilder<TerminalLink?>(
-                                      valueListenable: _hoveredLink,
-                                      builder: (context, link, _) =>
-                                          _withGesturePhysics(
-                                            _withScrollbar(
-                                              prefs,
-                                              TerminalView(
-                                                widget.session.terminal,
-                                                key: _terminalKey,
-                                                controller: _controller,
-                                                theme: prefs.theme,
-                                                focusNode: _focusNode,
-                                                // 自己拿着滚动控制器：滚动条与
-                                                // 「回到最新」都要读同一个位置。
-                                                scrollController:
-                                                    _scrollController,
-                                                autofocus: true,
-                                                // 移动端软键盘的删除键不走硬件按键事件，
-                                                // 需要开启检测；桌面端的退格是真实按键，
-                                                // 开了反而把终端内容挂在那个两空格占位符上
-                                                // （见 third_party/README.md）。
-                                                deleteDetection:
-                                                    _isTouchPlatform,
-                                                textStyle: _styleOf(prefs),
-                                                padding: const EdgeInsets.all(
-                                                  10,
-                                                ),
-                                                shortcuts: _shortcuts,
-                                                // 智能 Ctrl+C 挂在这里：它必须
-                                                // 跑在键位表与 keyInput 之前。
-                                                onKeyEvent: _onTerminalKey,
-                                                // 悬停在链接上换成手型光标：与下划线同一份判定。
-                                                mouseCursor: link == null
-                                                    ? SystemMouseCursors.text
-                                                    : SystemMouseCursors.click,
-                                                onSecondaryTapUp:
-                                                    (
-                                                      details,
-                                                      cell,
-                                                    ) => _showContextMenu(
-                                                      details.globalPosition,
-                                                      cell,
-                                                    ),
-                                                cursorBlink: widget.cursorBlink,
-                                              ),
-                                            ),
-                                          ),
-                                    ),
+                            // 软键盘弹起 / 收起是逐帧动画，而终端每变一行都要
+                            // 重排行列、给远端发一次 window-change（SIGWINCH）：
+                            // 逐帧转发就是远端反复重画同一个提示符，用户看到的
+                            // 是切到终端 Tab、键盘弹起时画面抖。这里让动画期间
+                            // 的行列数不动——盒子按在动画前的槽高上（见
+                            // [_keyboardHold]），底边贴住槽位、多出来的上半截
+                            // 裁掉：提示符与光标位置纹丝不动，键盘停稳之后再
+                            // 一次性落到最终尺寸。
+                            //
+                            // LayoutBuilder 是布局期唯一能逐帧进来的钩子：
+                            // 键盘动画既不会让本组件重建，Scaffold 也只把
+                            // 收缩后的槽位给下来（viewInsets 被它摘成 0）。
+                            child: LayoutBuilder(
+                              builder: (context, slot) {
+                                final hold = _keyboardHold(slot.maxHeight);
+                                final height = math.max(
+                                  1.0,
+                                  slot.maxHeight + hold,
+                                );
+                                return ClipRect(
+                                  // 差值为 0（桌面端、键盘没动）时不裁剪，
+                                  // 与改动前完全一致。
+                                  clipBehavior: hold == 0
+                                      ? Clip.none
+                                      : Clip.hardEdge,
+                                  child: OverflowBox(
+                                    alignment: Alignment.bottomCenter,
+                                    minWidth: slot.maxWidth,
+                                    maxWidth: slot.maxWidth,
+                                    minHeight: height,
+                                    maxHeight: height,
+                                    child: _terminalSurface(prefs),
                                   ),
-                                ),
-                              ),
+                                );
+                              },
                             ),
                           ),
                           // 捏合时的字号预览：手势期间不写偏好、不重排 PTY，
