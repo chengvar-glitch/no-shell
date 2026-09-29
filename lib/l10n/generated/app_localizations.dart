@@ -1412,6 +1412,18 @@ abstract class AppLocalizations {
   /// **'Export hosts'**
   String get exportHosts;
 
+  /// No description provided for @transferImporting.
+  ///
+  /// In en, this message translates to:
+  /// **'Importing hosts…'**
+  String get transferImporting;
+
+  /// No description provided for @transferExporting.
+  ///
+  /// In en, this message translates to:
+  /// **'Exporting hosts…'**
+  String get transferExporting;
+
   /// No description provided for @importExportHosts.
   ///
   /// In en, this message translates to:

@@ -785,6 +785,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get exportHosts => '导出主机';
 
   @override
+  String get transferImporting => '正在导入主机…';
+
+  @override
+  String get transferExporting => '正在导出主机…';
+
+  @override
   String get importExportHosts => '导入 / 导出主机';
 
   @override

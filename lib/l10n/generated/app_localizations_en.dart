@@ -808,6 +808,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportHosts => 'Export hosts';
 
   @override
+  String get transferImporting => 'Importing hosts…';
+
+  @override
+  String get transferExporting => 'Exporting hosts…';
+
+  @override
   String get importExportHosts => 'Import / export hosts';
 
   @override

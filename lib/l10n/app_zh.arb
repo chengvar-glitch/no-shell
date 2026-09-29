@@ -352,6 +352,8 @@
   "daysAgo": "{count, plural, other{{count} 天前}}",
   "importHosts": "导入主机",
   "exportHosts": "导出主机",
+  "transferImporting": "正在导入主机…",
+  "transferExporting": "正在导出主机…",
   "importExportHosts": "导入 / 导出主机",
   "importDone": "{count, plural, other{已导入 {count} 台主机}}",
   "importSkipped": "{count, plural, other{已跳过 {count} 台重复主机}}",
