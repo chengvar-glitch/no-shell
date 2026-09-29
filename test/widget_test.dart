@@ -287,7 +287,7 @@ void main() {
     ], reason: '编辑不该清空端口转发规则');
   });
 
-  testWidgets('新建连接弹窗粘贴元数据后保存，密码写入凭据存储', (tester) async {
+  testWidgets('新建连接弹窗没有「粘贴元数据」入口，手输字段照常保存', (tester) async {
     final store = ServerStore(seed: const []);
     final credentials = FakeCredentialStore();
     tester.platformDispatcher.localesTestValue = const [Locale('zh')];
@@ -308,23 +308,25 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextField, '粘贴元数据（可选）'),
-      '名称: fofo\n地址: 127.0.0.1\n端口: 2222\n用户: root\n密码: password',
-    );
-    await tester.pump();
-    expect(find.widgetWithText(TextFormField, 'fofo'), findsOneWidget);
-    expect(find.widgetWithText(TextFormField, '127.0.0.1'), findsOneWidget);
+    // 桌面端不再给粘贴入口：整块五行输入框只把表单顶长，而这一端一行一个
+    // 字段本就快（粘贴仍留给移动端，见 HostFormDensity.metadataPaste）。
+    expect(find.widgetWithText(TextField, '粘贴元数据（可选）'), findsNothing);
 
+    await tester.enterText(find.byType(TextFormField).at(0), 'fofo');
+    await tester.enterText(find.byType(TextFormField).at(1), '127.0.0.1');
+    await tester.enterText(find.byType(TextFormField).at(2), '2222');
+    await tester.enterText(find.byType(TextFormField).at(3), 'root');
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
 
     final server = store.servers.single;
+    expect(server.name, 'fofo');
     expect(server.host, '127.0.0.1');
     expect(server.port, 2222);
     expect(server.username, 'root');
-    expect(server.authMethod, AuthMethod.password);
-    expect(credentials[server.id]?.password, 'password');
+    // 桌面新建时没有凭据入口：密码在首次连接时录入（粘贴带密码那条路
+    // 随元数据输入框一起只留在移动端）。
+    expect(credentials[server.id], isNull);
     expect(find.text('fofo'), findsWidgets);
   });
 

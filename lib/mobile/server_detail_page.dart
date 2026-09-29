@@ -18,8 +18,11 @@ import '../widgets/sftp_browser.dart' show SftpTab;
 import '../widgets/status_badges.dart';
 import 'server_edit_page.dart';
 
-/// 移动端主机详情页：概览 / 终端 / SFTP / 转发四个 Tab + 底部连接操作，
+/// 移动端主机详情页：概览 / 终端 / SFTP / 转发四个 Tab，
 /// 复用桌面端的概览、终端、SFTP 与转发视图。
+///
+/// AppBar 一行收着这台主机的全部状态与动作：主机名、状态胶囊、连接开关
+/// （编辑 / 删除在右侧 actions）。连接开关紧跟胶囊，与桌面头部同一顺序。
 class ServerDetailPage extends StatefulWidget {
   const ServerDetailPage({
     super.key,
@@ -159,6 +162,35 @@ class _ServerDetailPageState extends State<ServerDetailPage>
                           ),
                         ),
                 ),
+                // 连接开关紧挨状态胶囊（桌面头部同一顺序）：状态与动作是
+                // 同一件事的两面，看一处就够。底部那条常驻按钮随之撤掉——
+                // 它把四个 Tab 一起顶高，而手机上这段高度正是终端与文件
+                // 列表最缺的。只留图标不给文字：AppBar 这一行还站着主机名、
+                // 胶囊与编辑 / 删除，四个字会把主机名挤成省略号；断开的
+                // 图标语义与全屏终端页头部那颗一致。
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: hasActive ? l10n.disconnect : l10n.connectNow,
+                  icon: Icon(
+                    hasActive ? Icons.link_off_rounded : Icons.bolt_rounded,
+                    size: 19,
+                  ),
+                  onPressed: () => toggleSession(
+                    context,
+                    sessions: widget.sessions,
+                    server: server,
+                    credentials: widget.credentials,
+                    // 必须带上 store：跳板机链路是从它解析出来的。
+                    store: widget.store,
+                  ),
+                  padding: EdgeInsets.zero,
+                  // 44×44 是触屏命中的下限（与分组头那颗「⋯」同一标准）：
+                  // 挤到 30 出头看着更贴胶囊，手指却按不准。
+                  constraints: const BoxConstraints.tightFor(
+                    width: 44,
+                    height: 44,
+                  ),
+                ),
               ],
             ),
             actions: [
@@ -236,24 +268,6 @@ class _ServerDetailPageState extends State<ServerDetailPage>
                   ),
                 ),
               ],
-            ),
-          ),
-          bottomNavigationBar: SafeArea(
-            minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: FilledButton.icon(
-              onPressed: () => toggleSession(
-                context,
-                sessions: widget.sessions,
-                server: server,
-                credentials: widget.credentials,
-                // 必须带上 store：跳板机链路是从它解析出来的。
-                store: widget.store,
-              ),
-              icon: Icon(
-                hasActive ? Icons.link_off_rounded : Icons.bolt_rounded,
-                size: 17,
-              ),
-              label: Text(hasActive ? l10n.disconnect : l10n.connectNow),
             ),
           ),
         );

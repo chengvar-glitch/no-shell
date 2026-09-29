@@ -77,15 +77,26 @@ void main() {
     expect(find.text('未连接'), findsOneWidget);
     expect(find.text('主机地址'), findsOneWidget);
 
+    // 连接开关就在顶部 AppBar 里、紧挨状态胶囊；底部那条常驻按钮已经撤掉，
+    // 四个 Tab 因此多出一整条高度（终端 / 文件列表最缺的那一段）。
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byTooltip('立即连接'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(BottomAppBar), findsNothing);
+
     // 真实连接需要凭据：弹出认证弹窗，取消后不建立会话。
-    await tester.tap(find.text('立即连接'));
+    await tester.tap(find.byTooltip('立即连接'));
     await tester.pumpAndSettle();
     expect(find.text('连接「db-primary」'), findsOneWidget);
 
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(find.text('连接「db-primary」'), findsNothing);
-    expect(find.text('立即连接'), findsOneWidget);
+    expect(find.byTooltip('立即连接'), findsOneWidget);
 
     // 终端 Tab 在未建立会话时展示与 SFTP Tab 同形态的引导空态，
     // 不再画黑终端预览（`$ ssh` 假命令行与左下角账号尾注都不出现）。
@@ -364,6 +375,20 @@ void main() {
         await tester.tap(find.text('设置'));
         await tester.pumpAndSettle();
         expect(find.byType(SettingsSection), findsWidgets);
+      });
+
+      testWidgets('${size.width.toInt()}x${size.height.toInt()}：详情页顶部一行不溢出', (
+        tester,
+      ) async {
+        // AppBar 一行站着主机名 / 状态胶囊 / 连接开关 / 编辑 / 删除，是窄屏
+        // 最容易挤爆的一处（溢出会以异常抛给测试框架，测试直接失败）。
+        await pumpMobile(tester, size: size);
+        await tester.tap(find.text('web-prod-01'));
+        await tester.pumpAndSettle();
+
+        expect(find.byTooltip('立即连接'), findsOneWidget);
+        expect(find.byTooltip('编辑'), findsOneWidget);
+        expect(find.byType(AppBar), findsOneWidget);
       });
     }
   });
