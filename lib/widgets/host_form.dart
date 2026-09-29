@@ -1,9 +1,11 @@
-/// 主机表单：输入框、校验、元数据粘贴、认证方式与凭据落盘只此一份。
+/// 主机表单：输入框、校验、认证方式与凭据落盘只此一份。
 ///
 /// 桌面端是编辑弹窗、移动端是整页表单，两端的**外壳**不同（滚动容器、按钮
 /// 位置、间距密度），字段与保存逻辑共用这里的 [HostFormController] 与
 /// [HostFormFields]——此前两端各写一遍，`jumpServerId` 的传法已经漂移成
 /// 两种（一端从零构造再 `copyWith(clearJumpServer:)`，一端直接传）。
+///
+/// 「粘贴元数据」输入框只给移动端（见 [HostFormDensity.metadataPaste]）。
 library;
 
 import 'dart:async';
@@ -31,14 +33,14 @@ enum HostFormDensity {
   desktop(
     spacing: 12,
     fieldFontSize: 13.5,
-    metadataFontSize: 12.5,
+    metadataPaste: false,
     notesMaxLines: 2,
     nextAction: false,
   ),
   mobile(
     spacing: 14,
     fieldFontSize: null,
-    metadataFontSize: null,
+    metadataPaste: true,
     notesMaxLines: 3,
     nextAction: true,
   );
@@ -46,14 +48,20 @@ enum HostFormDensity {
   const HostFormDensity({
     required this.spacing,
     required this.fieldFontSize,
-    required this.metadataFontSize,
+    required this.metadataPaste,
     required this.notesMaxLines,
     required this.nextAction,
   });
 
   final double spacing;
   final double? fieldFontSize;
-  final double? metadataFontSize;
+
+  /// 是否在字段列顶部给「粘贴元数据」输入框：只给移动端——整页表单上打字慢，
+  /// 从其他工具复制一段连接信息贴进来比逐格敲省事；桌面端一行一个字段本就
+  /// 快，多留一块五行的输入框只会把表单顶长，主机文本格式仍可从
+  /// 「导入主机」（.nsbak / 主机文本）走。
+  final bool metadataPaste;
+
   final int notesMaxLines;
 
   /// 输入框是否给「下一项」动作（桌面弹窗里没有下一项可跳）。
@@ -61,9 +69,6 @@ enum HostFormDensity {
 
   TextStyle? get fieldStyle =>
       fieldFontSize == null ? null : TextStyle(fontSize: fieldFontSize);
-
-  TextStyle? get metadataStyle =>
-      metadataFontSize == null ? null : TextStyle(fontSize: metadataFontSize);
 }
 
 /// 主机表单的状态与保存逻辑。外壳持有它，在 [State.dispose] 里调 [dispose]。
@@ -376,21 +381,22 @@ class HostFormFields extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // 粘贴为主、手输兜底：两处输入共存，元数据只覆盖识别到的字段。
-        TextField(
-          controller: controller.metadata,
-          maxLines: 5,
-          style: density.metadataStyle,
-          decoration: InputDecoration(
-            labelText: l10n.pasteMetadata,
-            hintText: l10n.pasteMetadataHint,
-            alignLabelWithHint: true,
+        if (density.metadataPaste) ...[
+          // 粘贴为主、手输兜底：两处输入共存，元数据只覆盖识别到的字段。
+          TextField(
+            controller: controller.metadata,
+            maxLines: 5,
+            decoration: InputDecoration(
+              labelText: l10n.pasteMetadata,
+              hintText: l10n.pasteMetadataHint,
+              alignLabelWithHint: true,
+            ),
+            onChanged: (text) {
+              if (controller.applyMetadata(l10n, text)) onChanged();
+            },
           ),
-          onChanged: (text) {
-            if (controller.applyMetadata(l10n, text)) onChanged();
-          },
-        ),
-        SizedBox(height: spacing),
+          SizedBox(height: spacing),
+        ],
         TextFormField(
           controller: controller.name,
           autofocus: !controller.isEditing,

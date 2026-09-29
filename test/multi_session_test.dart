@@ -312,6 +312,52 @@ void main() {
       expect(find.text('banner-1'), findsOneWidget);
     });
 
+    testWidgets('详情页：连接开关在顶部 AppBar 里，连上后点它断开', (tester) async {
+      await tester.pumpWidget(_host(mobileDetail()));
+      await tester.pump();
+
+      // 未连接：开关紧挨状态胶囊，就在 AppBar 那一行（底部那条常驻按钮
+      // 已经撤掉，四个 Tab 不再被顶掉一截高度）。
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byTooltip('立即连接'),
+        ),
+        findsOneWidget,
+      );
+      // 触屏命中区下限与分组头那颗「⋯」同一标准。
+      expect(
+        tester
+            .getSize(
+              find
+                  .ancestor(
+                    of: find.byTooltip('立即连接'),
+                    matching: find.byType(IconButton),
+                  )
+                  .first,
+            )
+            .width,
+        greaterThanOrEqualTo(44),
+      );
+
+      await connectFirst(tester);
+      expect(find.text('已连接'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byTooltip('断开连接'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byTooltip('断开连接'));
+      await _settle(tester);
+
+      expect(sessions.sessionCountOf(_server.id), 0);
+      expect(find.text('已连接'), findsNothing);
+      expect(find.byTooltip('立即连接'), findsOneWidget);
+    });
+
     testWidgets('详情页：多开后胶囊带计数，菜单里能再开一条', (tester) async {
       await tester.pumpWidget(_host(mobileDetail()));
       await tester.pump();

@@ -30,7 +30,7 @@
 **本文件是全局约定，两个子目录各带一份就近约定**：编辑 `lib/ssh/` 或 `lib/widgets/` 下的文件时，同目录的 `AGENTS.md` 会一并生效，那里是终端交互、会话层、共用件契约的踩坑记录——本文件不再重复它们。
 
 - `lib/main.dart` — 应用入口（`NoShellApp`），持有全局状态并按窗口宽度切换桌面/移动骨架
-- `lib/host_portable.dart` — 主机文本格式编解码（中英文 key 识别，也用于新建表单的元数据粘贴）；`lib/host_backup.dart` 为备份文件的信封编解码（scrypt 派生密钥 + AES-256-GCM，明文即上面的主机文本，`.nsbak` 后缀）；`lib/host_transfer.dart` 为导入 / 导出用户流程，落盘与合并逻辑只此一份，文件交互经 `LocalFileGateway`
+- `lib/host_portable.dart` — 主机文本格式编解码（中英文 key 识别，也用于移动端新建表单的元数据粘贴）；`lib/host_backup.dart` 为备份文件的信封编解码（scrypt 派生密钥 + AES-256-GCM，明文即上面的主机文本，`.nsbak` 后缀）；`lib/host_transfer.dart` 为导入 / 导出用户流程，落盘与合并逻辑只此一份，文件交互经 `LocalFileGateway`
 - `lib/models.dart` — `SshServer` 等数据模型与示例数据（含 JSON 序列化）；`ServerGroup` 是渲染用的分组视图（名字 + 成员 + 折叠态）
 - `lib/server_persistence.dart` — 主机列表与分组布局落盘通道（`ServerArchive` 快照 + `ServerPersistence` 抽象 + shared_preferences 实现）；主机条目与分组布局各存一个 key。`load()` 返回 `ServerArchiveLoad` 三态（`Missing` / `Loaded` / `Unreadable`）而不是可空存档：「没有存档」与「存档读不出来」必须分开，否则后者会被当成首次运行、随即被空列表覆盖掉。只读当前格式，不做旧档迁移
 - `lib/settings_persistence.dart` — 偏好落盘通道（`AppSettings` 快照：主题 / 语言 / 终端配色·字体·字号；`SettingsPersistence` 抽象 + shared_preferences 实现，枚举按名字存取）。单个字段认不出来只退回该字段默认值，不让一条脏数据带走整份偏好；不认得的字段读时忽略、下次保存即被抹掉——开发阶段不做版本号也不做旧字段迁移
