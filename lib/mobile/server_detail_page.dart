@@ -165,16 +165,14 @@ class _ServerDetailPageState extends State<ServerDetailPage>
                 // 连接开关紧挨状态胶囊（桌面头部同一顺序）：状态与动作是
                 // 同一件事的两面，看一处就够。底部那条常驻按钮随之撤掉——
                 // 它把四个 Tab 一起顶高，而手机上这段高度正是终端与文件
-                // 列表最缺的。只留图标不给文字：AppBar 这一行还站着主机名、
-                // 胶囊与编辑 / 删除，四个字会把主机名挤成省略号；断开的
-                // 图标语义与全屏终端页头部那颗一致。
+                // 列表最缺的。
+                //
+                // 是**文字按钮**而不是图标：图标时代要长按才知道点下去是
+                // 连还是断，而这两个字正是这一行最该说清的事。「连接」两个字
+                // 加上 44 的命中区，宽度与原来那颗图标按钮基本一样，主机名
+                // 并不会被挤掉一截（它本来就是 Flexible + 省略号）。
                 const SizedBox(width: 4),
-                IconButton(
-                  tooltip: hasActive ? l10n.disconnect : l10n.connectNow,
-                  icon: Icon(
-                    hasActive ? Icons.link_off_rounded : Icons.bolt_rounded,
-                    size: 19,
-                  ),
+                TextButton(
                   onPressed: () => toggleSession(
                     context,
                     sessions: widget.sessions,
@@ -183,13 +181,18 @@ class _ServerDetailPageState extends State<ServerDetailPage>
                     // 必须带上 store：跳板机链路是从它解析出来的。
                     store: widget.store,
                   ),
-                  padding: EdgeInsets.zero,
-                  // 44×44 是触屏命中的下限（与分组头那颗「⋯」同一标准）：
-                  // 挤到 30 出头看着更贴胶囊，手指却按不准。
-                  constraints: const BoxConstraints.tightFor(
-                    width: 44,
-                    height: 44,
+                  style: TextButton.styleFrom(
+                    // 44×44 是触屏命中的下限（与分组头那颗「⋯」同一标准）：
+                    // 挤到 30 出头看着更贴胶囊，手指却按不准。
+                    minimumSize: const Size(44, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
+                  child: Text(hasActive ? l10n.disconnect : l10n.connect),
                 ),
               ],
             ),

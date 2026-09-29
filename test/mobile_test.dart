@@ -77,26 +77,26 @@ void main() {
     expect(find.text('未连接'), findsOneWidget);
     expect(find.text('主机地址'), findsOneWidget);
 
-    // 连接开关就在顶部 AppBar 里、紧挨状态胶囊；底部那条常驻按钮已经撤掉，
-    // 四个 Tab 因此多出一整条高度（终端 / 文件列表最缺的那一段）。
+    // 连接开关就在顶部 AppBar 里、紧挨状态胶囊，而且是文字按钮（不用长按）；
+    // 底部那条常驻按钮已经撤掉，四个 Tab 因此多出一整条高度。
     expect(
       find.descendant(
         of: find.byType(AppBar),
-        matching: find.byTooltip('立即连接'),
+        matching: find.widgetWithText(TextButton, '连接'),
       ),
       findsOneWidget,
     );
     expect(find.byType(BottomAppBar), findsNothing);
 
     // 真实连接需要凭据：弹出认证弹窗，取消后不建立会话。
-    await tester.tap(find.byTooltip('立即连接'));
+    await tester.tap(find.widgetWithText(TextButton, '连接'));
     await tester.pumpAndSettle();
     expect(find.text('连接「db-primary」'), findsOneWidget);
 
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(find.text('连接「db-primary」'), findsNothing);
-    expect(find.byTooltip('立即连接'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '连接'), findsOneWidget);
 
     // 终端 Tab 在未建立会话时展示与 SFTP Tab 同形态的引导空态，
     // 不再画黑终端预览（`$ ssh` 假命令行与左下角账号尾注都不出现）。
@@ -180,7 +180,7 @@ void main() {
     expect(find.text('test-mobile'), findsOneWidget);
   });
 
-  testWidgets('粘贴元数据填表后仍可手改，保存时记住密码', (tester) async {
+  testWidgets('新建表单没有「粘贴元数据」入口，密码留给首次连接时录入', (tester) async {
     final store = ServerStore(seed: const []);
     final credentials = FakeCredentialStore();
     await pumpMobile(tester, store: store, credentials: credentials);
@@ -188,30 +188,24 @@ void main() {
     await tester.tap(find.text('新建连接'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextField, '粘贴元数据（可选）'),
-      '名称: fofo\n地址: 127.0.0.1\n端口: 22\n用户: root\n密码: password',
-    );
-    await tester.pump();
+    // 主机文本（`key: value` 那种）只在「导入主机」里解析，表单两端都是
+    // 逐格输入，见 widgets/host_form.dart 的库注释。文案本身也已从 arb 删掉，
+    // 这条断言挡的是「顺手把这个入口加回来」。
+    expect(find.widgetWithText(TextField, '粘贴元数据（可选）'), findsNothing);
 
-    // 元数据已填进下方表单。
-    expect(find.widgetWithText(TextFormField, 'fofo'), findsOneWidget);
-    expect(find.widgetWithText(TextFormField, '127.0.0.1'), findsOneWidget);
-    expect(find.widgetWithText(TextFormField, 'root'), findsOneWidget);
-
-    // 手动覆盖端口，两处输入共存。
-    await tester.enterText(find.byType(TextFormField).at(2), '2222');
+    await tester.enterText(find.byType(TextFormField).at(0), 'fofo');
+    await tester.enterText(find.byType(TextFormField).at(1), '127.0.0.1');
+    await tester.enterText(find.byType(TextFormField).at(3), 'root');
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
 
     final server = store.servers.single;
     expect(server.name, 'fofo');
     expect(server.host, '127.0.0.1');
-    expect(server.port, 2222);
     expect(server.username, 'root');
-    expect(server.authMethod, AuthMethod.password);
-    expect(credentials[server.id]?.password, 'password');
-    expect(find.text('fofo'), findsWidgets);
+    // 新建时不带凭据（表单里没有密码入口）：密码在首次连接时录入，
+    // 「记住凭据」也在那一步勾——与桌面端一致。
+    expect(credentials[server.id], isNull);
   });
 
   testWidgets('设置面板可切换终端字体与终端配色预设', (tester) async {
@@ -358,6 +352,15 @@ void main() {
     // 与桌面侧边栏同一条约定：不出现「备份 / 加密」，也不留第二套入口。
     expect(find.textContaining('备份'), findsNothing);
     expect(find.textContaining('加密'), findsNothing);
+
+    // 导出会先过一次「挑主机」弹窗（默认全选），取消即整条流程收手。
+    await tester.tap(find.text('导出主机'));
+    await tester.pumpAndSettle();
+    expect(find.text('选择要导出的主机'), findsOneWidget);
+    expect(find.text('全选'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, '取消'));
+    await tester.pumpAndSettle();
+    expect(find.text('选择要导出的主机'), findsNothing);
   });
 
   group('极窄竖屏不溢出', () {
@@ -382,11 +385,13 @@ void main() {
       ) async {
         // AppBar 一行站着主机名 / 状态胶囊 / 连接开关 / 编辑 / 删除，是窄屏
         // 最容易挤爆的一处（溢出会以异常抛给测试框架，测试直接失败）。
+        // 连接开关是文字按钮但宽度仍与原来那颗图标按钮相当（44 命中区），
+        // 主机名照旧用 Flexible + 省略号让位。
         await pumpMobile(tester, size: size);
         await tester.tap(find.text('web-prod-01'));
         await tester.pumpAndSettle();
 
-        expect(find.byTooltip('立即连接'), findsOneWidget);
+        expect(find.widgetWithText(TextButton, '连接'), findsOneWidget);
         expect(find.byTooltip('编辑'), findsOneWidget);
         expect(find.byType(AppBar), findsOneWidget);
       });

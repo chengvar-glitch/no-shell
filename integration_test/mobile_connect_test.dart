@@ -85,10 +85,11 @@ void main() {
       // 进入详情页并连接；终端光标会闪，一律定长推进，不用 pumpAndSettle。
       await tester.tap(find.text('demo-ssh'));
       await tester.pump(const Duration(milliseconds: 600));
-      await tester.tap(find.byIcon(Icons.bolt_rounded));
+      await tester.tap(find.text('Connect'));
 
-      // 等真实连接建立：底部按钮从「Connect now」翻转为「Disconnect」。
-      // 注意 hasActive 含 connecting 阶段，此按钮出现不代表握手已完成。
+      // 等真实连接建立：详情页 AppBar 那颗文字开关从「Connect」翻成
+      // 「Disconnect」。注意 hasActive 含 connecting 阶段，文字翻过来不代表
+      // 握手已完成。
       var connecting = false;
       for (var i = 0; i < 100; i++) {
         await tester.runAsync(
@@ -291,7 +292,7 @@ void main() {
       }
       expect(listed, isTrue, reason: '20s 内 SFTP 未列出演示目录');
 
-      // 断开：会话结束、主机回到未连接，按钮翻回「Connect now」。
+      // 断开：会话结束、主机回到未连接，开关翻回「Connect」。
       await tester.tap(find.text('Disconnect'));
       var closed = false;
       for (var i = 0; i < 40; i++) {
@@ -299,7 +300,7 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 250)),
         );
         await tester.pump(const Duration(milliseconds: 250));
-        if (find.text('Connect now').evaluate().isNotEmpty) {
+        if (find.text('Connect').evaluate().isNotEmpty) {
           closed = true;
           break;
         }

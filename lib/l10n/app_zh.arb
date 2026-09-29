@@ -8,7 +8,6 @@
   "connect": "连接",
   "disconnect": "断开连接",
   "disconnectAll": "断开全部",
-  "connectNow": "立即连接",
   "newSession": "新建会话",
   "sessionN": "会话 {n}",
   "closeSession": "关闭会话",
@@ -60,10 +59,8 @@
   "group": "分组",
   "notes": "备注",
   "notesOptional": "备注（可选）",
-  "pasteMetadata": "粘贴元数据（可选）",
-  "pasteMetadataHint": "名称: serverName\n地址: 127.0.0.1\n端口: 22\n用户: root\n密码: password",
   "sessionDesktopHint": "会话未建立 —— 双击左侧主机或点击右上角「连接」建立 SSH 会话后即可使用终端。\n",
-  "sessionMobileHint": "会话未建立 —— 点击底部「立即连接」建立 SSH 会话后即可使用终端。\n",
+  "sessionMobileHint": "会话未建立 —— 点击顶部「连接」建立 SSH 会话后即可使用终端。\n",
   "connectAuthTitle": "连接「{name}」",
   "@connectAuthTitle": {
     "placeholders": {
@@ -189,7 +186,7 @@
   "terminalPreviewCommand": "ssh deploy@10.0.0.1",
   "done": "完成",
   "sftpSessionHint": "会话未建立 —— 点击右上角「连接」建立 SSH 会话后即可浏览服务器文件。\n",
-  "sftpSessionMobileHint": "会话未建立 —— 点击底部「立即连接」建立 SSH 会话后即可浏览服务器文件。\n",
+  "sftpSessionMobileHint": "会话未建立 —— 点击顶部「连接」建立 SSH 会话后即可浏览服务器文件。\n",
   "sftpRetry": "重试",
   "sftpUp": "上级目录",
   "sftpRefresh": "刷新",
@@ -361,6 +358,18 @@
   "exportDone": "{count, plural, other{已导出 {count} 台主机}}",
   "exportEmpty": "没有可导出的主机",
   "exportFailed": "导出失败，请重试",
+  "exportSelectTitle": "选择要导出的主机",
+  "exportSelectedCount": "已选 {n}/{total} 台",
+  "@exportSelectedCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "backupCreateTitle": "设置备份口令",
   "backupCreateHint": "整份清单都用这个口令加密，其中包含已记住的密码。恢复备份时需要输入该口令，且无法找回。",
   "backupOpenTitle": "输入备份口令",
@@ -702,5 +711,7 @@
         "type": "int"
       }
     }
-  }
+  },
+  "keepAliveNotificationTitle": "SSH 会话保持中",
+  "keepAliveNotificationBody": "后台保持连接，避免被系统回收"
 }

@@ -30,7 +30,7 @@
 **本文件是全局约定，两个子目录各带一份就近约定**：编辑 `lib/ssh/` 或 `lib/widgets/` 下的文件时，同目录的 `AGENTS.md` 会一并生效，那里是终端交互、会话层、共用件契约的踩坑记录——本文件不再重复它们。
 
 - `lib/main.dart` — 应用入口（`NoShellApp`），持有全局状态并按窗口宽度切换桌面/移动骨架
-- `lib/host_portable.dart` — 主机文本格式编解码（中英文 key 识别，也用于移动端新建表单的元数据粘贴）；`lib/host_backup.dart` 为备份文件的信封编解码（scrypt 派生密钥 + AES-256-GCM，明文即上面的主机文本，`.nsbak` 后缀）；`lib/host_transfer.dart` 为导入 / 导出用户流程，落盘与合并逻辑只此一份，文件交互经 `LocalFileGateway`
+- `lib/host_portable.dart` — 主机文本格式编解码（中英文 key 识别；供导入 / 导出与「复制主机文本」共用——**新建 / 编辑表单不再解析它**，粘贴填表那个入口已去掉，见 `lib/widgets/AGENTS.md` 的 `host_form.dart` 条）；`lib/host_backup.dart` 为备份文件的信封编解码（scrypt 派生密钥 + AES-256-GCM，明文即上面的主机文本，`.nsbak` 后缀）；`lib/host_transfer.dart` 为导入 / 导出用户流程，落盘与合并逻辑只此一份，文件交互经 `LocalFileGateway`
 - `lib/models.dart` — `SshServer` 等数据模型与示例数据（含 JSON 序列化）；`ServerGroup` 是渲染用的分组视图（名字 + 成员 + 折叠态）
 - `lib/server_persistence.dart` — 主机列表与分组布局落盘通道（`ServerArchive` 快照 + `ServerPersistence` 抽象 + shared_preferences 实现）；主机条目与分组布局各存一个 key。`load()` 返回 `ServerArchiveLoad` 三态（`Missing` / `Loaded` / `Unreadable`）而不是可空存档：「没有存档」与「存档读不出来」必须分开，否则后者会被当成首次运行、随即被空列表覆盖掉。只读当前格式，不做旧档迁移
 - `lib/settings_persistence.dart` — 偏好落盘通道（`AppSettings` 快照：主题 / 语言 / 终端配色·字体·字号；`SettingsPersistence` 抽象 + shared_preferences 实现，枚举按名字存取）。单个字段认不出来只退回该字段默认值，不让一条脏数据带走整份偏好；不认得的字段读时忽略、下次保存即被抹掉——开发阶段不做版本号也不做旧字段迁移
@@ -40,7 +40,7 @@
 - `lib/app_version.dart` + `lib/update_check*.dart` — 软件版本检测。`app_version.dart` 的 `appVersion` 是**可变全局**（启动时由 `loadAppVersion()` 从 `package_info_plus` 写入，读不到才退回常量 `kFallbackAppVersion`），因为「关于」与设置页都在同步的 `build` 里取它。`update_check_client.dart` 是纯 Dart 的模型与版本比较（六端通用），`update_check_io.dart` / `_stub.dart` 是 `dart:io` 的 `HttpClient` 实现与 web 桩，`update_check_state.dart` 是唯一状态源 `UpdateCheckService`，`update_launcher*.dart` 负责把发布页交给系统浏览器。UI 共用件是 `widgets/settings_controls.dart` 里的 `UpdateSettingsRow` 与 `UpdateAvailableDot`
 - `lib/home_page.dart` — 桌面端左右分栏骨架（侧边栏固定宽度、可整体收起，不提供拖拽调宽）。主机行交互：单击选中、**双击直连**（选中 + 发起连接 + 详情面板落到终端 Tab；已连接时双击只跳转不断开——双击是「给我终端」，不是连接开关）。详情面板当前 Tab 下标归 `ShellLayoutState.detailTab`（外部入口改写它、用户点 Tab 写回它），双击检测在 tile 里自己量点击间隔，**不许**把 `onDoubleTap` 挂上同一块 InkWell——框架的双击手势会把单击在竞技场里扣住 300ms 才放行，单击选中跟着迟钝（与 `terminal_view.dart` 链接点击自收指针事件是同一类取舍）
 - `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章、设置与表单共用件等）。**各组件职责与「共用件只此一份」的契约见 `lib/widgets/AGENTS.md`**
-- `lib/ssh/` — 会话层（`SessionManager`、`TerminalSession`、传输层、终端视图、凭据弹窗、连接入口、转发与跳板机）。**终端交互、凭据存储、主机指纹、SFTP、端口转发、跳板机的踩坑记录见 `lib/ssh/AGENTS.md`**
+- `lib/ssh/` — 会话层（`SessionManager`、`TerminalSession`、传输层、终端视图、凭据弹窗、连接入口、转发与跳板机、Android 后台保活）。**终端交互、凭据存储、主机指纹、SFTP、端口转发、跳板机、后台保活的踩坑记录见 `lib/ssh/AGENTS.md`**
 - `lib/mobile/` — 移动端四个 Tab 及详情/编辑页
 - `lib/l10n/` — arb 源文件（`app_en.arb` / `app_zh.arb`）；`lib/l10n/generated/` 为生成代码
 - `assets/fonts/` — 随包内置的终端字体（`jetbrains_mono/`、`fira_code/` 各含 Regular + Bold 与 `OFL.txt`，合计约 1.2 MB），由 `pubspec.yaml` 的 `fonts:` 声明、`assets:` 声明许可文本。族名一律带 `NoShell ` 前缀（如 `NoShell JetBrains Mono`）：与系统字体彻底解耦，引擎必定命中随包文件
@@ -59,6 +59,7 @@
 - `lib/l10n/generated/` 下的文件为生成产物，禁止手改；文案改动一律修改 arb 源文件后执行 `flutter gen-l10n`
 - 所有面向用户的文案必须经 `AppLocalizations` 获取，禁止硬编码字符串；新增文案需同时补齐 en/zh 两个 arb
 - 平台兼容：代码需同时兼容全部六个平台；web 无原生 TCP，SSH 连接会抛 `UnsupportedError`，依赖 `TerminalErrorKind.unsupported` 归类处理，不得移除该路径
+- Android 后台保活：有会话时由 `lib/ssh/session_keep_alive.dart` 拉起 `SessionKeepAliveService`（前台服务 + 常驻通知 + partial wakelock），最后一条会话关闭即收。服务类型是 `specialUse` / 子类型 `ssh_session`——**不要改成 `dataSync`**：Android 15 起它的后台运行时间在 24 小时内累计上限 6 小时，长会话会被系统砍掉。`AndroidManifest.xml` 里那 4 个权限（`FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_SPECIAL_USE` / `WAKE_LOCK` / `POST_NOTIFICATIONS`）与服务声明不能删；`stopWithTask` 让「从最近任务划掉」连服务一起收干净（引擎随 Activity 销毁，留个空转的服务只会误导）。iOS 没有等价机制，别照搬（细节见 `lib/ssh/AGENTS.md` 的保活条）
 - `lib/` 内禁止直接 `import 'dart:io'`；本地文件能力一律走条件导出（详见 `lib/ssh/AGENTS.md` 的「SFTP 层」）
 - Android 签名：release 包签名由 `android/key.properties`（gitignore，不入库）决定——文件缺失（新 clone、未配 Secrets 的 CI）回退 debug 签名，保证 `flutter run --release` 与静态检查照常可用；文件存在但缺字段则直接构建失败，不静默降级。keystore 在 `android/app/upload-keystore.jks`，**它与口令丢了就永远无法覆盖升级已发布的包**，必须单独备份到仓库之外。CI 从 4 个 Secrets 还原（`ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`）。此前 release 用 runner 现生成的 debug 签名，装过旧版的手机因此报「无法安装」——不要退回该状态
 - macOS 签名：默认 ad-hoc（`CODE_SIGN_IDENTITY = -` 在 `macos/Runner/Configs/{Debug,Release}.xcconfig`，其末尾的 `#include? "local.xcconfig"` 为可选本机覆盖，include 必须放在默认值**之后**才能让覆盖胜出）。ad-hoc 二进制每次重签 cdhash 都变，而钥匙串条目 ACL 只信任「创建它的那份二进制」——每次重新构建后读「记住凭据」都会弹「想要使用登录钥匙串」授权框（每台主机一条、逐条弹，点「始终允许」只管到下次构建）。本机跑一次 `./tool/setup_dev_codesign.sh` 配置自签证书后经 local.xcconfig 覆盖为证书身份，跨构建稳定、不再弹；旧凭据条目在新身份首次访问时还会弹最后一轮，点「始终允许」即永久安静。Runner target 级**不设** `CODE_SIGN_STYLE`（pbxproj 里三个配置的 Automatic 已摘掉，否则 target 级会压住 local.xcconfig 的 Manual）；CI / 新 clone 没有 local.xcconfig，保持 ad-hoc 不变
@@ -92,7 +93,7 @@
   - 加字段 / 删字段**不用**动 `kDefaultsVersion`——它不是存档格式版本，只回答「这份存档是在哪一代默认值下写出来的」
   - 关窗走 `WindowListener.onWindowClose`：先 `_saveNow()` + `ServerStore.flush()` 再 `destroy()`，否则链式异步落盘的最后一笔改动会随进程退出丢掉
 - 导入 / 导出：
-  - 界面只暴露一套动作：菜单两项就是「导入主机 / 导出主机」，落在 `.nsbak` 备份文件上；文案不提加密，口令弹窗里才说明口令的作用（`backup*.` 系列文案）
+  - 界面只暴露一套动作：菜单两项就是「导入主机 / 导出主机」，落在 `.nsbak` 备份文件上；文案不提加密，口令弹窗里才说明口令的作用（`backup*.` 系列文案）。导出**先过一次「挑主机」弹窗**（默认全选、可按分组逐台勾选，见 `lib/widgets/AGENTS.md` 的 `host_export_dialog.dart` 条），再选落点、再设口令；入口只有菜单这一处，「复制主机文本」不是第二条导出路径
   - 菜单标签不含「备份 / 加密」字样是刻意的：这是应用的主机迁移入口，不是可选项。不要因为内部实现叫 backup 就把菜单文案改回去
   - 标记符 `no-shell-hosts` 是格式的一部分，改动等于让已导出的备份全部失效；它的作用是分开「空备份」与「解出来不是备份」
   - KDF 用 scrypt（N=32768 / r=8 / p=1，约 32 MiB、测试机上约 0.35 秒），不是把 PBKDF2 轮数往上堆：备份明文里是 SSH 密码，派生必须内存硬才有意义，而 PBKDF2 到六十万轮要 2.5 秒、低端设备更久

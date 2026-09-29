@@ -277,12 +277,19 @@ void main() {
       );
     }
 
-    /// 导出：在口令弹窗里填口令并确认。
+    /// 导出第一步：「选择要导出的主机」弹窗里按默认（全选）确认。
+    Future<void> confirmHostSelection(WidgetTester tester) async {
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, '导出主机'));
+      await tester.pumpAndSettle();
+    }
+
+    /// 导出：先在挑主机弹窗里按默认全选确认，再在口令弹窗里填口令。
     Future<void> confirmExportDialog(
       WidgetTester tester,
       String password,
     ) async {
-      await tester.pumpAndSettle();
+      await confirmHostSelection(tester);
       await tester.enterText(find.byType(TextFormField).first, password);
       await tester.enterText(find.byType(TextFormField).last, password);
       await tester.pump();
@@ -362,7 +369,68 @@ void main() {
       expect(drafts.single.password, plainPassword);
     });
 
-    testWidgets('导出：两次口令不一致时留在弹窗里，不写文件', (tester) async {
+    testWidgets('导出：只导出勾选的主机', (tester) async {
+      store.upsert(
+        const SshServer(
+          id: 'srv-1',
+          group: '生产',
+          name: 'prod',
+          host: '192.0.2.10',
+          username: 'deploy',
+        ),
+      );
+      store.upsert(
+        const SshServer(
+          id: 'srv-2',
+          group: '测试',
+          name: 'staging',
+          host: '192.0.2.11',
+          username: 'deploy',
+        ),
+      );
+      await pump(tester);
+
+      final exporting = exportHostsFlow(
+        context,
+        store: store,
+        credentials: credentials,
+        localFiles: gateway,
+        backupParams: _testParams,
+      );
+      await tester.pumpAndSettle();
+
+      // 默认全选，两台都在；分组名当小标题排在各自主机之上。
+      expect(find.text('已选 2/2 台'), findsOneWidget);
+      expect(find.text('生产'), findsOneWidget);
+      expect(find.text('测试'), findsOneWidget);
+
+      // 取消勾选 staging：计数跟着变，导出的清单里也不该有它。
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'staging'));
+      await tester.pump();
+      expect(find.text('已选 1/2 台'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, '导出主机'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).first, 'file-password');
+      await tester.enterText(find.byType(TextFormField).last, 'file-password');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, '导出'));
+      await tester.pumpAndSettle();
+      await exporting;
+
+      expect(find.text('已导出 1 台主机'), findsOneWidget);
+      final written = utf8.decode(gateway.bytesOf('/tmp/backup.nsbak'));
+      final drafts = parseHostsText(
+        await _decode(written, 'file-password'),
+        defaultGroup: '默认',
+      );
+      expect(drafts, hasLength(1));
+      expect(drafts.single.name, 'prod');
+      expect(drafts.single.host, '192.0.2.10');
+      expect(drafts.single.group, '生产');
+    });
+
+    testWidgets('导出：一台都不勾时确认键置灰，取消后什么都不发生', (tester) async {
       store.upsert(
         const SshServer(
           id: 'srv-1',
@@ -382,6 +450,47 @@ void main() {
         backupParams: _testParams,
       );
       await tester.pumpAndSettle();
+
+      // 「全选」那一行点一下变全不选；0 台的确认键必须是灰的
+      // （导出 0 台没有意义，与其事后提示不如当场说不了话）。
+      await tester.tap(find.text('全选'));
+      await tester.pump();
+      expect(find.text('已选 0/1 台'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, '导出主机'))
+            .onPressed,
+        isNull,
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, '取消'));
+      await tester.pumpAndSettle();
+      await exporting;
+
+      expect(gateway.written, isEmpty);
+      expect(find.text('选择要导出的主机'), findsNothing);
+    });
+
+    testWidgets('导出：两次口令不一致时留在弹窗里，不写文件', (tester) async {
+      store.upsert(
+        const SshServer(
+          id: 'srv-1',
+          group: 'g',
+          name: 'prod',
+          host: '192.0.2.10',
+          username: 'deploy',
+        ),
+      );
+      await pump(tester);
+
+      final exporting = exportHostsFlow(
+        context,
+        store: store,
+        credentials: credentials,
+        localFiles: gateway,
+        backupParams: _testParams,
+      );
+      await confirmHostSelection(tester);
       await tester.enterText(find.byType(TextFormField).first, 'one-password');
       await tester.enterText(find.byType(TextFormField).last, 'other-password');
       await tester.pump();
@@ -420,7 +529,7 @@ void main() {
         localFiles: gateway,
         backupParams: _testParams,
       );
-      await tester.pumpAndSettle();
+      await confirmHostSelection(tester);
       await tester.tap(find.widgetWithText(TextButton, '取消'));
       await tester.pumpAndSettle();
       await exporting;
@@ -577,6 +686,8 @@ void main() {
       expect(find.byType(TextFormField), findsNothing);
       expect(gateway.written, isEmpty);
       expect(find.text('没有可导出的主机'), findsOneWidget);
+      // 空列表连「挑主机」这一步都不该出现（没人可挑）。
+      expect(find.text('选择要导出的主机'), findsNothing);
     });
 
     testWidgets('导出：取消落点选择不弹口令框，也不写文件', (tester) async {
@@ -592,13 +703,15 @@ void main() {
       gateway.exportDestination = null;
       await pump(tester);
 
-      await exportHostsFlow(
+      final exporting = exportHostsFlow(
         context,
         store: store,
         credentials: credentials,
         localFiles: gateway,
         backupParams: _testParams,
       );
+      await confirmHostSelection(tester);
+      await exporting;
       await tester.pumpAndSettle();
 
       expect(find.byType(TextFormField), findsNothing);

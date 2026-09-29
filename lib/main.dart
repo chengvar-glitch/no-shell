@@ -20,6 +20,7 @@ import 'settings_persistence.dart';
 import 'snippets.dart';
 import 'ssh/credential_store.dart';
 import 'ssh/host_key_store.dart';
+import 'ssh/session_keep_alive.dart';
 import 'ssh/session_manager.dart';
 import 'store.dart';
 import 'theme.dart';
@@ -247,6 +248,11 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   /// 命令片段注册表；经由 [SnippetScope] 下发，终端工具条直接取用。
   late final SnippetStore _snippets = widget.snippetStore ?? SnippetStore();
 
+  /// Android 后台保活：有会话活着就挂前台服务（见 `session_keep_alive.dart`），
+  /// 免得进程被内存回收、息屏久置后被 Doze 掐掉网络。只有 Android 有这条路，
+  /// 其余平台保持 null，平台通道一次都不碰。
+  SessionKeepAlive? _keepAlive;
+
   /// 主题默认跟随系统；启动时以落盘偏好为准，没有存档才用默认值。
   late ThemeMode _themeMode =
       widget.initialSettings?.themeMode ?? ThemeMode.system;
@@ -283,6 +289,14 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   @override
   void initState() {
     super.initState();
+    // 后台保活：构造即挂上会话监听，之后由会话集合的 0→1 / 1→0 推动平台侧
+    // 前台服务的启停（非 Android 平台整条链路不接线）。
+    if (keepAliveSupported) {
+      _keepAlive = SessionKeepAlive(
+        sessions: _sessions,
+        texts: _keepAliveTexts,
+      );
+    }
     _terminalStyle.addListener(_scheduleSave);
     _quickPreviewLimit.addListener(_scheduleSave);
     // 启动后静默查一次：先读上次记录的「有新版」结论（不联网就有提示），
@@ -344,6 +358,21 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
     quickPreviewLimit: _quickPreviewLimit.value,
   );
 
+  /// 保活通知的文案。保活由会话层的通知驱动，手上没有 `BuildContext`，所以按
+  /// 当前语言偏好直接解析本地化实例——与 MaterialApp 的 locale 解析同一套规则：
+  /// 跟随系统时 zh 系统命中中文，其余（含不认识的语言）回退到英文。
+  ({String title, String body}) _keepAliveTexts() {
+    final locale =
+        _language.locale ?? WidgetsBinding.instance.platformDispatcher.locale;
+    final l10n = lookupAppLocalizations(
+      locale.languageCode == 'zh' ? const Locale('zh') : const Locale('en'),
+    );
+    return (
+      title: l10n.keepAliveNotificationTitle,
+      body: l10n.keepAliveNotificationBody,
+    );
+  }
+
   void _setAllowLegacyHostKeys(bool value) {
     if (_allowLegacyHostKeys == value) return;
     setState(() => _allowLegacyHostKeys = value);
@@ -373,6 +402,8 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
     _quickPreviewLimit.removeListener(_scheduleSave);
     // 先补写这次会话最后的改动，再拆状态；写盘失败不影响退出。
     _saveNow();
+    // 保活服务要先于会话层收掉：它还挂在 SessionManager 的监听上。
+    _keepAlive?.dispose();
     _sessions.dispose();
     _store.dispose();
     _snippets.dispose();

@@ -59,16 +59,30 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 10));
 }
 
-/// 双击主机行：两下 tap 落在双击窗口内（检测在 tile 里自己做，真实间隔即可）。
-/// 第一击后面板会选中同一台，finder 限定在侧边栏内避免歧义。
+/// 双击主机行：两次按下落在双击窗口内——检测在 tile 里自己做，量的是
+/// **指针事件自带的单调时间戳**，所以这里把时间戳显式喂进去。
+///
+/// 不用 `tester.tap`：它合成的按下时间戳恒为 0，两次之间「间隔 0」，正是
+/// 双击判据排除掉的那种（同一次按下的重放）。这也是这套用例以前三不五时变红
+/// 的原因——那时 tile 量的是墙钟，而墙钟在测试里走的是真实时间，全量并发跑
+/// 一忙就超过 300ms 窗口。第一击后面板会选中同一台，finder 限定在侧边栏内
+/// 避免歧义。
 Future<void> _doubleTap(WidgetTester tester, String name) async {
   final row = find.descendant(
     of: find.byType(Sidebar),
     matching: find.text(name),
   );
-  await tester.tap(row);
+  final center = tester.getCenter(row);
+
+  Future<void> tapAt(Duration at) async {
+    final gesture = await tester.createGesture();
+    await gesture.down(center, timeStamp: at);
+    await gesture.up(timeStamp: at + const Duration(milliseconds: 1));
+  }
+
+  await tapAt(Duration.zero);
   await tester.pump(kDoubleTapMinTime);
-  await tester.tap(row);
+  await tapAt(const Duration(milliseconds: 40));
   await tester.pump();
 }
 

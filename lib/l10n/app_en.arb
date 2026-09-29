@@ -8,7 +8,6 @@
   "connect": "Connect",
   "disconnect": "Disconnect",
   "disconnectAll": "Disconnect all",
-  "connectNow": "Connect now",
   "newSession": "New session",
   "sessionN": "Session {n}",
   "@sessionN": {
@@ -119,10 +118,8 @@
   "group": "Group",
   "notes": "Notes",
   "notesOptional": "Notes (optional)",
-  "pasteMetadata": "Paste metadata (optional)",
-  "pasteMetadataHint": "name: serverName\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password",
   "sessionDesktopHint": "No session yet — double-click a host in the sidebar or click \"Connect\" at the top right to start an SSH session and use the terminal.\n",
-  "sessionMobileHint": "No session yet — tap \"Connect now\" at the bottom to start an SSH session and use the terminal.\n",
+  "sessionMobileHint": "No session yet — tap \"Connect\" at the top to start an SSH session and use the terminal.\n",
   "connectAuthTitle": "Connect to \"{name}\"",
   "@connectAuthTitle": {
     "placeholders": {
@@ -272,7 +269,7 @@
   "terminalPreviewCommand": "ssh deploy@10.0.0.1",
   "done": "Done",
   "sftpSessionHint": "No session yet — click \"Connect\" at the top right to browse the server files.\n",
-  "sftpSessionMobileHint": "No session yet — tap \"Connect now\" below to browse the server files.\n",
+  "sftpSessionMobileHint": "No session yet — tap \"Connect\" at the top to browse the server files.\n",
   "sftpRetry": "Retry",
   "sftpUp": "Parent folder",
   "sftpRefresh": "Refresh",
@@ -486,6 +483,18 @@
   },
   "exportEmpty": "No hosts to export",
   "exportFailed": "Export failed. Please try again.",
+  "exportSelectTitle": "Select hosts to export",
+  "exportSelectedCount": "{n} of {total} selected",
+  "@exportSelectedCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "backupCreateTitle": "Set a backup password",
   "backupCreateHint": "The whole list is encrypted with this password, saved passwords included. You will need it to restore the backup, and it cannot be recovered.",
   "backupOpenTitle": "Enter the backup password",
@@ -827,5 +836,7 @@
         "type": "int"
       }
     }
-  }
+  },
+  "keepAliveNotificationTitle": "SSH session kept alive",
+  "keepAliveNotificationBody": "Holding the connection open in the background"
 }

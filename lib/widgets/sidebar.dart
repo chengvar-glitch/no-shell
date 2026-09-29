@@ -905,13 +905,30 @@ class _ServerTileState extends State<_ServerTile> {
   /// onTap 与 onDoubleTap 时，单击会被双击手势在竞技场里扣住 300ms
   /// （kDoubleTapTimeout）才放行，单击选中跟着变得迟钝。这里让 onTap
   /// 即点即发，两次点击的间隔自己量——落在双击窗口内就升级成「直连」。
-  DateTime? _lastTapAt;
+  ///
+  /// 量的是**指针事件自带的 timeStamp**（引擎的单调时钟），不是
+  /// `DateTime.now()`：墙钟会被系统校时 / NTP 拨回去，而组件测试里
+  /// `tester.tap` 合成的按下时间戳恒为 0、假时钟也推不动墙钟——真实时间一旦
+  /// 被并发跑测试拖过 300ms，本该落在窗口内的两下就被判成两次单击（这套双击
+  /// 用例因此在全量跑时三不五时地红）。间隔为 0（同一次按下、测试里的合成
+  /// 事件）不算双击，单击语义与从前一致。
+  Duration? _downAt;
+  Duration? _lastTapAt;
+
+  /// 只记「按下」的时间戳，判定留到 onTap：拖动、右键都不会走到 [_handleTap]，
+  /// 不该污染下一次点击的间隔。
+  void _recordDown(PointerDownEvent event) => _downAt = event.timeStamp;
 
   void _handleTap() {
-    final now = DateTime.now();
-    final last = _lastTapAt;
-    _lastTapAt = now;
-    if (last != null && now.difference(last) < kDoubleTapTimeout) {
+    final previous = _lastTapAt;
+    final current = _downAt;
+    _lastTapAt = current;
+    final isDouble =
+        previous != null &&
+        current != null &&
+        current > previous &&
+        current - previous < kDoubleTapTimeout;
+    if (isDouble) {
       widget.onDoubleTap();
     } else {
       widget.onTap();
@@ -938,84 +955,92 @@ class _ServerTileState extends State<_ServerTile> {
         // 两层错位，行两侧会露出一圈深浅不一的边。
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-          child: InkWell(
-            onTap: _handleTap,
-            borderRadius: BorderRadius.circular(8),
-            hoverColor: theme.rowHover,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                // 悬停由 InkWell 画，这里只管选中态；选中时悬停不再叠一层。
-                color: widget.selected
-                    ? theme.selectedOverlay
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  StatusDot(status: server.status),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          server.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: widget.selected ? 1 : 0.88,
+          // Listener 只旁观按下、不进手势竞技场：点击 / 拖动 / 右键的判定
+          // 一个字都不变，它只负责把时间戳递进来（见 [_recordDown]）。
+          child: Listener(
+            onPointerDown: _recordDown,
+            child: InkWell(
+              onTap: _handleTap,
+              borderRadius: BorderRadius.circular(8),
+              hoverColor: theme.rowHover,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  // 悬停由 InkWell 画，这里只管选中态；选中时悬停不再叠一层。
+                  color: widget.selected
+                      ? theme.selectedOverlay
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    StatusDot(status: server.status),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            server.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: widget.selected ? 1 : 0.88,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: theme.secondaryText,
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: theme.secondaryText,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  AnimatedOpacity(
-                    duration: const Duration(milliseconds: 120),
-                    opacity: visible ? 1 : 0,
-                    child: IgnorePointer(
-                      ignoring: !visible,
-                      child: IconButton(
-                        tooltip:
-                            server.status == ServerStatus.connected ||
-                                server.status == ServerStatus.connecting
-                            ? l10n.disconnect
-                            : l10n.connect,
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints.tightFor(
-                          width: 28,
-                          height: 28,
-                        ),
-                        iconSize: 17,
-                        icon: Icon(
-                          server.status == ServerStatus.connected ||
-                                  server.status == ServerStatus.connecting
-                              ? Icons.link_off_rounded
-                              : Icons.play_arrow_rounded,
-                          color: theme.secondaryText,
-                        ),
-                        onPressed: widget.onToggleConnect,
+                        ],
                       ),
                     ),
-                  ),
-                ],
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 120),
+                      opacity: visible ? 1 : 0,
+                      child: IgnorePointer(
+                        ignoring: !visible,
+                        child: IconButton(
+                          tooltip:
+                              server.status == ServerStatus.connected ||
+                                  server.status == ServerStatus.connecting
+                              ? l10n.disconnect
+                              : l10n.connect,
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 28,
+                            height: 28,
+                          ),
+                          iconSize: 17,
+                          icon: Icon(
+                            server.status == ServerStatus.connected ||
+                                    server.status == ServerStatus.connecting
+                                ? Icons.link_off_rounded
+                                : Icons.play_arrow_rounded,
+                            color: theme.secondaryText,
+                          ),
+                          onPressed: widget.onToggleConnect,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

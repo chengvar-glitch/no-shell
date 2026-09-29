@@ -287,7 +287,7 @@ void main() {
     ], reason: '编辑不该清空端口转发规则');
   });
 
-  testWidgets('新建连接弹窗没有「粘贴元数据」入口，手输字段照常保存', (tester) async {
+  testWidgets('新建连接弹窗没有「粘贴元数据」入口，逐格输入照常保存', (tester) async {
     final store = ServerStore(seed: const []);
     final credentials = FakeCredentialStore();
     tester.platformDispatcher.localesTestValue = const [Locale('zh')];
@@ -308,8 +308,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 桌面端不再给粘贴入口：整块五行输入框只把表单顶长，而这一端一行一个
-    // 字段本就快（粘贴仍留给移动端，见 HostFormDensity.metadataPaste）。
+    // 表单（两端共用的 HostFormFields）不再有粘贴框：主机文本只在
+    // 「导入主机」里解析，这里逐格输入。文案本身也已从 arb 删掉，这条断言
+    // 挡的是「顺手把这个入口加回来」（加回来时多半还会用同一个标签）。
     expect(find.widgetWithText(TextField, '粘贴元数据（可选）'), findsNothing);
 
     await tester.enterText(find.byType(TextFormField).at(0), 'fofo');
@@ -324,8 +325,8 @@ void main() {
     expect(server.host, '127.0.0.1');
     expect(server.port, 2222);
     expect(server.username, 'root');
-    // 桌面新建时没有凭据入口：密码在首次连接时录入（粘贴带密码那条路
-    // 随元数据输入框一起只留在移动端）。
+    // 新建时没有凭据入口：密码在首次连接时录入（两端一致——表单里的密码
+    // 字段只在编辑已有主机时出现）。
     expect(credentials[server.id], isNull);
     expect(find.text('fofo'), findsWidgets);
   });
@@ -551,5 +552,14 @@ void main() {
     // 也不该有第二个导入 / 导出入口。
     expect(find.textContaining('备份'), findsNothing);
     expect(find.textContaining('加密'), findsNothing);
+
+    // 导出先弹「挑主机」（默认全选），取消即收手——这一步不该走到
+    // 落点选择与口令弹窗。
+    await tester.tap(find.text('导出主机'));
+    await tester.pumpAndSettle();
+    expect(find.text('选择要导出的主机'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, '取消'));
+    await tester.pumpAndSettle();
+    expect(find.text('选择要导出的主机'), findsNothing);
   });
 }

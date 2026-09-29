@@ -5,14 +5,14 @@
 /// [HostFormFields]——此前两端各写一遍，`jumpServerId` 的传法已经漂移成
 /// 两种（一端从零构造再 `copyWith(clearJumpServer:)`，一端直接传）。
 ///
-/// 「粘贴元数据」输入框只给移动端（见 [HostFormDensity.metadataPaste]）。
+/// 主机文本（`key: value` 那种）**只在「导入主机」里解析**，表单本身不再
+/// 提供粘贴框：两端都是逐格输入，成批的主机走 `.nsbak` / 主机文本导入。
 library;
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../host_portable.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../ssh/connect_flow.dart';
@@ -33,34 +33,20 @@ enum HostFormDensity {
   desktop(
     spacing: 12,
     fieldFontSize: 13.5,
-    metadataPaste: false,
     notesMaxLines: 2,
     nextAction: false,
   ),
-  mobile(
-    spacing: 14,
-    fieldFontSize: null,
-    metadataPaste: true,
-    notesMaxLines: 3,
-    nextAction: true,
-  );
+  mobile(spacing: 14, fieldFontSize: null, notesMaxLines: 3, nextAction: true);
 
   const HostFormDensity({
     required this.spacing,
     required this.fieldFontSize,
-    required this.metadataPaste,
     required this.notesMaxLines,
     required this.nextAction,
   });
 
   final double spacing;
   final double? fieldFontSize;
-
-  /// 是否在字段列顶部给「粘贴元数据」输入框：只给移动端——整页表单上打字慢，
-  /// 从其他工具复制一段连接信息贴进来比逐格敲省事；桌面端一行一个字段本就
-  /// 快，多留一块五行的输入框只会把表单顶长，主机文本格式仍可从
-  /// 「导入主机」（.nsbak / 主机文本）走。
-  final bool metadataPaste;
 
   final int notesMaxLines;
 
@@ -102,7 +88,6 @@ class HostFormController {
   final VoidCallback? onChanged;
 
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
-  final TextEditingController metadata = TextEditingController();
   final TextEditingController name;
   final TextEditingController host;
   final TextEditingController port;
@@ -116,9 +101,6 @@ class HostFormController {
 
   /// 选中的跳板机 id；null 表示直连。
   String? jumpServerId;
-
-  /// 粘贴的元数据里带的密码，保存时写进安全存储。
-  String? password;
 
   /// 已记住的凭据（安全存储异步读出，完成前为 null）。
   SshCredentials? storedCredential;
@@ -137,7 +119,7 @@ class HostFormController {
 
   void dispose() {
     _disposed = true;
-    for (final controller in [metadata, name, host, port, username, notes]) {
+    for (final controller in [name, host, port, username, notes]) {
       controller.dispose();
     }
   }
@@ -183,22 +165,6 @@ class HostFormController {
     onChanged?.call();
   }
 
-  /// 把粘贴的元数据填进表单：只覆盖识别到的字段，用户仍可继续手动改。
-  /// 返回是否有可用的识别结果；外壳据此决定要不要 setState。
-  bool applyMetadata(AppLocalizations l10n, String text) {
-    final drafts = parseHostsText(text, defaultGroup: l10n.defaultGroupName);
-    if (drafts.isEmpty) return false;
-    final draft = drafts.first;
-    name.text = draft.name;
-    host.text = draft.host;
-    port.text = draft.port.toString();
-    username.text = draft.username;
-    password = draft.password;
-    // 元数据只承载密码认证；没写密码时保留手动选择的认证方式。
-    if (draft.password != null) auth = AuthMethod.password;
-    return true;
-  }
-
   /// 校验 + 落盘凭据，返回要保存的主机；校验不过或外壳已卸载时返回 null。
   ///
   /// 跳板机直接按 [jumpServerId] 构造（不从零拼再补）：取消跳板机就是传 null，
@@ -222,9 +188,7 @@ class HostFormController {
       // 凭据已写、主机没入库（外壳在钥匙串写入期间消失）：把这次保存
       // 刚写进去的那份清掉，别留随导出备份打包的孤儿。
       final store = credentials;
-      final wrote =
-          credentialReplacement != null ||
-          (password != null && auth == AuthMethod.password);
+      final wrote = credentialReplacement != null;
       if (store != null && wrote) {
         await dropStoredCredential(store, id);
       }
@@ -252,9 +216,9 @@ class HostFormController {
     );
   }
 
-  /// 保存时的凭据落盘。优先级：显式更换 > 显式清除 > 粘贴元数据带的密码 >
-  /// 认证方式改离密码时丢弃旧密码（改完后旧密码没人再认，留在存储里只会
-  /// 在导出备份时被打包带走）。写入失败必须提示（同连接流程），绝不静默。
+  /// 保存时的凭据落盘。优先级：显式更换 > 显式清除 > 认证方式改离密码时丢弃
+  /// 旧密码（改完后旧密码没人再认，留在存储里只会在导出备份时被打包带走）。
+  /// 写入失败必须提示（同连接流程），绝不静默。
   Future<void> _persistCredentialChange(BuildContext context, String id) async {
     final store = credentials;
     final replacement = credentialReplacement;
@@ -272,18 +236,6 @@ class HostFormController {
     if (credentialCleared) {
       if (store == null) return;
       await dropStoredCredential(store, id);
-      return;
-    }
-    final pasted = password;
-    if (pasted != null && auth == AuthMethod.password) {
-      if (store == null || !store.supported) return;
-      final saved = await store.write(id, SshCredentials(password: pasted));
-      if (!saved && context.mounted) {
-        showToast(
-          context,
-          AppLocalizations.of(context).credentialsSaveFailedMsg,
-        );
-      }
       return;
     }
     if (auth != AuthMethod.password &&
@@ -381,22 +333,6 @@ class HostFormFields extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (density.metadataPaste) ...[
-          // 粘贴为主、手输兜底：两处输入共存，元数据只覆盖识别到的字段。
-          TextField(
-            controller: controller.metadata,
-            maxLines: 5,
-            decoration: InputDecoration(
-              labelText: l10n.pasteMetadata,
-              hintText: l10n.pasteMetadataHint,
-              alignLabelWithHint: true,
-            ),
-            onChanged: (text) {
-              if (controller.applyMetadata(l10n, text)) onChanged();
-            },
-          ),
-          SizedBox(height: spacing),
-        ],
         TextFormField(
           controller: controller.name,
           autofocus: !controller.isEditing,

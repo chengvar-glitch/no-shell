@@ -146,12 +146,6 @@ abstract class AppLocalizations {
   /// **'Disconnect all'**
   String get disconnectAll;
 
-  /// No description provided for @connectNow.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect now'**
-  String get connectNow;
-
   /// No description provided for @newSession.
   ///
   /// In en, this message translates to:
@@ -458,18 +452,6 @@ abstract class AppLocalizations {
   /// **'Notes (optional)'**
   String get notesOptional;
 
-  /// No description provided for @pasteMetadata.
-  ///
-  /// In en, this message translates to:
-  /// **'Paste metadata (optional)'**
-  String get pasteMetadata;
-
-  /// No description provided for @pasteMetadataHint.
-  ///
-  /// In en, this message translates to:
-  /// **'name: serverName\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password'**
-  String get pasteMetadataHint;
-
   /// No description provided for @sessionDesktopHint.
   ///
   /// In en, this message translates to:
@@ -479,7 +461,7 @@ abstract class AppLocalizations {
   /// No description provided for @sessionMobileHint.
   ///
   /// In en, this message translates to:
-  /// **'No session yet — tap \"Connect now\" at the bottom to start an SSH session and use the terminal.\n'**
+  /// **'No session yet — tap \"Connect\" at the top to start an SSH session and use the terminal.\n'**
   String get sessionMobileHint;
 
   /// No description provided for @connectAuthTitle.
@@ -983,7 +965,7 @@ abstract class AppLocalizations {
   /// No description provided for @sftpSessionMobileHint.
   ///
   /// In en, this message translates to:
-  /// **'No session yet — tap \"Connect now\" below to browse the server files.\n'**
+  /// **'No session yet — tap \"Connect\" at the top to browse the server files.\n'**
   String get sftpSessionMobileHint;
 
   /// No description provided for @sftpRetry.
@@ -1465,6 +1447,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Export failed. Please try again.'**
   String get exportFailed;
+
+  /// No description provided for @exportSelectTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select hosts to export'**
+  String get exportSelectTitle;
+
+  /// No description provided for @exportSelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} of {total} selected'**
+  String exportSelectedCount(int n, int total);
 
   /// No description provided for @backupCreateTitle.
   ///
@@ -2341,6 +2335,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Switched to session {n}'**
   String switchedToSession(int n);
+
+  /// No description provided for @keepAliveNotificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH session kept alive'**
+  String get keepAliveNotificationTitle;
+
+  /// No description provided for @keepAliveNotificationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Holding the connection open in the background'**
+  String get keepAliveNotificationBody;
 }
 
 class _AppLocalizationsDelegate

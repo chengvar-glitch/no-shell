@@ -1,0 +1,28 @@
+<!-- 前台服务通知的小图标（24dp 通知栏网格）。
+
+     刻意不复用 @drawable/ic_launcher_monochrome：那是 108dp 自适应图标画布
+     （图形只占安全区 66dp），塞进通知栏会被缩得又小又空。通知小图标又只取
+     alpha 通道（系统一律描成白色），所以品牌色与光标块在这里没有意义——
+     一个终端窗口 + 提示符在 24dp 上比三笔的 N 认得出。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M3.5,5 H20.5 V19 H3.5 Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M8,9.5 L11,12.5 L8,15.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M13,15.5 H16.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round" />
+</vector>

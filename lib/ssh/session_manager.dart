@@ -177,6 +177,16 @@ final class SessionManager extends ChangeNotifier {
 
   int get sessionCount => _ordinals.length;
 
+  /// 是否有值得在后台保活的会话：连接中 / 已连接的，或正排队等退避重连的。
+  ///
+  /// 排队等重连的那条阶段是 [TerminalPhase.closed]（几秒后就会再连），不能
+  /// 当成「没有会话」——重连恰好落在应用退到后台之后，正是最需要保活的时候，
+  /// 此时把前台服务收掉等于自己先认输。Android 的前台服务据此启停
+  /// （接线见 `session_keep_alive.dart`）。
+  bool get holdsLiveSessions =>
+      _reconnects.isNotEmpty ||
+      _byServer.values.any((list) => list.any((session) => session.isActive));
+
   /// 某台主机的会话（创建顺序）。
   List<TerminalSession> sessionsOf(String? serverId) {
     final list = serverId == null ? null : _byServer[serverId];
@@ -388,8 +398,12 @@ final class SessionManager extends ChangeNotifier {
       if (session.phase == syncedPhase) return;
       syncedPhase = session.phase;
       _syncStore(session.server.id);
-      notifyListeners();
+      // 重连状态机排在**最后一次通知之前**：同步监听者（如后台保活的启停，
+      // 见 session_keep_alive.dart）在通知里读的就是最终状态。反过来写的话，
+      // 「远端掉线」这一刻 _reconnects 还没排上，保活会把断线当成会话结束、
+      // 正好在等退避重连的窗口里把前台服务收掉。
       _onPhase(session);
+      notifyListeners();
     }
 
     _phaseListeners[session] = listener;
@@ -465,8 +479,8 @@ final class SessionManager extends ChangeNotifier {
       delay: delay,
       timer: timer,
     );
-    // 不再主动 notify：调用点都在会话阶段回调里，_syncStore 刚通知过，
-    // 下游重建时读到的就是新计划。
+    // 不再主动 notify：调用点都在 _onPhase 里，而阶段回调的那次通知排在
+    // _onPhase 之后（见 _create 的 listener），下游拿到通知时计划已经就位。
   }
 
   /// 退避到期，发起第 [attempt] 次重连：换新传输、复用原凭据与跳板链路。

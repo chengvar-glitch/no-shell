@@ -19,6 +19,7 @@ import 'ssh/ssh_credentials.dart';
 import 'store.dart';
 import 'widgets/busy_overlay.dart';
 import 'widgets/confirm_dialog.dart';
+import 'widgets/host_export_dialog.dart';
 import 'widgets/password_dialog.dart';
 
 /// 「导入 / 导出主机」菜单的两个动作。用枚举而不是字符串，菜单项增删时
@@ -117,7 +118,8 @@ Future<void> importHostsFlow(
   await _mergeDrafts(context, drafts, store: store, credentials: credentials);
 }
 
-/// 把当前主机列表（含已记住的密码）导出为备份文件：先选落点，再设口令。
+/// 把主机列表里**选中的那些**（含已记住的密码）导出为备份文件：
+/// 先挑主机，再选落点，最后设口令。
 ///
 /// [backupParams] 只给测试注入低参数用，生产路径不传。
 Future<void> exportHostsFlow(
@@ -133,11 +135,19 @@ Future<void> exportHostsFlow(
     return;
   }
 
+  // 先挑主机：选完才知道要读哪些凭据、要导出多少台。取消就整条流程收手，
+  // 后面两步（落点、口令）一次都不打扰用户。
+  final selected = await showHostExportSelection(
+    context,
+    groups: store.groups(),
+  );
+  if (selected == null || !context.mounted) return;
+
   // 逐台读「记住的凭据」要过一次平台通道，是选落点之前唯一的等待。
   final entries = await runWithBusyOverlay(
     context,
     message: l10n.transferExporting,
-    run: () => _exportEntries(store, credentials),
+    run: () => _exportEntries(selected, credentials),
   );
   if (!context.mounted) return;
 
@@ -175,11 +185,11 @@ Future<void> exportHostsFlow(
 
 /// 收集待导出的主机（列表为空由调用方先挡掉）。
 Future<List<HostExportEntry>> _exportEntries(
-  ServerStore store,
+  Iterable<SshServer> servers,
   CredentialStore credentials,
 ) async {
   final entries = <HostExportEntry>[];
-  for (final server in store.servers) {
+  for (final server in servers) {
     final saved = credentials.supported
         ? await credentials.read(server.id)
         : null;

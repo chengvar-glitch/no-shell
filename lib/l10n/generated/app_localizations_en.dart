@@ -34,9 +34,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get disconnectAll => 'Disconnect all';
 
   @override
-  String get connectNow => 'Connect now';
-
-  @override
   String get newSession => 'New session';
 
   @override
@@ -215,19 +212,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notesOptional => 'Notes (optional)';
 
   @override
-  String get pasteMetadata => 'Paste metadata (optional)';
-
-  @override
-  String get pasteMetadataHint =>
-      'name: serverName\nhost: 127.0.0.1\nport: 22\nuser: root\npassword: password';
-
-  @override
   String get sessionDesktopHint =>
       'No session yet — double-click a host in the sidebar or click \"Connect\" at the top right to start an SSH session and use the terminal.\n';
 
   @override
   String get sessionMobileHint =>
-      'No session yet — tap \"Connect now\" at the bottom to start an SSH session and use the terminal.\n';
+      'No session yet — tap \"Connect\" at the top to start an SSH session and use the terminal.\n';
 
   @override
   String connectAuthTitle(String name) {
@@ -516,7 +506,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sftpSessionMobileHint =>
-      'No session yet — tap \"Connect now\" below to browse the server files.\n';
+      'No session yet — tap \"Connect\" at the top to browse the server files.\n';
 
   @override
   String get sftpRetry => 'Retry';
@@ -858,6 +848,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get exportFailed => 'Export failed. Please try again.';
+
+  @override
+  String get exportSelectTitle => 'Select hosts to export';
+
+  @override
+  String exportSelectedCount(int n, int total) {
+    return '$n of $total selected';
+  }
 
   @override
   String get backupCreateTitle => 'Set a backup password';
@@ -1380,4 +1378,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String switchedToSession(int n) {
     return 'Switched to session $n';
   }
+
+  @override
+  String get keepAliveNotificationTitle => 'SSH session kept alive';
+
+  @override
+  String get keepAliveNotificationBody =>
+      'Holding the connection open in the background';
 }

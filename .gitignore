@@ -60,3 +60,7 @@ macos/Runner/Configs/local.xcconfig
 # 本地 deb 打包产物（tool/install_local_linux.sh 的中间目录与成品）
 .deb-pkg/
 *.deb
+
+# 本地 Android 测试包（`flutter build apk` 的成品拷到仓库根自测时用；
+# 正式包由 CI 传到 GitHub Releases，不进仓库）
+*.apk

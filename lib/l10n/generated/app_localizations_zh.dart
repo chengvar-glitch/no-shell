@@ -34,9 +34,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get disconnectAll => '断开全部';
 
   @override
-  String get connectNow => '立即连接';
-
-  @override
   String get newSession => '新建会话';
 
   @override
@@ -211,18 +208,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notesOptional => '备注（可选）';
 
   @override
-  String get pasteMetadata => '粘贴元数据（可选）';
-
-  @override
-  String get pasteMetadataHint =>
-      '名称: serverName\n地址: 127.0.0.1\n端口: 22\n用户: root\n密码: password';
-
-  @override
   String get sessionDesktopHint =>
       '会话未建立 —— 双击左侧主机或点击右上角「连接」建立 SSH 会话后即可使用终端。\n';
 
   @override
-  String get sessionMobileHint => '会话未建立 —— 点击底部「立即连接」建立 SSH 会话后即可使用终端。\n';
+  String get sessionMobileHint => '会话未建立 —— 点击顶部「连接」建立 SSH 会话后即可使用终端。\n';
 
   @override
   String connectAuthTitle(String name) {
@@ -501,8 +491,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sftpSessionHint => '会话未建立 —— 点击右上角「连接」建立 SSH 会话后即可浏览服务器文件。\n';
 
   @override
-  String get sftpSessionMobileHint =>
-      '会话未建立 —— 点击底部「立即连接」建立 SSH 会话后即可浏览服务器文件。\n';
+  String get sftpSessionMobileHint => '会话未建立 —— 点击顶部「连接」建立 SSH 会话后即可浏览服务器文件。\n';
 
   @override
   String get sftpRetry => '重试';
@@ -831,6 +820,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get exportFailed => '导出失败，请重试';
+
+  @override
+  String get exportSelectTitle => '选择要导出的主机';
+
+  @override
+  String exportSelectedCount(int n, int total) {
+    return '已选 $n/$total 台';
+  }
 
   @override
   String get backupCreateTitle => '设置备份口令';
@@ -1327,4 +1324,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String switchedToSession(int n) {
     return '已切到会话 $n';
   }
+
+  @override
+  String get keepAliveNotificationTitle => 'SSH 会话保持中';
+
+  @override
+  String get keepAliveNotificationBody => '后台保持连接，避免被系统回收';
 }
