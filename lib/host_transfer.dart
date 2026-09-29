@@ -17,6 +17,7 @@ import 'ssh/credential_store.dart';
 import 'ssh/local_files.dart';
 import 'ssh/ssh_credentials.dart';
 import 'store.dart';
+import 'widgets/busy_overlay.dart';
 import 'widgets/confirm_dialog.dart';
 import 'widgets/password_dialog.dart';
 
@@ -88,9 +89,14 @@ Future<void> importHostsFlow(
   );
   if (password == null || !context.mounted) return;
 
+  // 派生本身不冻界面（生产参数走 isolate），但这是全流程最长的一段静默。
   final String text;
   try {
-    text = await decodeHostsBackup(contents, password, derive: derive);
+    text = await runWithBusyOverlay(
+      context,
+      message: l10n.transferImporting,
+      run: () => decodeHostsBackup(contents, password, derive: derive),
+    );
   } on BackupFormatException catch (error) {
     if (!context.mounted) return;
     showToast(
@@ -122,8 +128,18 @@ Future<void> exportHostsFlow(
   HostBackupParams backupParams = HostBackupParams.standard,
 }) async {
   final l10n = AppLocalizations.of(context);
-  final entries = await _exportEntries(context, store, credentials);
-  if (entries == null || !context.mounted) return;
+  if (store.servers.isEmpty) {
+    showToast(context, l10n.exportEmpty);
+    return;
+  }
+
+  // 逐台读「记住的凭据」要过一次平台通道，是选落点之前唯一的等待。
+  final entries = await runWithBusyOverlay(
+    context,
+    message: l10n.transferExporting,
+    run: () => _exportEntries(store, credentials),
+  );
+  if (!context.mounted) return;
 
   final destination = await localFiles.pickExportDestination(
     'no-shell-hosts.$backupFileExtension',
@@ -137,10 +153,14 @@ Future<void> exportHostsFlow(
   );
   if (password == null || !context.mounted) return;
 
-  final contents = await encodeHostsBackup(
-    encodeHostsText(entries),
-    password,
-    params: backupParams,
+  final contents = await runWithBusyOverlay(
+    context,
+    message: l10n.transferExporting,
+    run: () => encodeHostsBackup(
+      encodeHostsText(entries),
+      password,
+      params: backupParams,
+    ),
   );
   if (!context.mounted) return;
   await _writeExport(
@@ -153,26 +173,19 @@ Future<void> exportHostsFlow(
   );
 }
 
-/// 收集待导出的主机；列表为空时提示并返回 null。
-Future<List<HostExportEntry>?> _exportEntries(
-  BuildContext context,
+/// 收集待导出的主机（列表为空由调用方先挡掉）。
+Future<List<HostExportEntry>> _exportEntries(
   ServerStore store,
   CredentialStore credentials,
 ) async {
-  final l10n = AppLocalizations.of(context);
-  final servers = store.servers;
-  if (servers.isEmpty) {
-    showToast(context, l10n.exportEmpty);
-    return null;
-  }
   final entries = <HostExportEntry>[];
-  for (final server in servers) {
+  for (final server in store.servers) {
     final saved = credentials.supported
         ? await credentials.read(server.id)
         : null;
     entries.add((server: server, password: saved?.password));
   }
-  return context.mounted ? entries : null;
+  return entries;
 }
 
 /// 落盘并汇报：失败时清掉半成品文件，不留一个读不出内容的残档；
@@ -217,20 +230,28 @@ Future<void> _mergeDrafts(
     for (var i = 0; i < drafts.length; i++)
       _serverOf(drafts[i], id: 'srv-$stamp-$i'),
   ];
-  final added = store.importServers(candidates);
-  var saveFailed = false;
-  if (credentials.supported) {
-    final addedSet = Set<SshServer>.of(added);
-    for (var i = 0; i < drafts.length; i++) {
-      final password = drafts[i].password;
-      if (password == null || !addedSet.contains(candidates[i])) continue;
-      final saved = await credentials.write(
-        candidates[i].id,
-        SshCredentials(password: password),
-      );
-      if (!saved) saveFailed = true;
-    }
-  }
+  // 逐条写安全存储同样过一次平台通道，主机多时是肉眼可见的一段等待。
+  final (added: added, saveFailed: saveFailed) = await runWithBusyOverlay(
+    context,
+    message: l10n.transferImporting,
+    run: () async {
+      final added = store.importServers(candidates);
+      var saveFailed = false;
+      if (credentials.supported) {
+        final addedSet = Set<SshServer>.of(added);
+        for (var i = 0; i < drafts.length; i++) {
+          final password = drafts[i].password;
+          if (password == null || !addedSet.contains(candidates[i])) continue;
+          final saved = await credentials.write(
+            candidates[i].id,
+            SshCredentials(password: password),
+          );
+          if (!saved) saveFailed = true;
+        }
+      }
+      return (added: added, saveFailed: saveFailed);
+    },
+  );
   if (!context.mounted) return;
 
   final skipped = drafts.length - added.length;

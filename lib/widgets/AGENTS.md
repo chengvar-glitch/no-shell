@@ -17,6 +17,7 @@
 - `session_idle_view.dart` — 未连接 Tab 的引导空态共用件（图标 + 标题 + 提示 + 可选重连按钮），SFTP Tab 与移动端终端 Tab 共用保持同页空态观感一致，桌面端终端 Tab 仍走终端样式预览（两端刻意不同，见 `TerminalTab.idleStyle`）
 - `password_dialog.dart` — 备份口令弹窗（`BackupPasswordMode.create` 设口令并二次确认 / `.open` 输一次口令）
 - `confirm_dialog.dart` — 确认框 / 说明框 / 轻提示共用件（`showConfirmDialog` 危险确认统一红色实心按钮 / `showInfoDialog` 单键说明框，给「用户得读完才能做对」的失败指引用 / `showToast` 统一轻提示），删除主机、删分组、删转发、删文件等确认一律走它，不要各处自绘
+- `busy_overlay.dart` — 等待遮罩 `runWithBusyOverlay`（口令弹窗关掉到结果提示之间那段静默：scrypt 派生、逐条读写安全存储）。**慢才现身**（`kBusyShowDelay` 内完成的不闪一下）、**不可取消**（点遮罩与系统返回键都收不掉，护的就是这段窗口）、**抛错也收走**（卡住一层模态遮罩等于锁死界面）。传进去的 `run` 里不许再开路由，选文件 / 输口令的步骤留在遮罩外；结果提示也留在外面（遮罩挡着时 SnackBar 会被压暗）
 - `about_dialog.dart` — 「关于」入口（`showAppAboutDialog`，观感与 `showAboutDialog` 一致，只多一层 macOS 适配——许可页自带 AppBar，返回键默认落在红绿灯底下，靠给对话框那层塞让位主题、再被 `showLicensePage` 的 `InheritedTheme.capture` 带进许可页来挪开）
 
 ## 相关

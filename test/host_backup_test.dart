@@ -12,6 +12,7 @@ import 'package:no_shell/models.dart';
 import 'package:no_shell/ssh/local_files.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/store.dart';
+import 'package:no_shell/widgets/busy_overlay.dart';
 import 'package:no_shell/widgets/password_dialog.dart';
 
 import 'support/credential_store_fake.dart';
@@ -470,6 +471,42 @@ void main() {
 
       expect(store.serverCount, 2);
       expect(find.text('已跳过 2 台重复主机'), findsOneWidget);
+    });
+
+    testWidgets('导入：解密慢时盖住等待遮罩，完成即收走', (tester) async {
+      await pump(tester);
+      gateway.uploads = [uploadOf(await _encode(hostsText, 'file-password'))];
+      // 生产参数一次派生约 0.35 秒；这一段此前是「点了没反应」。
+      final gate = Completer<void>();
+
+      final importing = importHostsFlow(
+        context,
+        store: store,
+        credentials: credentials,
+        localFiles: gateway,
+        derive: (password, salt, params) async {
+          await gate.future;
+          return deriveSyncForTest(password, salt, params);
+        },
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).first, 'file-password');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, '导入'));
+      await tester.pump();
+      expect(find.text('正在导入主机…'), findsNothing);
+
+      // 只能定步 pump：遮罩里的转圈动画会让 pumpAndSettle 一路推到超时。
+      await tester.pump(kBusyShowDelay + const Duration(milliseconds: 50));
+      await tester.pump();
+      expect(find.text('正在导入主机…'), findsOneWidget);
+
+      gate.complete();
+      await importing;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('正在导入主机…'), findsNothing);
+      expect(find.text('已导入 2 台主机'), findsOneWidget);
     });
 
     testWidgets('导入：口令不对时提示且不改动列表', (tester) async {

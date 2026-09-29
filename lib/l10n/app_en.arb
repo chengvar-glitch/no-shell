@@ -456,6 +456,8 @@
   },
   "importHosts": "Import hosts",
   "exportHosts": "Export hosts",
+  "transferImporting": "Importing hosts…",
+  "transferExporting": "Exporting hosts…",
   "importExportHosts": "Import / export hosts",
   "importDone": "{count, plural, =1{1 host imported} other{{count} hosts imported}}",
   "@importDone": {
