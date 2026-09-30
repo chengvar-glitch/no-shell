@@ -35,28 +35,39 @@ import io.flutter.plugin.common.MethodChannel
  * - `legacyPath`：Android 9 及以下那支的根目录，新系统上返回 null；
  * - `requestStoragePermission`：申请写公共目录的权限，返回是否拿到。
  *
- * 在途记录按显示名记账：下载队列是串行的，同一时刻一个名字只有一次写入。
+ * 在途记录按**令牌**记账（Dart 侧每个落点现取一个序号，见
+ * `lib/ssh/android_downloads_io.dart`），不按显示名：下载队列是每条会话一个，
+ * 同一个文件名可以被两条会话同时下载，而按名字记账会让后一条的 `begin`
+ * 把前一条正在写的那一行删掉——前一条继续往已删除的行里写，收尾时查不到
+ * 自己的记录、转正成空操作，界面却报「下载完成」，文件其实已经不在了。
  */
 class DownloadsChannel(private val activity: MainActivity) : MethodChannel.MethodCallHandler {
 
     private val resolver = activity.applicationContext.contentResolver
 
+    /** 在途记录，键是落点令牌。 */
     private val pending = mutableMapOf<String, Pending>()
 
-    /** 已转正的记录：分享时按名字取回行地址，省得再查一遍目录。 */
+    /** 已转正的记录，键是落点令牌：分享时取回行地址，省得再查一遍目录。 */
     private val finished = mutableMapOf<String, Uri>()
 
-    private data class Pending(val uri: Uri, val descriptor: ParcelFileDescriptor)
+    private data class Pending(val uri: Uri, val descriptor: ParcelFileDescriptor, val name: String)
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         try {
             when (call.method) {
                 "mediaStoreAvailable" -> result.success(mediaStoreAvailable())
-                "begin" -> result.success(begin(call.argument<String>("name").orEmpty()))
-                "finish" -> result.success(finish(call.argument<String>("name").orEmpty()))
-                "abort" -> result.success(abort(call.argument<String>("name").orEmpty()))
+                "begin" -> result.success(
+                    begin(
+                        call.argument<String>("token").orEmpty(),
+                        call.argument<String>("name").orEmpty(),
+                    ),
+                )
+                "finish" -> result.success(finish(call.argument<String>("token").orEmpty()))
+                "abort" -> result.success(abort(call.argument<String>("token").orEmpty()))
                 "share" -> result.success(
                     share(
+                        call.argument<String>("token").orEmpty(),
                         call.argument<String>("name").orEmpty(),
                         call.argument<String>("title"),
                     ),
@@ -85,12 +96,11 @@ class DownloadsChannel(private val activity: MainActivity) : MethodChannel.Metho
             Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
 
     /** 建一条 pending 行并打开写入句柄，返回 `/proc/self/fd/N`。 */
-    private fun begin(name: String): String? {
+    private fun begin(token: String, name: String): String? {
         if (!mediaStoreAvailable()) throw IllegalStateException("public downloads unavailable")
-        if (name.isEmpty()) throw IllegalArgumentException("empty file name")
-        // 同名还有在途记录（上一次没收尾，或自检留下的）：先收干净，否则下面
-        // 那条 insert 会被系统改名成 `name (1).ext`，落点与用户要的名字对不上。
-        abort(name)
+        if (token.isEmpty() || name.isEmpty()) {
+            throw IllegalArgumentException("empty download token or file name")
+        }
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
             put(MediaStore.MediaColumns.MIME_TYPE, mimeTypeOf(name))
@@ -106,7 +116,11 @@ class DownloadsChannel(private val activity: MainActivity) : MethodChannel.Metho
             resolver.delete(uri, null, null)
             throw error
         }
-        pending[name] = Pending(uri, descriptor)
+        // 这里**不**清理同名的在途记录：那正是两条会话同时下同名文件时
+        // 后一条杀掉前一条的地方。同名由系统改成 `name (1).ext`（finish 会
+        // 把真实名回报给界面），而进程被杀留下的 pending 行本来就查不到
+        // （账目在内存里），交回系统 7 天后自收。
+        pending[token] = Pending(uri, descriptor, name)
         return "/proc/self/fd/${descriptor.fd}"
     }
 
@@ -114,8 +128,8 @@ class DownloadsChannel(private val activity: MainActivity) : MethodChannel.Metho
      * 转正：关掉描述符（Dart 那份 dup 在 `IOSink.close()` 时已经关了），
      * 把 `IS_PENDING` 归零，返回该行最终的显示名。
      */
-    private fun finish(name: String): String? {
-        val entry = pending[name] ?: return null
+    private fun finish(token: String): String? {
+        val entry = pending[token] ?: return null
         closeQuietly(entry.descriptor)
         // 记账留到 update 之后：它要是抛了，那条记录还挂在账上，紧接着的
         // abort（Dart 侧的失败路径会调）才删得掉它，不留一条看不见的残留。
@@ -125,17 +139,17 @@ class DownloadsChannel(private val activity: MainActivity) : MethodChannel.Metho
             null,
             null,
         )
-        pending.remove(name)
+        pending.remove(token)
         val actual = displayNameOf(entry.uri)
-        rememberFinished(name, entry.uri)
-        // 系统改过名时也按实际名字记一份：分享带上的是提示里那个名字。
-        if (actual != null && actual != name) rememberFinished(actual, entry.uri)
-        return actual ?: name
+        // 按令牌记账：分享紧跟着下载完成发生，拿的还是同一个暗号。
+        rememberFinished(token, entry.uri)
+        // 查不到实际显示名时退回本次请求的名字（不是令牌：这是给用户看的）。
+        return actual ?: entry.name
     }
 
     /** 清理半成品。没建过行（begin 抛错、任务还没轮到就取消）时是空操作。 */
-    private fun abort(name: String): Boolean {
-        val entry = pending.remove(name) ?: return true
+    private fun abort(token: String): Boolean {
+        val entry = pending.remove(token) ?: return true
         closeQuietly(entry.descriptor)
         resolver.delete(entry.uri, null, null)
         return true
@@ -146,8 +160,10 @@ class DownloadsChannel(private val activity: MainActivity) : MethodChannel.Metho
      * 接收方从下载目录里读原件——不用先把文件读出来再往临时目录写一份，
      * 大文件也不怕。
      */
-    private fun share(name: String, title: String?): Boolean {
-        val uri = finished[name] ?: findByName(name) ?: return false
+    private fun share(token: String, name: String, title: String?): Boolean {
+        // 先按令牌找（正常路径）；令牌不在账上时退回按显示名查一次，
+        // 例如账目已被 FINISHED_LIMIT 挤掉。
+        val uri = finished[token] ?: findByName(name) ?: return false
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = resolver.getType(uri) ?: "application/octet-stream"
             putExtra(Intent.EXTRA_STREAM, uri)
@@ -162,8 +178,8 @@ class DownloadsChannel(private val activity: MainActivity) : MethodChannel.Metho
         return true
     }
 
-    private fun rememberFinished(name: String, uri: Uri) {
-        finished[name] = uri
+    private fun rememberFinished(token: String, uri: Uri) {
+        finished[token] = uri
         // 只留最近几条：分享总是紧跟着下载完成发生，攒多了没用。
         while (finished.size > FINISHED_LIMIT) {
             finished.remove(finished.keys.first())

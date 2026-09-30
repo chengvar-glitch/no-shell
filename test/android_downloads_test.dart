@@ -94,6 +94,8 @@ void main() {
       );
       // 探测写的那条记录与用户要下的文件不是一回事，名字带前缀分开。
       expect(calls[1].arguments['name'], isNot('nginx.conf'));
+      // 探测也带令牌（宿主拒绝空令牌）。
+      expect(calls[1].arguments['token'], isNotEmpty);
     });
 
     test('探测结果会缓存：同一次运行里不反复建行试探', () async {
@@ -107,17 +109,49 @@ void main() {
 
     test('落点本身就是临时态：不加 .noshell-part，也不问要不要覆盖', () async {
       const gateway = NativeLocalFileGateway();
-      const token = 'mediastore:a.conf';
+      const token = 'mediastore:1/a.conf';
 
       expect(gateway.temporaryPath(token), token);
       // 重名由系统改成 `a (1).conf`，没有「覆盖」这个动作可确认。
       expect(await gateway.localFileExists(token), isFalse);
     });
 
+    test('同一个文件名的两次落点各带各的令牌：宿主按令牌记账', () async {
+      // 下载队列是每条会话一个，同一个文件名可以被两条会话同时下载。
+      // 按文件名记账的话，后一条的 begin 会把前一条正在写的那一行删掉——
+      // 前一条收尾时查不到自己的记录，界面却报「下载完成」。
+      const gateway = NativeLocalFileGateway();
+
+      final first = await gateway.pickDownloadTarget('same.conf');
+      final second = await gateway.pickDownloadTarget('same.conf');
+
+      expect(first!.path, isNot(second!.path), reason: '两次落点不能共用一个暗号');
+      // 令牌只用来记账，不进文件名：用户看到的还是自己要的那个名字。
+      expect(first.name, 'same.conf');
+      expect(second.name, 'same.conf');
+
+      // 头一次 begin 是探测（固定令牌），后面两次才是这两个落点。
+      final before = calls.length;
+      await (await gateway.openWrite(first.path)).close();
+      await (await gateway.openWrite(second.path)).close();
+      final downloadBegins = calls
+          .skip(before)
+          .where((call) => call.method == 'begin')
+          .toList();
+      expect(downloadBegins, hasLength(2));
+      expect(
+        downloadBegins.map((call) => call.arguments['token']).toSet(),
+        hasLength(2),
+      );
+      expect(downloadBegins.map((call) => call.arguments['name']).toSet(), {
+        'same.conf',
+      });
+    });
+
     test('写入经 MediaStore 记录，收尾回报系统改名后的真实文件名', () async {
       mockHost(promotedName: 'nginx (1).conf');
       const gateway = NativeLocalFileGateway();
-      const token = 'mediastore:nginx.conf';
+      const token = 'mediastore:1/nginx.conf';
 
       final handle = await gateway.openWrite(token, ownerOnly: true);
       handle.add([1, 2, 3]);
@@ -128,22 +162,25 @@ void main() {
       expect(name, 'nginx (1).conf');
       expect(methods(), containsAllInOrder(['begin', 'finish']));
       expect(calls.first.arguments['name'], 'nginx.conf');
+      expect(calls.first.arguments['token'], '1');
+      expect(calls.last.arguments['token'], '1', reason: '转正按令牌找到那一行');
     });
 
-    test('半成品按同一个落点清掉', () async {
-      await const NativeLocalFileGateway().discard('mediastore:a.conf');
+    test('半成品按同一个落点的令牌清掉', () async {
+      await const NativeLocalFileGateway().discard('mediastore:1/a.conf');
 
       expect(calls.single.method, 'abort');
-      expect(calls.single.arguments['name'], 'a.conf');
+      expect(calls.single.arguments['token'], '1');
     });
 
     test('分享走宿主：文件在共享集合里，不拷第二份', () async {
       await const NativeLocalFileGateway().shareDownload(
-        'mediastore:a.conf',
+        'mediastore:1/a.conf',
         title: 'a.conf',
       );
 
       expect(calls.single.method, 'share');
+      expect(calls.single.arguments['token'], '1');
       expect(calls.single.arguments['name'], 'a.conf');
       expect(calls.single.arguments['title'], 'a.conf');
     });

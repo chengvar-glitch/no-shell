@@ -2,10 +2,14 @@
 ///
 /// 两支落点，都在「系统下载目录」里，区别只在于怎么拿到写入权：
 ///
-/// - `mediastore:<文件名>` —— Android 10+。公共目录只能经 MediaStore 写，
+/// - `mediastore:<令牌>/<文件名>` —— Android 10+。公共目录只能经 MediaStore 写，
 ///   拿不到可写的绝对路径，所以宿主建一条 `IS_PENDING=1` 的记录，把该记录的
 ///   文件描述符交回来（`/proc/self/fd/N`），`dart:io` 照常往里灌数据，
-///   全文件只在磁盘上存一份；收尾把 `IS_PENDING` 归零。
+///   全文件只在磁盘上存一份；收尾把 `IS_PENDING` 归零。令牌是每个落点新取的
+///   一个序号，宿主按它记账：下载队列是**每条会话一个**，同一个文件名可以被
+///   两条会话同时下载，按名字记账会让后一条把前一条正在写的那行删掉。
+///   名字里不可能出现 `/`（服务端给的名字在 `downloadEntries` 里被收成最后
+///   一段，导出文件名是本应用自己拼的），所以拿它当分隔符是安全的。
 /// - `publicdownload:<绝对路径>` —— Android 9 及以下。那些系统上公共目录就是
 ///   普通文件路径，只要有 `WRITE_EXTERNAL_STORAGE` 就能直接写，临时文件与
 ///   改名仍走 `local_write_io` 那套（同目录 `.noshell-part`）。
@@ -30,8 +34,15 @@ const _mediaStorePrefix = 'mediastore:';
 
 const _legacyPrefix = 'publicdownload:';
 
-/// 自检用的文件名。带上应用前缀，免得撞上用户真在下发的文件。
+/// 自检用的文件名与令牌。带上应用前缀，免得撞上用户真在下发的文件；
+/// 探测一个进程只跑一次，令牌固定即可。
 const _probeName = '.noshell-probe';
+
+const _probeToken = 'probe';
+
+/// MediaStore 那支的落点令牌序号：每个落点取一次，宿主按令牌而不是按文件名
+/// 记账（同一个文件名可以被两条会话同时下载）。
+int _mediaStoreTokenSeq = 0;
 
 /// MediaStore 那支的探测结果缓存：探测包含一次真实的建行 / 打开 / 删除往返，
 /// 一次就够，不该每下载一个文件都重来一遍。
@@ -46,8 +57,22 @@ bool _storageDenied = false;
 /// 所以不能默认走它。
 Future<String?> publicDownloadTarget(String name) async {
   if (defaultTargetPlatform != TargetPlatform.android) return null;
-  if (await _mediaStoreUsableNow()) return '$_mediaStorePrefix$name';
+  if (await _mediaStoreUsableNow()) return _mediaStorePath(name);
   return _legacyDownloadTarget(name);
+}
+
+/// MediaStore 那支的落点暗号：令牌 + 显示名。转正 / 清理 / 分享都只拿得到
+/// 这个字符串，令牌必须带在里面，宿主才认得出是哪一次下载。
+String _mediaStorePath(String name) =>
+    '$_mediaStorePrefix${_mediaStoreTokenSeq++}/$name';
+
+String _mediaStoreTokenOf(String path) =>
+    path.substring(_mediaStorePrefix.length).split('/').first;
+
+String _mediaStoreNameOf(String path) {
+  final rest = path.substring(_mediaStorePrefix.length);
+  final index = rest.indexOf('/');
+  return index < 0 ? rest : rest.substring(index + 1);
 }
 
 /// Android 10+ 那支：宿主的静态检查（Android 10+、外部存储已挂载）只是必要
@@ -63,17 +88,18 @@ Future<bool> _mediaStoreUsableNow() async {
       return _mediaStoreUsable = false;
     }
     final fdPath = await _channel.invokeMethod<String>('begin', {
+      'token': _probeToken,
       'name': _probeName,
     });
     if (fdPath == null) return _mediaStoreUsable = false;
     await openLocalWrite(fdPath).close();
-    await _channel.invokeMethod<bool>('abort', {'name': _probeName});
+    await _channel.invokeMethod<bool>('abort', {'token': _probeToken});
     return _mediaStoreUsable = true;
   } on Object {
     // 探测留下的那条记录尽力清掉：清不掉也只是一条别人看不见的 pending
     // 行，系统 7 天后自己会收走。
     try {
-      await _channel.invokeMethod<bool>('abort', {'name': _probeName});
+      await _channel.invokeMethod<bool>('abort', {'token': _probeToken});
     } on Object {
       // 忽略：结论已经是不可用。
     }
@@ -123,15 +149,14 @@ String? androidDownloadRealPath(String path) => path.startsWith(_legacyPrefix)
 /// 意味着同一套权限语义（公共目录里的文件不收 0600），网关少一个分支。
 String legacyDownloadPath(String realPath) => '$_legacyPrefix$realPath';
 
-String _mediaStoreName(String path) => path.substring(_mediaStorePrefix.length);
-
 /// 建一条 pending 行并打开写入句柄。行在写完前对别的应用不可见
 /// （`IS_PENDING=1`），收尾时由 [promoteMediaStoreDownload] 转正，
 /// 失败 / 取消则由 [discardMediaStoreDownload] 连行带文件删掉——
 /// 与落盘那套「先写临时、成功再改名」是同一个目的，只是这里由系统记账。
 Future<LocalWriteHandle> openMediaStoreDownload(String path) async {
   final fdPath = await _channel.invokeMethod<String>('begin', {
-    'name': _mediaStoreName(path),
+    'token': _mediaStoreTokenOf(path),
+    'name': _mediaStoreNameOf(path),
   });
   if (fdPath == null) {
     throw PlatformException(
@@ -153,12 +178,14 @@ Future<LocalWriteHandle> openMediaStoreDownload(String path) async {
 
 /// 收尾：把 pending 行转正。返回该行最终的显示名——重名时 MediaStore 会
 /// 把它改成 `name (1).ext`，界面提示必须照实说，否则用户按提示去找会扑空。
-Future<String?> promoteMediaStoreDownload(String path) =>
-    _channel.invokeMethod<String>('finish', {'name': _mediaStoreName(path)});
+Future<String?> promoteMediaStoreDownload(String path) => _channel
+    .invokeMethod<String>('finish', {'token': _mediaStoreTokenOf(path)});
 
 /// 清理：删掉 pending 行与半成品文件。没建过行时是空操作。
 Future<void> discardMediaStoreDownload(String path) async {
-  await _channel.invokeMethod<bool>('abort', {'name': _mediaStoreName(path)});
+  await _channel.invokeMethod<bool>('abort', {
+    'token': _mediaStoreTokenOf(path),
+  });
 }
 
 /// 把已落地的下载交给系统分享面板。走宿主是为了**不再拷一份**：文件在共享
@@ -166,7 +193,8 @@ Future<void> discardMediaStoreDownload(String path) async {
 /// 授权），比先读出来再写进临时目录省事得多，大文件也不怕。
 Future<void> shareMediaStoreDownload(String path, {String? title}) async {
   await _channel.invokeMethod<bool>('share', {
-    'name': _mediaStoreName(path),
+    'token': _mediaStoreTokenOf(path),
+    'name': _mediaStoreNameOf(path),
     'title': title,
   });
 }
