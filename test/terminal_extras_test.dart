@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,78 +81,96 @@ Future<TerminalSession> _connectedSession(FakeTransport transport) async {
   return session;
 }
 
+/// 悬浮工具条只在桌面端挂（触屏上查找 / 片段都收进长按菜单），而测试 VM 的
+/// 默认平台是 Android——断言桌面那颗片段按钮时必须显式站到桌面上。必须在
+/// 测试体内复位：foundation 的不变式检查发生在 tear down 之前。
+Future<void> _asDesktop(Future<void> Function() body) async {
+  debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+  try {
+    await body();
+  } finally {
+    debugDefaultTargetPlatformOverride = null;
+  }
+}
+
 void main() {
   setUp(_installClipboardMock);
 
-  group('SshTerminalView 会话工具条', () {
+  group('SshTerminalView 会话工具条（桌面端）', () {
     testWidgets('展示片段入口，空态可打开可关闭', (tester) async {
-      final transport = _connected();
-      final session = await _connectedSession(transport);
-      addTearDown(session.dispose);
+      await _asDesktop(() async {
+        final transport = _connected();
+        final session = await _connectedSession(transport);
+        addTearDown(session.dispose);
 
-      await tester.pumpWidget(
-        _host(SshTerminalView(session: session), snippets: SnippetStore()),
-      );
-      await tester.pump();
+        await tester.pumpWidget(
+          _host(SshTerminalView(session: session), snippets: SnippetStore()),
+        );
+        await tester.pump();
 
-      await tester.tap(find.byTooltip('命令片段'));
-      await tester.pumpAndSettle();
-      // 没有片段：展示空态，入口本身已验证可用。
-      expect(find.text('还没有命令片段'), findsOneWidget);
-      await tester.tap(find.text('取消'));
-      await tester.pumpAndSettle();
-      expect(find.text('还没有命令片段'), findsNothing);
+        await tester.tap(find.byTooltip('命令片段'));
+        await tester.pumpAndSettle();
+        // 没有片段：展示空态，入口本身已验证可用。
+        expect(find.text('还没有命令片段'), findsOneWidget);
+        await tester.tap(find.text('取消'));
+        await tester.pumpAndSettle();
+        expect(find.text('还没有命令片段'), findsNothing);
+      });
     });
 
     testWidgets('点按片段把命令连回车发往会话', (tester) async {
-      final transport = _connected();
-      final session = await _connectedSession(transport);
-      addTearDown(session.dispose);
+      await _asDesktop(() async {
+        final transport = _connected();
+        final session = await _connectedSession(transport);
+        addTearDown(session.dispose);
 
-      final snippets = SnippetStore(
-        seed: [CommandSnippet(id: 's1', name: '列目录', command: 'ls -la')],
-      );
-      await tester.pumpWidget(
-        _host(SshTerminalView(session: session), snippets: snippets),
-      );
-      await tester.pump();
+        final snippets = SnippetStore(
+          seed: [CommandSnippet(id: 's1', name: '列目录', command: 'ls -la')],
+        );
+        await tester.pumpWidget(
+          _host(SshTerminalView(session: session), snippets: snippets),
+        );
+        await tester.pump();
 
-      await tester.tap(find.byTooltip('命令片段'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('列目录'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('命令片段'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('列目录'));
+        await tester.pumpAndSettle();
 
-      expect(transport.sent, ['ls -la\r']);
-      // 发送完成弹窗收起。
-      expect(find.text('命令片段'), findsNothing);
+        expect(transport.sent, ['ls -la\r']);
+        // 发送完成弹窗收起。
+        expect(find.text('命令片段'), findsNothing);
+      });
     });
 
     testWidgets('会话未连接时片段不可发送，弹窗退化为管理界面', (tester) async {
-      final session = TerminalSession(
-        server: _server,
-        credentials: const SshCredentials(password: 'pw'),
-        transport: _connected(),
-      );
-      addTearDown(session.dispose);
-      // start 未被调用：永远停在 connecting。
+      await _asDesktop(() async {
+        final session = TerminalSession(
+          server: _server,
+          credentials: const SshCredentials(password: 'pw'),
+          transport: _connected(),
+        );
+        addTearDown(session.dispose);
+        // start 未被调用：永远停在 connecting。
 
-      final snippets = SnippetStore(
-        seed: [CommandSnippet(id: 's1', name: '列目录', command: 'ls -la')],
-      );
-      await tester.pumpWidget(
-        _host(SshTerminalView(session: session), snippets: snippets),
-      );
-      await tester.pump();
+        final snippets = SnippetStore(
+          seed: [CommandSnippet(id: 's1', name: '列目录', command: 'ls -la')],
+        );
+        await tester.pumpWidget(
+          _host(SshTerminalView(session: session), snippets: snippets),
+        );
+        await tester.pump();
 
-      await tester.tap(find.byTooltip('命令片段'));
-      // 浮层里的连接指示器永不停止，不能用 pumpAndSettle，
-      // 用两帧把弹窗过渡动画推完即可。
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      final tile = tester.widget<ListTile>(
-        find.widgetWithText(ListTile, '列目录'),
-      );
-      expect(tile.enabled, isFalse);
+        await tester.tap(find.byTooltip('命令片段'));
+        // 浮层里的连接指示器永不停止，不能用 pumpAndSettle，
+        // 用两帧把弹窗过渡动画推完即可。
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        final tile = tester.widget<ListTile>(
+          find.widgetWithText(ListTile, '列目录'),
+        );
+        expect(tile.enabled, isFalse);
+      });
     });
   });
 

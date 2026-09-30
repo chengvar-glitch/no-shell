@@ -109,6 +109,31 @@ void main() {
     expect(find.textContaining('ssh ·'), findsNothing);
   });
 
+  testWidgets('详情页只能点 Tab 栏翻页：横滑不翻（终端选字要让路）', (tester) async {
+    await pumpMobile(tester);
+    await tester.tap(find.text('db-primary'));
+    await tester.pumpAndSettle();
+
+    TabController controller() =>
+        DefaultTabController.of(tester.element(find.byType(TabBarView)));
+    expect(controller().index, 0, reason: '进来停在概览');
+    expect(find.text('主机地址'), findsOneWidget);
+
+    // 横滑内容区：TabBarView 自带的翻页会和终端里「拖选区手柄」抢同一次
+    // 滑动（手柄走原始 Listener、不参与竞技场，抢不过它），所以这里关掉了。
+    await tester.drag(find.byType(TabBarView), const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expect(controller().index, 0, reason: '横滑不该翻页');
+    expect(find.text('主机地址'), findsOneWidget);
+
+    // 翻页仍然走 Tab 栏点按，行为与桌面详情面板一致。
+    await tester.tap(
+      find.descendant(of: find.byType(TabBar), matching: find.text('SFTP')),
+    );
+    await tester.pumpAndSettle();
+    expect(controller().index, 2);
+  });
+
   testWidgets('详情页删除主机：凭据与指纹一并清理', (tester) async {
     final credentials = FakeCredentialStore();
     final hostKeys = FakeHostKeyStore();

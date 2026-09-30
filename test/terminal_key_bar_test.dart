@@ -316,6 +316,144 @@ void main() {
     });
   });
 
+  group('触屏选字时键盘让位', () {
+    /// 输入连接在不在，就等于软键盘在不在（xterm 只在这条连接上挂 IME）。
+    bool keyboardUp(WidgetTester tester) => tester
+        .state<TerminalViewState>(find.byType(TerminalView))
+        .hasInputConnection;
+
+    testWidgets('长按选字：键盘让位，复制完不会自己弹回来', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        await _pumpTerminal(tester);
+        expect(keyboardUp(tester), isTrue, reason: '进终端时键盘是弹起的');
+
+        final gesture = await tester.startGesture(
+          _firstCell(tester) + const Offset(2, 2),
+          kind: PointerDeviceKind.touch,
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(keyboardUp(tester), isFalse, reason: '长按选字时键盘该让位');
+        expect(find.text('复制'), findsOneWidget, reason: '菜单照常弹出');
+
+        // 复制走的是选区，菜单一关焦点会回到终端：这时键盘**不能**自己弹
+        // 回来，否则刚让开的位置又被它占回去，等于白让。
+        await tester.tap(find.text('复制'));
+        await tester.pumpAndSettle();
+        expect(keyboardUp(tester), isFalse, reason: '复制之后键盘仍该收着');
+        expect(_clipboardText, startsWith('banner'));
+
+        // 想接着打字：点一下终端（先点掉选区），再点一下键盘就回来了。
+        // 这是包的既有语义（`_onTapDown` 有选区时先清选区），别在应用侧抢着改。
+        final terminal = tester.getCenter(find.byType(TerminalView));
+        await _touch(tester, terminal);
+        await _settleWindows(tester);
+        expect(keyboardUp(tester), isFalse, reason: '第一下只是点掉选区');
+        await _touch(tester, terminal);
+        await _settleWindows(tester);
+        expect(keyboardUp(tester), isTrue, reason: '第二下把键盘要回来');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('长按落在空白处（xterm 选不出词）也收键盘', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        await _pumpTerminal(tester);
+        // 输出只有一行，屏幕中段是空白：xterm 的 selectWord 在那里直接返回。
+        final blank = tester.getCenter(find.byType(TerminalView));
+
+        final gesture = await tester.startGesture(
+          blank,
+          kind: PointerDeviceKind.touch,
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(
+          tester
+              .widget<TerminalView>(find.byType(TerminalView))
+              .controller!
+              .selection,
+          isNull,
+          reason: '空白处长按不产生选区——这正是要单独兜住的那种',
+        );
+        expect(keyboardUp(tester), isFalse, reason: '键盘仍该让位');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('粘贴之后键盘回来（那是接着打字的动作）', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final (_, transport) = await _pumpTerminal(tester);
+
+        final gesture = await tester.startGesture(
+          _firstCell(tester) + const Offset(2, 2),
+          kind: PointerDeviceKind.touch,
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(keyboardUp(tester), isFalse, reason: '选字先让位');
+
+        // 剪贴板在长按之后才塞：选中即复制会把内容覆盖成刚选中的那一段。
+        _clipboardText = 'echo hi';
+        await tester.tap(find.text('粘贴'));
+        await tester.pumpAndSettle();
+
+        expect(transport.sent, contains('echo hi'));
+        expect(keyboardUp(tester), isTrue, reason: '粘贴之后多半要补回车 / 改参数，键盘该回来');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('选区一出现就收键盘（双击选词 / 全选那两条路）', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final (session, _) = await _pumpTerminal(tester);
+        expect(keyboardUp(tester), isTrue);
+
+        final buffer = session.terminal.buffer;
+        tester
+            .widget<TerminalView>(find.byType(TerminalView))
+            .controller!
+            .setSelection(buffer.createAnchor(0, 0), buffer.createAnchor(6, 0));
+        await tester.pump();
+
+        expect(keyboardUp(tester), isFalse);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('桌面端不动键盘：拖选之后输入连接照旧', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        final (session, _) = await _pumpTerminal(tester);
+        expect(keyboardUp(tester), isTrue);
+
+        final buffer = session.terminal.buffer;
+        tester
+            .widget<TerminalView>(find.byType(TerminalView))
+            .controller!
+            .setSelection(buffer.createAnchor(0, 0), buffer.createAnchor(6, 0));
+        await tester.pump();
+
+        expect(keyboardUp(tester), isTrue, reason: '桌面端有自己的键盘，别乱动');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+  });
+
   group('触屏长按菜单', () {
     testWidgets('长按弹出复制 / 粘贴 / 全选，全选后可复制', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
@@ -336,8 +474,12 @@ void main() {
 
         await tester.tap(find.text('全选'));
         await tester.pumpAndSettle();
+        // 关掉菜单（点菜单外），再放完双击窗口：这一下轻点会落在终端上，
+        // xterm 据此挂一个 300ms 的双击判定定时器，不放它跑完测试结束时会
+        // 因「还有 Timer 挂着」而失败（与「长按后抬手不会顺带把链接点开」
+        // 同一处理）。
         await tester.tapAt(const Offset(20, 300));
-        await tester.pumpAndSettle();
+        await _settleWindows(tester);
 
         // 长按处不是链接，所以没有「打开链接」这一项。
         expect(find.text('打开链接'), findsNothing);

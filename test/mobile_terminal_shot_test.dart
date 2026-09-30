@@ -15,6 +15,7 @@ library;
 
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -197,8 +198,15 @@ void main() {
 
   testWidgets('移动端终端：查找栏', (tester) async {
     await _pump(tester);
-    // 工具栏上的放大镜就是查找入口。
-    await tester.tap(find.byIcon(Icons.search_rounded).first);
+    // 触屏上没有悬浮工具条，查找入口是长按菜单（与设计稿一致）。
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(TerminalView)),
+      kind: PointerDeviceKind.touch,
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('查找'));
     await tester.pump();
     await tester.enterText(
       find.descendant(

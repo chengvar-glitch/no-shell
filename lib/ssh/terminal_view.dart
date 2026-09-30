@@ -68,13 +68,16 @@ ServerStatus serverStatusOf(TerminalPhase phase) => switch (phase) {
 };
 
 /// 真实 SSH 终端视图：按全局偏好渲染会话缓冲区，非连接态时叠加状态浮层。
-/// 右上角常驻会话工具条（复制 / 粘贴 / 命令片段；会话日志的入口在详情头部
-/// 与全屏终端页的状态胶囊上），挂了重连计划时浮层里会多出倒计时与
-/// 「停止自动重连」。
+/// 桌面端右上角常驻会话工具条（复制 / 粘贴 / 查找 / 命令片段；会话日志的
+/// 入口在详情头部与全屏终端页的状态胶囊上），挂了重连计划时浮层里会多出
+/// 倒计时与「停止自动重连」。
 ///
-/// 便捷交互：右键菜单（复制 / 粘贴 / 全选）、Cmd/Ctrl +/- 字号缩放、
-/// Cmd/Ctrl+点击打开链接（按住修饰键悬停到链接上会加下划线并换成手型光标），
-/// 以及可选的「选中即复制」。
+/// 便捷交互：右键 / 长按菜单（桌面是复制 / 粘贴 / 全选，触屏另加打开链接 /
+/// 查找 / 命令片段）、Cmd/Ctrl +/- 字号缩放、Cmd/Ctrl+点击打开链接（按住
+/// 修饰键悬停到链接上会加下划线并换成手型光标），以及可选的「选中即复制」。
+///
+/// 触屏上**没有**那条悬浮工具条：它压在终端输出的右上角，那里的字既看不
+/// 清也选不中，而手机上复制本来就靠长按，多一排按钮只是挡路。
 final class SshTerminalView extends StatefulWidget {
   const SshTerminalView({
     super.key,
@@ -287,6 +290,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     super.initState();
     _controller.addListener(_onSelectionChanged);
     _scrollController.addListener(_onScroll);
+    // 焦点回到终端时，xterm 会趁那次聚焦把软键盘一起要回来；有选区时得抢在
+    // 它前面把令牌吃掉，见 [_onTerminalFocusChanged]。
+    _focusNode.addListener(_onTerminalFocusChanged);
     // 修饰键按下 / 抬起时指针不会动，但下划线该跟着出现或消失。
     HardwareKeyboard.instance.addHandler(_onKeyEvent);
     // 远端输出会顶动画面：指针底下的链接可能已经换了一条，选区手柄的位置
@@ -452,6 +458,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   void _onSelectionChanged() {
     _hasSelection = _controller.selection != null;
+    // 触屏上选字几乎都是为了复制：软键盘这时只会把选区（和手柄）顶到屏幕
+    // 上半截去，还让画面多重排一次。选区一出现就把键盘收掉（见
+    // [_closeSoftKeyboard]），双击选词 / 拖手柄 / 全选三条路都收在这里。
+    if (_hasSelection) _closeSoftKeyboard();
     if (_isTouchPlatform) _overlayRevision.value++;
     _copyOnSelectTimer?.cancel();
     if (!_copyOnSelect) return;
@@ -460,6 +470,41 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _copyOnSelectTimer = Timer(const Duration(milliseconds: 160), () {
       copyTerminalSelection(widget.session.terminal, _controller);
     });
+  }
+
+  /// 收掉软键盘（触屏专用，桌面端是空操作）：**只关输入连接，不动焦点**。
+  ///
+  /// 不动焦点是刻意的：焦点还在终端上，键条（Esc / Tab / 方向键）照常发键、
+  /// 外接键盘也照常收键，也不会触发 `_restoreTerminalFocus` 那条「补焦点」
+  /// 的路（那条路一补焦点键盘就跟着弹回来）。用户想接着打字时点一下终端，
+  /// xterm 自己的 `_onTapDown` 会把键盘要回来——有选区时第一下是「点掉选区」、
+  /// 第二下才弹键盘，那是包的既有语义，别在应用侧抢着改。
+  void _closeSoftKeyboard() {
+    if (!_isTouchPlatform) return;
+    final view = _terminalKey.currentState;
+    if (view == null || !view.hasInputConnection) return;
+    view.closeKeyboard();
+  }
+
+  /// 焦点回到终端时，若屏幕上还有选区，就别让软键盘跟着回来。
+  ///
+  /// 长按弹出的菜单一关，焦点就还给终端，而**聚焦本身会带一个键盘令牌**
+  /// （Flutter 那套「只有成功 `consumeKeyboardToken()` 的一方才有资格 show
+  /// 键盘」的约定，xterm 的 `_onFocusChange` 正是靠它）：不拦的话，刚收下去
+  /// 的键盘立刻又压回来，前面的让位等于白做。本监听器注册在 xterm 自己的
+  /// 焦点回调**之前**——父 State 的 `initState` 先跑、子节点后建，所以这里
+  /// 先吃掉令牌，xterm 那边就安静地不弹；顺序要是被谁调反了，
+  /// `terminal_key_bar_test.dart` 的「复制完不会自己弹回来」会当场变红。
+  ///
+  /// 没有选区时不管：那时焦点回来（比如长按空白处点「粘贴」之后）键盘跟着
+  /// 回来，正是用户接下来要打字的期望。
+  void _onTerminalFocusChanged() {
+    // 只管触屏。桌面端那条输入连接还兼着输入法组字（中文上屏走的就是它），
+    // 令牌抢过来会让重新聚焦之后组不了字——那边也不存在「软键盘挡着」。
+    if (!_isTouchPlatform) return;
+    if (!_focusNode.hasFocus) return;
+    if (_controller.selection == null) return;
+    _focusNode.consumeKeyboardToken();
   }
 
   void _adjustFontSize(int delta) {
@@ -537,6 +582,11 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _longPressTimer = Timer(_longPressDelay, () {
       if (!mounted) return;
       _longPressFired = true;
+      // 键盘先让位，菜单随后才弹：长按的地方马上会成为选区，键盘压着
+      // 半屏就看不见自己选了什么。这里**不看有没有选区**——长按落在空白处
+      // 时 xterm 的 selectWord 直接返回、根本不产生选区，而用户的意图一样
+      // 是复制（菜单里的复制置灰，粘贴 / 全选照常可用）。
+      _closeSoftKeyboard();
       _showContextMenuAt(event.position);
     });
   }
@@ -1400,6 +1450,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     final link = cell == null
         ? null
         : findLinkAtCell(widget.session.terminal, cell);
+    // 触屏上没有常驻工具条，查找与命令片段就得有别的入口——长按菜单是
+    // 手机上唯一「不用先把输入法叫出来」的入口。桌面上这两件事归工具条，
+    // 右键菜单保持原样（多两项会把常用项挤散）。
+    final snippets = _isTouchPlatform ? SnippetScope.maybeOf(context) : null;
     final action = await showMenu<String>(
       context: context,
       // 四边都收敛到指针处，菜单从点击位置弹出。
@@ -1421,6 +1475,12 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
           const PopupMenuDivider(),
           PopupMenuItem(value: 'openLink', child: Text(l10n.openLink)),
         ],
+        if (_isTouchPlatform) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem(value: 'search', child: Text(l10n.searchTerminal)),
+          if (snippets != null)
+            PopupMenuItem(value: 'snippets', child: Text(l10n.snippets)),
+        ],
       ],
     );
     if (!mounted || action == null) return;
@@ -1429,6 +1489,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
         await copyTerminalSelection(widget.session.terminal, _controller);
       case 'paste':
         await pasteIntoTerminal(widget.session.terminal);
+        // 粘贴之后多半是要接着敲键盘（补个回车、改段参数），把软键盘要回来：
+        // 「选字时键盘让位」是给复制用的，不该顺手把粘贴也一起挡住。
+        if (_isTouchPlatform) _terminalKey.currentState?.requestKeyboard();
       case 'selectAll':
         selectAllInTerminal(widget.session.terminal, _controller);
       case 'openLink':
@@ -1438,6 +1501,14 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
         if (!opened && mounted) {
           showToast(context, AppLocalizations.of(context).linkOpenFailed);
         }
+      case 'search':
+        _openSearch();
+      case 'snippets':
+        await showSnippetDialog(
+          context,
+          snippets: snippets!,
+          session: widget.session,
+        );
     }
   }
 
@@ -1675,15 +1746,20 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
               ),
               if (phase != TerminalPhase.connected)
                 _overlay(context, phase, prefs),
-              Positioned(
-                top: 6,
-                right: 8,
-                child: _SessionToolbar(
-                  session: widget.session,
-                  controller: _controller,
-                  onSearch: _openSearch,
+              // 会话工具条只在桌面端挂：鼠标够得着、右键菜单也顺手。触屏上
+              // 它悬浮在输出之上，右上角那几行字既看不见也选不中，正是复制
+              // 时最碍事的一块——查找与命令片段改到长按菜单里（见
+              // [_showContextMenu]），复制 / 粘贴 / 全选本来就在那里。
+              if (!_isTouchPlatform)
+                Positioned(
+                  top: 6,
+                  right: 8,
+                  child: _SessionToolbar(
+                    session: widget.session,
+                    controller: _controller,
+                    onSearch: _openSearch,
+                  ),
                 ),
-              ),
             ],
           ),
         );
@@ -1872,8 +1948,11 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 }
 
-/// 终端右上角的会话工具条：复制 / 粘贴 / 命令片段的入口。
+/// 桌面终端右上角的会话工具条：复制 / 粘贴 / 查找 / 命令片段的入口。
 /// 悬浮在终端内容之上，底色用终端配色，图标对比度不随主题漂移。
+///
+/// **只在桌面端挂**（见 build 里的 `_isTouchPlatform` 判断）：触屏上它挡住
+/// 的那几行字正是用户要复制的东西，查找与命令片段改走长按菜单。
 final class _SessionToolbar extends StatelessWidget {
   const _SessionToolbar({
     required this.session,
@@ -1899,9 +1978,6 @@ final class _SessionToolbar extends StatelessWidget {
       valueListenable: TerminalStyleScope.of(context).notifier,
       builder: (context, prefs, _) {
         final foreground = prefs.theme.foreground;
-        // 触屏上按 44 的落点下限放大：工具条悬浮在终端之上，28 见方的按钮
-        // 在手机上点十次错三次。桌面上保持紧凑——那里有鼠标，精度不是问题。
-        final size = _isTouchPlatform ? 44.0 : 28.0;
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
           decoration: BoxDecoration(
@@ -1921,7 +1997,6 @@ final class _SessionToolbar extends StatelessWidget {
                   return _ToolbarButton(
                     tooltip: l10n.copy,
                     icon: Icons.copy_rounded,
-                    size: size,
                     color: hasSelection
                         ? foreground
                         : foreground.withValues(alpha: 0.35),
@@ -1937,14 +2012,12 @@ final class _SessionToolbar extends StatelessWidget {
               _ToolbarButton(
                 tooltip: l10n.paste,
                 icon: Icons.content_paste_rounded,
-                size: size,
                 color: foreground,
                 onTap: () => pasteIntoTerminal(session.terminal),
               ),
               _ToolbarButton(
                 tooltip: l10n.searchTerminal,
                 icon: Icons.search_rounded,
-                size: size,
                 color: foreground,
                 onTap: onSearch,
               ),
@@ -1952,7 +2025,6 @@ final class _SessionToolbar extends StatelessWidget {
                 _ToolbarButton(
                   tooltip: l10n.snippets,
                   icon: Icons.code_rounded,
-                  size: size,
                   color: foreground,
                   onTap: () => showSnippetDialog(
                     context,
@@ -1968,14 +2040,13 @@ final class _SessionToolbar extends StatelessWidget {
   }
 }
 
-/// 工具条按钮：尺寸手工收紧以贴合圆角胶囊；触屏上传 [size] 44 满足落点下限。
+/// 工具条按钮：尺寸手工收紧以贴合圆角胶囊；桌面上有鼠标，28 见方够用。
 final class _ToolbarButton extends StatelessWidget {
   const _ToolbarButton({
     required this.tooltip,
     required this.icon,
     required this.color,
     required this.onTap,
-    this.size = 28,
   });
 
   final String tooltip;
@@ -1983,19 +2054,15 @@ final class _ToolbarButton extends StatelessWidget {
   final Color color;
   final VoidCallback? onTap;
 
-  /// 触控目标边长（逻辑像素）。
-  final double size;
-
   @override
   Widget build(BuildContext context) {
-    final touch = size >= 44;
     return IconButton(
       tooltip: tooltip,
-      icon: Icon(icon, size: touch ? 20 : 17, color: color),
+      icon: Icon(icon, size: 17, color: color),
       onPressed: onTap,
       visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.all(touch ? 10 : 5),
-      constraints: BoxConstraints.tightFor(width: size, height: size),
+      padding: const EdgeInsets.all(5),
+      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
     );
   }
 }

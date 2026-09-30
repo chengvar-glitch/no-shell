@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/l10n/generated/app_localizations.dart';
 import 'package:no_shell/models.dart';
 import 'package:no_shell/settings.dart';
+import 'package:no_shell/snippets.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
 import 'package:no_shell/ssh/terminal_interactions.dart';
 import 'package:no_shell/ssh/terminal_session.dart';
@@ -48,22 +49,27 @@ void _installClipboardMock() {
 Widget _host(
   Widget child, {
   required ValueNotifier<TerminalStylePrefs> style,
-}) => MaterialApp(
-  locale: const Locale('zh'),
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
-  supportedLocales: AppLocalizations.supportedLocales,
-  theme: AppTheme.light(),
-  home: Scaffold(body: child),
-  builder: (context, navigator) => TerminalStyleScope(
-    notifier: style,
-    child: navigator ?? const SizedBox.shrink(),
-  ),
-);
+  SnippetStore? snippets,
+}) {
+  final app = MaterialApp(
+    locale: const Locale('zh'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    theme: AppTheme.light(),
+    home: Scaffold(body: child),
+    builder: (context, navigator) => TerminalStyleScope(
+      notifier: style,
+      child: navigator ?? const SizedBox.shrink(),
+    ),
+  );
+  return snippets == null ? app : SnippetScope(store: snippets, child: app);
+}
 
 Future<(TerminalSession, FakeTransport)> _pumpTerminal(
   WidgetTester tester,
   ValueNotifier<TerminalStylePrefs> style, {
   String output = 'banner\n',
+  SnippetStore? snippets,
   Future<bool> Function(Uri uri)? openLink,
 }) async {
   final transport = _connected(lines: [output]);
@@ -81,10 +87,40 @@ Future<(TerminalSession, FakeTransport)> _pumpTerminal(
         openLink: openLink ?? (uri) async => true,
       ),
       style: style,
+      snippets: snippets,
     ),
   );
   await tester.pump();
   return (session, transport);
+}
+
+/// 在桌面平台下跑一段断言。
+///
+/// 悬浮工具条只在桌面端挂（触屏上它挡住终端右上角那几行字，正是复制时最
+/// 碍事的一块，见 `terminal_view.dart`），而测试 VM 的默认平台是 Android
+/// ——不显式覆盖的话，工具条压根不在树上。必须在测试体内复位：foundation
+/// 的不变式检查发生在 tear down 之前。
+Future<void> _asDesktop(Future<void> Function() body) async {
+  debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+  try {
+    await body();
+  } finally {
+    debugDefaultTargetPlatformOverride = null;
+  }
+}
+
+/// 触屏上打开查找栏：长按终端 → 菜单里点「查找」。
+/// 手机上查找就这一个入口（桌面那颗放大镜随工具条留在桌面端）。
+Future<void> _openSearchByLongPress(WidgetTester tester) async {
+  final gesture = await tester.startGesture(
+    tester.getCenter(find.byType(TerminalView)),
+    kind: PointerDeviceKind.touch,
+  );
+  await tester.pump(const Duration(milliseconds: 600));
+  await gesture.up();
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('查找'));
+  await tester.pump();
 }
 
 /// 包的复制 / 全选动作注册在 TerminalView **内部**的 TerminalActions 上，
@@ -102,39 +138,91 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(_installClipboardMock);
 
-  group('工具条复制 / 粘贴', () {
+  group('工具条复制 / 粘贴（桌面端）', () {
     testWidgets('复制按钮无选区时禁用，全选后可用且能复制缓冲区', (tester) async {
-      final style = ValueNotifier(const TerminalStylePrefs());
-      await _pumpTerminal(tester, style);
+      await _asDesktop(() async {
+        final style = ValueNotifier(const TerminalStylePrefs());
+        await _pumpTerminal(tester, style);
 
-      IconButton copyButton() => tester.widget<IconButton>(
-        find.widgetWithIcon(IconButton, Icons.copy_rounded),
-      );
-      expect(copyButton().onPressed, isNull);
+        IconButton copyButton() => tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.copy_rounded),
+        );
+        expect(copyButton().onPressed, isNull);
 
-      Actions.invoke(
-        _terminalContext(tester),
-        const SelectAllTextIntent(SelectionChangedCause.keyboard),
-      );
-      await tester.pump();
-      expect(copyButton().onPressed, isNotNull);
+        Actions.invoke(
+          _terminalContext(tester),
+          const SelectAllTextIntent(SelectionChangedCause.keyboard),
+        );
+        await tester.pump();
+        expect(copyButton().onPressed, isNotNull);
 
-      await tester.tap(find.widgetWithIcon(IconButton, Icons.copy_rounded));
-      await tester.pump();
-      expect(_clipboardText, startsWith('banner'));
+        await tester.tap(find.widgetWithIcon(IconButton, Icons.copy_rounded));
+        await tester.pump();
+        expect(_clipboardText, startsWith('banner'));
+      });
     });
 
     testWidgets('粘贴按钮把剪贴板内容写进终端并发往远端', (tester) async {
+      await _asDesktop(() async {
+        final style = ValueNotifier(const TerminalStylePrefs());
+        final (_, transport) = await _pumpTerminal(tester, style);
+
+        _clipboardText = 'echo hi';
+        await tester.tap(
+          find.widgetWithIcon(IconButton, Icons.content_paste_rounded),
+        );
+        await tester.pump();
+
+        expect(transport.sent, contains('echo hi'));
+      });
+    });
+  });
+
+  group('触屏的入口', () {
+    testWidgets('没有悬浮工具条，查找走长按菜单', (tester) async {
       final style = ValueNotifier(const TerminalStylePrefs());
-      final (_, transport) = await _pumpTerminal(tester, style);
+      await _pumpTerminal(tester, style);
 
-      _clipboardText = 'echo hi';
-      await tester.tap(
-        find.widgetWithIcon(IconButton, Icons.content_paste_rounded),
+      // 工具条按平台判定，测试 VM 的默认平台是 Android，也就是触屏那一支。
+      expect(
+        find.byIcon(Icons.copy_rounded),
+        findsNothing,
+        reason: '触屏上不挂悬浮工具条',
       );
-      await tester.pump();
+      expect(find.byIcon(Icons.content_paste_rounded), findsNothing);
+      expect(find.byIcon(Icons.search_rounded), findsNothing);
 
-      expect(transport.sent, contains('echo hi'));
+      final field = find.descendant(
+        of: find.byType(SshTerminalView),
+        matching: find.byType(TextField),
+      );
+      expect(field, findsNothing);
+
+      await _openSearchByLongPress(tester);
+      expect(field, findsOneWidget, reason: '长按菜单的「查找」要能打开查找栏');
+    });
+
+    testWidgets('宿主提供片段时，长按菜单里带「命令片段」入口', (tester) async {
+      final style = ValueNotifier(const TerminalStylePrefs());
+      final snippets = SnippetStore(
+        seed: const [
+          CommandSnippet(id: 's1', name: '看日志', command: 'tail -f app.log'),
+        ],
+      );
+      addTearDown(snippets.dispose);
+      await _pumpTerminal(tester, style, snippets: snippets);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(TerminalView)),
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('命令片段'));
+      await tester.pumpAndSettle();
+      expect(find.text('看日志'), findsOneWidget, reason: '片段弹窗要真的打开');
     });
   });
 
@@ -548,7 +636,7 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets('工具栏入口打开查找栏，命中上高亮并给出计数', (tester) async {
+    testWidgets('长按菜单入口打开查找栏，命中上高亮并给出计数', (tester) async {
       final style = ValueNotifier(const TerminalStylePrefs());
       await _pumpTerminal(
         tester,
@@ -557,8 +645,7 @@ void main() {
       );
 
       expect(searchField(), findsNothing);
-      await tester.tap(find.widgetWithIcon(IconButton, Icons.search_rounded));
-      await tester.pump();
+      await _openSearchByLongPress(tester);
       expect(searchField(), findsOneWidget);
 
       await search(tester, 'beta');
@@ -615,8 +702,7 @@ void main() {
         output: 'alpha beta\nbeta again\n',
       );
 
-      await tester.tap(find.widgetWithIcon(IconButton, Icons.search_rounded));
-      await tester.pump();
+      await _openSearchByLongPress(tester);
       await search(tester, 'beta');
       expect(find.text('1/2'), findsOneWidget);
 
@@ -655,8 +741,7 @@ void main() {
           .position;
       expect(position.pixels, position.maxScrollExtent, reason: '起点在底部');
 
-      await tester.tap(find.widgetWithIcon(IconButton, Icons.search_rounded));
-      await tester.pump();
+      await _openSearchByLongPress(tester);
       await search(tester, 'needle');
 
       expect(find.text('1/1'), findsOneWidget);

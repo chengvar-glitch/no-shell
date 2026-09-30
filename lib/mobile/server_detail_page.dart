@@ -225,6 +225,18 @@ class _ServerDetailPageState extends State<ServerDetailPage>
                 ),
                 Expanded(
                   child: TabBarView(
+                    // **不跟着手指横滑翻页**，翻页只走上面的 Tab 栏。
+                    //
+                    // 终端 Tab 里横滑本来该是「拖选区手柄改选区」（手柄拖动
+                    // 走的是终端自己的原始 Listener，不参与手势竞技场），而
+                    // TabBarView 自带的横向拖动识别器在同一次滑动里会赢下
+                    // 竞技场：手柄在动、页面同时也在翻，字就选不准了。终端
+                    // 侧在触屏上没有认领横向拖动（xterm 的 pan 识别器只认
+                    // 鼠标），拦不住它，只能从这里关掉。
+                    //
+                    // 桌面端详情面板本来就只有 Tab 栏点按（见 server_detail.dart
+                    // 的 _DetailTabView），两端行为因此一致。
+                    physics: const NeverScrollableScrollPhysics(),
                     // 保活四个 Tab：切走不再 dispose，切回终端无需重建 xterm 视图。
                     children: [
                       _KeepAlive(
