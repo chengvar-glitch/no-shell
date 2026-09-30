@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:no_shell/models.dart';
+import 'package:no_shell/ssh/host_key_store.dart';
 import 'package:no_shell/ssh/session_manager.dart';
 import 'package:no_shell/ssh/sftp.dart';
 import 'package:no_shell/ssh/ssh_credentials.dart';
@@ -214,6 +215,44 @@ void main() {
       expect(session.errorKind, TerminalErrorKind.auth);
       expect(session.isActive, isFalse);
       expect(store.byId('srv-01')?.status, ServerStatus.error);
+    });
+
+    test('指纹存储故障归类为 hostKeyStore，不是 hostKey', () async {
+      // 读不出**或写不进**指纹都归这里（见 host_key_store.dart 的 save 契约）。
+      // 与 hostKey 分开是要紧的：指纹存储故障不能让用户去「清除指纹」——
+      // 那会真的丢掉可信记录，而这次失败跟对端密钥变没变毫无关系。
+      final store = ServerStore(seed: [_server()]);
+      final sessions = _manager(store, [
+        FakeTransport(
+          error: const HostKeyUnavailableException(host: '10.0.0.1', port: 22),
+        ),
+      ]);
+
+      sessions.open(_server(), const SshCredentials(password: 'pw'));
+      await pumpEventQueue();
+
+      final session = sessions.activeOf('srv-01')!;
+      expect(session.phase, TerminalPhase.failed);
+      expect(session.errorKind, TerminalErrorKind.hostKeyStore);
+      expect(store.byId('srv-01')?.status, ServerStatus.error);
+    });
+
+    test('私钥格式不受支持归类为 privateKey，不冒充认证失败', () async {
+      // 归成 auth 的话用户会一遍遍重输口令，而问题在密钥格式上。
+      final store = ServerStore(seed: [_server()]);
+      final sessions = _manager(store, [
+        FakeTransport(
+          error: const PrivateKeyUnsupportedException('BEGIN UNKNOWN KEY'),
+        ),
+      ]);
+
+      sessions.open(_server(), const SshCredentials(privateKey: 'x'));
+      await pumpEventQueue();
+
+      expect(
+        sessions.activeOf('srv-01')!.errorKind,
+        TerminalErrorKind.privateKey,
+      );
     });
 
     test('远端主动断开 → 会话变为 closed，主机回到未连接', () async {

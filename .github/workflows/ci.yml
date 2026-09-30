@@ -95,3 +95,22 @@ jobs:
 
       - name: 编译 iOS（不签名）
         run: flutter build ios --release --no-codesign
+
+  # web 同理：那条「不支持的能力抛 UnsupportedError」的分支靠条件导出切到
+  # *_stub.dart，而 flutter analyze 只做类型检查——桩有没有接错、web 分支下
+  # 能不能编，只有真编一次才知道。web 也不在发布产物里（不上架）。
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 安装依赖
+        run: flutter pub get
+
+      - name: 编译 web
+        run: flutter build web --release
