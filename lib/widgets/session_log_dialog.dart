@@ -62,7 +62,10 @@ class _SessionLogDialogState extends State<_SessionLogDialog> {
     );
     if (destination == null || !context.mounted) return;
     try {
-      final handle = localFiles.openWrite(destination.path, ownerOnly: true);
+      final handle = await localFiles.openWrite(
+        destination.path,
+        ownerOnly: true,
+      );
       handle.add(utf8.encode(_text));
       await handle.close();
     } on Object {

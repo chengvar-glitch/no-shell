@@ -82,18 +82,23 @@ Future<void> promoteLocalFile(String temporaryPath, String targetPath) async {
 /// 默认下载目录：桌面取系统下载目录，移动端取应用文档目录。
 /// 取不到时返回 null，由调用方退化为「不指定初始目录」。
 Future<String?> defaultLocalDirectory() async {
-  try {
-    if (Platform.isAndroid || Platform.isIOS) {
+  if (Platform.isAndroid || Platform.isIOS) {
+    try {
       return (await getApplicationDocumentsDirectory()).path;
+    } on Object {
+      return null;
     }
+  }
+  try {
     final downloads = await getDownloadsDirectory();
     if (downloads != null) return downloads.path;
-    final home =
-        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-    return (home == null || home.isEmpty) ? null : home;
   } on Object {
-    return null;
+    // 系统下载目录问不到（平台实现没注册等）：还有 HOME 这条退路，
+    // 别把整个函数一起放弃——移动端下载落点的兜底就指着它。
   }
+  final home =
+      Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+  return (home == null || home.isEmpty) ? null : home;
 }
 
 /// 移动端的目录选择器返回的是 SAF / 沙盒 URL，dart:io 无法直接写入，

@@ -68,37 +68,49 @@ abstract interface class LocalFileGateway {
   /// 无论用户是否真的分享出去，文件都由实现方负责收拾干净。
   Future<void> shareLocalFile(String path, {String? title});
 
-  /// 单个文件的下载落点：桌面弹「另存为」，移动端落到应用文档目录；
-  /// 返回 null 表示用户取消。
+  /// 把已经落地的下载交给系统分享面板（移动端）。与 [shareLocalFile] 的
+  /// 分别只有一条：文件是用户的，分享完**不能删**。
+  Future<void> shareDownload(String path, {String? title});
+
+  /// 单个文件的下载落点：桌面弹「另存为」，Android 落到系统公共下载目录
+  /// （10+ 走 MediaStore，9 及以下在授权后直接写路径），其余移动端落到
+  /// 应用文档目录；返回 null 表示用户取消。
   Future<LocalTarget?> pickDownloadTarget(
     String suggestedName, {
     String? confirmLabel,
   });
 
-  /// 多个文件的下载落点：桌面弹一次目录选择，移动端落到应用文档目录；
+  /// 多个文件的下载落点：桌面弹一次目录选择，Android 落到系统公共下载
+  /// 目录，其余移动端落到应用文档目录；
   /// 返回 null 表示用户取消或平台无从确定目录。
   Future<List<LocalTarget>?> pickDownloadDirectory(
     List<String> names, {
     String? confirmLabel,
   });
 
-  /// 打开本地写入流，同名文件覆盖。
+  /// 打开本地写入流，同名文件覆盖。异步是因为 Android 公共下载目录的落点
+  /// 要先在 MediaStore 里建一条记录——系统侧的事急不得。
   /// [ownerOnly] 为 true 时把权限收到仅当前用户可读写（导出含密码的
-  /// 备份文件时必须开启）。
-  LocalWriteHandle openWrite(String path, {bool ownerOnly = false});
+  /// 备份文件时必须开启）；公共下载目录里的文件不适用（别的应用要读得到）。
+  Future<LocalWriteHandle> openWrite(String path, {bool ownerOnly = false});
 
   /// 写入中的临时路径。下载先写这里，成功后再 [promote] 到目标，
   /// 免得下到一半失败把用户原有的同名文件毁掉。
   String temporaryPath(String path);
 
-  /// 把写完的临时文件改名到目标路径（覆盖语义）。
-  Future<void> promote(String temporaryPath, String targetPath);
+  /// 把写完的临时文件改名到目标路径（覆盖语义）。返回落点最终的显示名：
+  /// Android 公共下载目录（MediaStore 那支）遇到重名会把它改成
+  /// `name (1).ext`，桌面的「另存为」也可能被用户改过名字；
+  /// 与请求的同名或无从得知时为 null。
+  Future<String?> promote(String temporaryPath, String targetPath);
 
   /// 清理取消 / 失败留下的半成品文件。
   Future<void> discard(String path);
 
   /// 落点是否已存在同名文件：下载覆盖确认用（上传链路的同名确认靠远端
-  /// 列目录，下载落点在本地，只能这样问）。
+  /// 列目录，下载落点在本地，只能这样问）。Android 的 MediaStore 落点永远
+  /// 回答「不存在」——那里的重名由系统改成 `name (1).ext`，不会覆盖，
+  /// 也就没有「要不要覆盖」可问；Android 9 及以下那支是真路径，照常回答。
   Future<bool> localFileExists(String path);
 }
 
@@ -182,6 +194,13 @@ final class NativeLocalFileGateway implements LocalFileGateway {
         // 对话框不可用（如平台未实现）时退化为默认目录。
       }
     }
+    // Android：落到系统公共下载目录。用户在文件管理器里随手就能找到，
+    // 也不随卸载消失；应用文档目录只有 iOS 靠 Info.plist 才对用户可见，
+    // Android 上那个目录用户在设备上根本进不去。
+    final public = await publicDownloadTarget(suggestedName);
+    if (public != null) {
+      return LocalTarget(path: public, name: suggestedName);
+    }
     final fallback = await defaultLocalDirectory();
     if (fallback == null) return null;
     return LocalTarget(
@@ -195,8 +214,8 @@ final class NativeLocalFileGateway implements LocalFileGateway {
     List<String> names, {
     String? confirmLabel,
   }) async {
-    String? directory;
     if (supportsLocalFileDialogs) {
+      String? directory;
       try {
         directory = await getDirectoryPath(
           initialDirectory: await defaultLocalDirectory(),
@@ -207,10 +226,25 @@ final class NativeLocalFileGateway implements LocalFileGateway {
       }
       // 目录选择是显式动作，取消即取消整批下载。
       if (directory == null) return null;
-    } else {
-      directory = await defaultLocalDirectory();
-      if (directory == null) return null;
+      return [
+        for (final name in names)
+          LocalTarget(path: _joinLocalPath(directory, name), name: name),
+      ];
     }
+    // Android：整批落到公共下载目录。MediaStore 那支重名由系统改成
+    // `name (1).ext`；Android 9 及以下那支是真路径，照常问覆盖。
+    final public = <LocalTarget>[];
+    for (final name in names) {
+      final target = await publicDownloadTarget(name);
+      if (target == null) {
+        public.clear();
+        break;
+      }
+      public.add(LocalTarget(path: target, name: name));
+    }
+    if (public.isNotEmpty) return public;
+    final directory = await defaultLocalDirectory();
+    if (directory == null) return null;
     return [
       for (final name in names)
         LocalTarget(path: _joinLocalPath(directory, name), name: name),
@@ -218,21 +252,69 @@ final class NativeLocalFileGateway implements LocalFileGateway {
   }
 
   @override
-  LocalWriteHandle openWrite(String path, {bool ownerOnly = false}) =>
-      openLocalWrite(path, ownerOnly: ownerOnly);
+  Future<LocalWriteHandle> openWrite(
+    String path, {
+    bool ownerOnly = false,
+  }) async {
+    if (isMediaStoreDownloadPath(path)) return openMediaStoreDownload(path);
+    final real = androidDownloadRealPath(path);
+    // 公共下载目录里的文件（含临时文件）都不收权限：它改名之后就是用户要
+    // 留下的那个文件，而下载目录是共享资源，别的应用（相册、办公套件）都要
+    // 读得到——收到 0600 等于下完只有本应用看得见。
+    if (real != null) return openLocalWrite(real);
+    return openLocalWrite(path, ownerOnly: ownerOnly);
+  }
 
   @override
-  String temporaryPath(String path) => localTemporaryPath(path);
+  String temporaryPath(String path) {
+    final real = androidDownloadRealPath(path);
+    // Android 9 及以下那支：临时文件仍落在同一个公共目录里（同目录改名才是
+    // 原子操作），并带上同一个暗号——它的权限语义与目标一致。
+    if (real != null) return legacyDownloadPath(localTemporaryPath(real));
+    // MediaStore 那支没有「临时路径」这一说：那条记录本身就是临时态
+    // （IS_PENDING=1），转正 / 删除都按同一个暗号办。
+    return isMediaStoreDownloadPath(path) ? path : localTemporaryPath(path);
+  }
 
   @override
-  Future<void> promote(String temporaryPath, String targetPath) =>
-      promoteLocalFile(temporaryPath, targetPath);
+  Future<String?> promote(String temporaryPath, String targetPath) async {
+    if (isMediaStoreDownloadPath(targetPath)) {
+      return promoteMediaStoreDownload(targetPath);
+    }
+    final real = androidDownloadRealPath(targetPath);
+    // 临时路径也带同一个暗号（见 [temporaryPath]），改名两边都得先解出来。
+    final from = androidDownloadRealPath(temporaryPath) ?? temporaryPath;
+    await promoteLocalFile(from, real ?? targetPath);
+    return null;
+  }
 
   @override
-  Future<void> discard(String path) => deleteLocalFile(path);
+  Future<void> discard(String path) {
+    if (isMediaStoreDownloadPath(path)) return discardMediaStoreDownload(path);
+    final real = androidDownloadRealPath(path);
+    if (real != null) return deleteLocalFile(real);
+    return deleteLocalFile(path);
+  }
 
   @override
-  Future<bool> localFileExists(String path) => doesLocalFileExist(path);
+  Future<bool> localFileExists(String path) async {
+    // MediaStore 的重名由系统改成 `name (1).ext`，没有「覆盖」可确认。
+    if (isMediaStoreDownloadPath(path)) return false;
+    final real = androidDownloadRealPath(path);
+    if (real != null) return doesLocalFileExist(real);
+    return doesLocalFileExist(path);
+  }
+
+  @override
+  Future<void> shareDownload(String path, {String? title}) {
+    // Android 的两支公共下载落点都认；其余落点是真路径，直接交给系统面板。
+    final real = androidDownloadRealPath(path);
+    if (real != null) return shareLocalPathOnDevice(real, title: title);
+    if (isMediaStoreDownloadPath(path)) {
+      return shareMediaStoreDownload(path, title: title);
+    }
+    return shareLocalPathOnDevice(path, title: title);
+  }
 }
 
 /// 拼接本地路径：Windows 目录形如 `C:\Users\me`，其余平台用 `/`。

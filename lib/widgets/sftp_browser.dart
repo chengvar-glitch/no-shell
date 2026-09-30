@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -146,7 +147,7 @@ class _SftpTabState extends State<SftpTab> {
       SftpTransferState.done =>
         transfer.direction == SftpTransferDirection.upload
             ? l10n.sftpUploaded(transfer.name)
-            : l10n.sftpDownloaded(transfer.name),
+            : l10n.sftpDownloaded(transfer.localName ?? transfer.name),
       SftpTransferState.failed =>
         transfer.direction == SftpTransferDirection.upload
             ? l10n.sftpUploadFailed(transfer.name)
@@ -156,6 +157,40 @@ class _SftpTabState extends State<SftpTab> {
     };
     if (message == null) return;
     showToast(context, message);
+    _shareDownload(transfer);
+  }
+
+  /// 下完自动弹分享面板的只有 iOS / Android：桌面端有真正的「另存为」。
+  /// 判 `defaultTargetPlatform` 而不是 `supportsLocalFileDialogs`——后者在
+  /// 测试宿主（桌面）上跟真机不一致，这里得能被测试覆盖。
+  bool get _shareAfterDownload =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  /// 下载完成顺手把文件交给系统分享面板（移动端）。
+  ///
+  /// 落点已经在用户的下载 / 文档目录里躺着，分享只是「再发给别人 / 存到云盘」
+  /// 的顺路一步，所以分享完**不删**文件（[LocalFileGateway.shareDownload]）。
+  /// 桌面端不弹：那里的「另存为」已经让用户指定过位置，再弹一个分享面板纯属
+  /// 多一步。
+  void _shareDownload(SftpTransfer transfer) {
+    if (transfer.state != SftpTransferState.done) return;
+    if (transfer.direction != SftpTransferDirection.download) return;
+    if (!_shareAfterDownload) return;
+    final localPath = transfer.localPath;
+    final controller = _controller;
+    if (localPath == null || controller == null) return;
+    // 后台完成时不弹：Android 10 起禁止后台应用启动界面，硬来只会抛异常；
+    // 文件已经在落点里，用户回到前台自己分享也一样。lifecycleState 未知
+    // （测试环境）按前台处理。
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    unawaited(
+      controller.localFiles
+          .shareDownload(localPath, title: transfer.localName ?? transfer.name)
+          // 分享失败不该冒泡到传输层：文件已经落地，这只是一步顺路的方便。
+          .catchError((Object _) {}),
+    );
   }
 
   @override
