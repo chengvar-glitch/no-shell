@@ -68,13 +68,16 @@ ServerStatus serverStatusOf(TerminalPhase phase) => switch (phase) {
 };
 
 /// 真实 SSH 终端视图：按全局偏好渲染会话缓冲区，非连接态时叠加状态浮层。
-/// 右上角常驻会话工具条（复制 / 粘贴 / 命令片段；会话日志的入口在详情头部
-/// 与全屏终端页的状态胶囊上），挂了重连计划时浮层里会多出倒计时与
-/// 「停止自动重连」。
+/// 桌面端右上角常驻会话工具条（复制 / 粘贴 / 查找 / 命令片段；会话日志的
+/// 入口在详情头部与全屏终端页的状态胶囊上），挂了重连计划时浮层里会多出
+/// 倒计时与「停止自动重连」。
 ///
-/// 便捷交互：右键菜单（复制 / 粘贴 / 全选）、Cmd/Ctrl +/- 字号缩放、
-/// Cmd/Ctrl+点击打开链接（按住修饰键悬停到链接上会加下划线并换成手型光标），
-/// 以及可选的「选中即复制」。
+/// 便捷交互：右键 / 长按菜单（桌面是复制 / 粘贴 / 全选，触屏另加打开链接 /
+/// 查找 / 命令片段）、Cmd/Ctrl +/- 字号缩放、Cmd/Ctrl+点击打开链接（按住
+/// 修饰键悬停到链接上会加下划线并换成手型光标），以及可选的「选中即复制」。
+///
+/// 触屏上**没有**那条悬浮工具条：它压在终端输出的右上角，那里的字既看不
+/// 清也选不中，而手机上复制本来就靠长按，多一排按钮只是挡路。
 final class SshTerminalView extends StatefulWidget {
   const SshTerminalView({
     super.key,
@@ -1400,6 +1403,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     final link = cell == null
         ? null
         : findLinkAtCell(widget.session.terminal, cell);
+    // 触屏上没有常驻工具条，查找与命令片段就得有别的入口——长按菜单是
+    // 手机上唯一「不用先把输入法叫出来」的入口。桌面上这两件事归工具条，
+    // 右键菜单保持原样（多两项会把常用项挤散）。
+    final snippets = _isTouchPlatform ? SnippetScope.maybeOf(context) : null;
     final action = await showMenu<String>(
       context: context,
       // 四边都收敛到指针处，菜单从点击位置弹出。
@@ -1421,6 +1428,12 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
           const PopupMenuDivider(),
           PopupMenuItem(value: 'openLink', child: Text(l10n.openLink)),
         ],
+        if (_isTouchPlatform) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem(value: 'search', child: Text(l10n.searchTerminal)),
+          if (snippets != null)
+            PopupMenuItem(value: 'snippets', child: Text(l10n.snippets)),
+        ],
       ],
     );
     if (!mounted || action == null) return;
@@ -1438,6 +1451,14 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
         if (!opened && mounted) {
           showToast(context, AppLocalizations.of(context).linkOpenFailed);
         }
+      case 'search':
+        _openSearch();
+      case 'snippets':
+        await showSnippetDialog(
+          context,
+          snippets: snippets!,
+          session: widget.session,
+        );
     }
   }
 
@@ -1675,15 +1696,20 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
               ),
               if (phase != TerminalPhase.connected)
                 _overlay(context, phase, prefs),
-              Positioned(
-                top: 6,
-                right: 8,
-                child: _SessionToolbar(
-                  session: widget.session,
-                  controller: _controller,
-                  onSearch: _openSearch,
+              // 会话工具条只在桌面端挂：鼠标够得着、右键菜单也顺手。触屏上
+              // 它悬浮在输出之上，右上角那几行字既看不见也选不中，正是复制
+              // 时最碍事的一块——查找与命令片段改到长按菜单里（见
+              // [_showContextMenu]），复制 / 粘贴 / 全选本来就在那里。
+              if (!_isTouchPlatform)
+                Positioned(
+                  top: 6,
+                  right: 8,
+                  child: _SessionToolbar(
+                    session: widget.session,
+                    controller: _controller,
+                    onSearch: _openSearch,
+                  ),
                 ),
-              ),
             ],
           ),
         );
@@ -1872,8 +1898,11 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 }
 
-/// 终端右上角的会话工具条：复制 / 粘贴 / 命令片段的入口。
+/// 桌面终端右上角的会话工具条：复制 / 粘贴 / 查找 / 命令片段的入口。
 /// 悬浮在终端内容之上，底色用终端配色，图标对比度不随主题漂移。
+///
+/// **只在桌面端挂**（见 build 里的 `_isTouchPlatform` 判断）：触屏上它挡住
+/// 的那几行字正是用户要复制的东西，查找与命令片段改走长按菜单。
 final class _SessionToolbar extends StatelessWidget {
   const _SessionToolbar({
     required this.session,
@@ -1899,9 +1928,6 @@ final class _SessionToolbar extends StatelessWidget {
       valueListenable: TerminalStyleScope.of(context).notifier,
       builder: (context, prefs, _) {
         final foreground = prefs.theme.foreground;
-        // 触屏上按 44 的落点下限放大：工具条悬浮在终端之上，28 见方的按钮
-        // 在手机上点十次错三次。桌面上保持紧凑——那里有鼠标，精度不是问题。
-        final size = _isTouchPlatform ? 44.0 : 28.0;
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
           decoration: BoxDecoration(
@@ -1921,7 +1947,6 @@ final class _SessionToolbar extends StatelessWidget {
                   return _ToolbarButton(
                     tooltip: l10n.copy,
                     icon: Icons.copy_rounded,
-                    size: size,
                     color: hasSelection
                         ? foreground
                         : foreground.withValues(alpha: 0.35),
@@ -1937,14 +1962,12 @@ final class _SessionToolbar extends StatelessWidget {
               _ToolbarButton(
                 tooltip: l10n.paste,
                 icon: Icons.content_paste_rounded,
-                size: size,
                 color: foreground,
                 onTap: () => pasteIntoTerminal(session.terminal),
               ),
               _ToolbarButton(
                 tooltip: l10n.searchTerminal,
                 icon: Icons.search_rounded,
-                size: size,
                 color: foreground,
                 onTap: onSearch,
               ),
@@ -1952,7 +1975,6 @@ final class _SessionToolbar extends StatelessWidget {
                 _ToolbarButton(
                   tooltip: l10n.snippets,
                   icon: Icons.code_rounded,
-                  size: size,
                   color: foreground,
                   onTap: () => showSnippetDialog(
                     context,
@@ -1968,14 +1990,13 @@ final class _SessionToolbar extends StatelessWidget {
   }
 }
 
-/// 工具条按钮：尺寸手工收紧以贴合圆角胶囊；触屏上传 [size] 44 满足落点下限。
+/// 工具条按钮：尺寸手工收紧以贴合圆角胶囊；桌面上有鼠标，28 见方够用。
 final class _ToolbarButton extends StatelessWidget {
   const _ToolbarButton({
     required this.tooltip,
     required this.icon,
     required this.color,
     required this.onTap,
-    this.size = 28,
   });
 
   final String tooltip;
@@ -1983,19 +2004,15 @@ final class _ToolbarButton extends StatelessWidget {
   final Color color;
   final VoidCallback? onTap;
 
-  /// 触控目标边长（逻辑像素）。
-  final double size;
-
   @override
   Widget build(BuildContext context) {
-    final touch = size >= 44;
     return IconButton(
       tooltip: tooltip,
-      icon: Icon(icon, size: touch ? 20 : 17, color: color),
+      icon: Icon(icon, size: 17, color: color),
       onPressed: onTap,
       visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.all(touch ? 10 : 5),
-      constraints: BoxConstraints.tightFor(width: size, height: size),
+      padding: const EdgeInsets.all(5),
+      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
     );
   }
 }

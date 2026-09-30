@@ -336,8 +336,12 @@ void main() {
 
         await tester.tap(find.text('全选'));
         await tester.pumpAndSettle();
+        // 关掉菜单（点菜单外），再放完双击窗口：这一下轻点会落在终端上，
+        // xterm 据此挂一个 300ms 的双击判定定时器，不放它跑完测试结束时会
+        // 因「还有 Timer 挂着」而失败（与「长按后抬手不会顺带把链接点开」
+        // 同一处理）。
         await tester.tapAt(const Offset(20, 300));
-        await tester.pumpAndSettle();
+        await _settleWindows(tester);
 
         // 长按处不是链接，所以没有「打开链接」这一项。
         expect(find.text('打开链接'), findsNothing);

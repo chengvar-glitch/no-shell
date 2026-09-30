@@ -218,14 +218,19 @@ void main() {
           reason: '触屏上选中之后应当出现选区手柄',
         );
 
-        // 查找：工具栏放大镜 → 查找栏 → 命中高亮。
-        await tester.tap(find.byIcon(Icons.search_rounded).first);
+        // 查找：长按终端 → 菜单「Find」→ 查找栏 → 命中高亮。
+        // 触屏上没有悬浮工具条（它压在输出右上角，正是要复制的字），
+        // 查找与命令片段收在长按菜单里。
+        await tester.longPressAt(terminalCenter);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Find'), findsOneWidget, reason: '长按菜单该有查找入口');
+        await tester.tap(find.text('Find'));
         await tester.pump(const Duration(milliseconds: 300));
         final searchField = find.descendant(
           of: find.byType(SshTerminalView),
           matching: find.byType(TextField),
         );
-        expect(searchField, findsOneWidget, reason: '工具栏放大镜该展开查找栏');
+        expect(searchField, findsOneWidget, reason: '长按菜单的「查找」该展开查找栏');
         await tester.enterText(searchField, 'demo');
         await tester.pump(const Duration(milliseconds: 400));
         await tester.pump(const Duration(milliseconds: 400));
