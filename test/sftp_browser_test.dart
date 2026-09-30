@@ -727,6 +727,91 @@ void main() {
       ], reason: '覆盖写失败时远端原有的文件必须原封不动');
     });
 
+    test('两条会话往同一目标传同名文件时各用各的临时文件', () async {
+      // 队列的串行只在单条会话内成立：这里两条会话共用一台「服务器」。
+      final fs = FakeSftpFileSystem();
+      final gateway = FakeLocalFileGateway();
+      final first = SftpBrowserController(
+        openFileSystem: () async => fs,
+        localFiles: gateway,
+      );
+      final second = SftpBrowserController(
+        openFileSystem: () async => fs,
+        localFiles: gateway,
+      );
+      addTearDown(first.dispose);
+      addTearDown(second.dispose);
+      await first.ensureReady();
+      await second.ensureReady();
+
+      first.startUpload([
+        _upload('app.log', content: const [1, 2]),
+      ]);
+      second.startUpload([
+        _upload('app.log', content: const [3, 4]),
+      ]);
+      await pumpEventQueue();
+
+      final temporaries = fs.writeCalls
+          .where((path) => path.endsWith('.noshell-part'))
+          .toSet();
+      expect(
+        temporaries,
+        hasLength(2),
+        reason: '共用一个临时文件时，后开始的那条会 truncate 掉前一条正在写的内容',
+      );
+      expect(first.transfers.transfers.single.state, SftpTransferState.done);
+      expect(second.transfers.transfers.single.state, SftpTransferState.done);
+    });
+
+    test('服务端给的文件名带路径时，落点收成最后一段', () async {
+      final gateway = FakeLocalFileGateway()
+        ..downloadTarget = const LocalTarget(
+          path: '/tmp/passwd',
+          name: 'passwd',
+        );
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      final entry = fs.addFile(fs.home, '../../../../etc/passwd');
+
+      await controller.downloadEntries([entry], '保存');
+
+      expect(gateway.downloadNames, [
+        'passwd',
+      ], reason: '名字直接拼进落点会写到用户选定目录之外（穿越）');
+    });
+
+    test('批量下载同样逐个收成最后一段', () async {
+      final gateway = FakeLocalFileGateway()
+        ..downloadDirectory = const [
+          LocalTarget(path: '/tmp/a.txt', name: 'a.txt'),
+          LocalTarget(path: '/tmp/b.txt', name: 'b.txt'),
+        ];
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      final escaping = fs.addFile(fs.home, '../../a.txt');
+      final plain = fs.addFile(fs.home, 'b.txt');
+
+      await controller.downloadEntries([escaping, plain], '保存');
+
+      expect(gateway.downloadNames, ['a.txt', 'b.txt']);
+    });
+
+    test('整个名字就是 .. 时退回一个安全落点名，不改写目录', () async {
+      final gateway = FakeLocalFileGateway()
+        ..downloadTarget = const LocalTarget(
+          path: '/tmp/download',
+          name: 'download',
+        );
+      final (:controller, :fs) = await ready(gateway: gateway);
+      addTearDown(controller.dispose);
+      final entry = fs.addFile(fs.home, '..');
+
+      await controller.downloadEntries([entry], '保存');
+
+      expect(gateway.downloadNames, ['download']);
+    });
+
     test('上传成功后才把临时文件改名到目标', () async {
       final gateway = FakeLocalFileGateway()
         ..uploads = [

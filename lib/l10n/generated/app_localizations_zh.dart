@@ -889,7 +889,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get hostKeyUnavailableMsg =>
-      '已记录的主机密钥指纹读不出来，连接被拒绝。这是本地存储故障、不是密钥变更，原有记录未被改动。';
+      '主机密钥指纹读不出、或这次的存不下（本地存储故障，不是密钥变更），连接被拒绝。若之前记录过，原有记录未被改动。';
 
   @override
   String get privateKeyUnsupportedMsg =>

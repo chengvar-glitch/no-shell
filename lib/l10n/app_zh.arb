@@ -398,7 +398,7 @@
       }
     }
   },
-  "hostKeyUnavailableMsg": "已记录的主机密钥指纹读不出来，连接被拒绝。这是本地存储故障、不是密钥变更，原有记录未被改动。",
+  "hostKeyUnavailableMsg": "主机密钥指纹读不出、或这次的存不下（本地存储故障，不是密钥变更），连接被拒绝。若之前记录过，原有记录未被改动。",
   "privateKeyUnsupportedMsg": "不支持这份私钥的格式。请粘贴 OpenSSH 或 PEM（RSA / EC）格式的私钥——以 \"BEGIN PRIVATE KEY\" 开头的 PKCS#8 密钥需要先转换。",
   "portForwarding": "端口转发",
   "portForwardEmpty": "还没有转发规则",

@@ -441,18 +441,23 @@ final class SftpBrowserController extends ChangeNotifier {
     Future<bool> Function(List<String> conflicts)? confirmOverwrite,
   }) async {
     if (targets.isEmpty) return SftpDownloadOutcome.empty;
+    // 落点名字一律先收成「最后一段」再交给网关：名字由服务端给出，不受本机
+    // 信任，`../../x` 这种写法会把文件写到用户选定目录之外（见 safeLocalName）。
+    // 界面提示仍报远端原名，用户才对得上自己要下的那个文件。
+    final localNames = [for (final entry in targets) safeLocalName(entry.name)];
     final List<LocalTarget>? destinations;
     if (targets.length == 1) {
       final target = await localFiles.pickDownloadTarget(
-        targets.single.name,
+        localNames.single,
         confirmLabel: confirmLabel,
       );
       if (target == null) return SftpDownloadOutcome.canceled;
       destinations = [target];
     } else {
-      destinations = await localFiles.pickDownloadDirectory([
-        for (final entry in targets) entry.name,
-      ], confirmLabel: confirmLabel);
+      destinations = await localFiles.pickDownloadDirectory(
+        localNames,
+        confirmLabel: confirmLabel,
+      );
       if (destinations == null) return SftpDownloadOutcome.canceled;
     }
     // 落点数量必须与目标一一对应。网关换了实现（移动端的 SAF 选择器

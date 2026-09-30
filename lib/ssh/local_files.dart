@@ -151,7 +151,7 @@ final class NativeLocalFileGateway implements LocalFileGateway {
         if (location == null) return null;
         return LocalDestination(
           path: location.path,
-          name: _localBaseName(location.path),
+          name: localLeafName(location.path),
         );
       } on Object {
         // 对话框不可用（如平台未实现）时退化为默认目录。
@@ -188,7 +188,7 @@ final class NativeLocalFileGateway implements LocalFileGateway {
         if (location == null) return null;
         return LocalTarget(
           path: location.path,
-          name: _localBaseName(location.path),
+          name: localLeafName(location.path),
         );
       } on Object {
         // 对话框不可用（如平台未实现）时退化为默认目录。
@@ -327,9 +327,24 @@ String _joinLocalPath(String directory, String name) {
 }
 
 /// 取本地路径的最后一段；本地路径可能同时出现 `/` 与 `\`。
-String _localBaseName(String path) {
+String localLeafName(String path) {
   final index = path.lastIndexOf(RegExp(r'[/\\]'));
   return index < 0 ? path : path.substring(index + 1);
+}
+
+/// 把**服务端给的**条目名收成一个只能落在本地目标目录里的文件名。
+///
+/// 目录项名在 POSIX 里不可能含分隔符，所以名字里冒出 `/`、`\`，或者干脆就是
+/// `.` / `..`，只可能是服务端在撒谎（或它根本不是 POSIX 文件系统）。把这种
+/// 名字原样拼进落点，`../../x` 就写到用户选定目录之外去了——下载落点是用户
+/// 自己选的，写入范围必须止步于此；覆盖确认也拦不住它（问的是逃逸后那个
+/// 路径，那里当然没有文件，于是连问都不问）。
+///
+/// 取最后一段即可挡住全部越界写法；连最后一段都不合法时才退回 [fallback]。
+String safeLocalName(String name, {String fallback = 'download'}) {
+  final leaf = localLeafName(name.trim());
+  if (leaf.isEmpty || leaf == '.' || leaf == '..') return fallback;
+  return leaf;
 }
 
 /// Windows 路径可能写成 `C:/Users/me`，此时按 `/` 拼接仍然正确。

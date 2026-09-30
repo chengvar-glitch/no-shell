@@ -177,7 +177,9 @@ void main() {
       final real = androidDownloadRealPath(target!.path)!;
 
       final temporary = gateway.temporaryPath(target.path);
-      expect(androidDownloadRealPath(temporary), '$real.noshell-part');
+      // 临时名里带着本次任务的序号（公共目录里也可能有两条会话下同名文件）。
+      expect(androidDownloadRealPath(temporary), startsWith('$real.'));
+      expect(androidDownloadRealPath(temporary), endsWith('.noshell-part'));
       // 已经有了权限：这一支不该再去弹权限框。
       expect(methods(), isNot(contains('requestStoragePermission')));
 

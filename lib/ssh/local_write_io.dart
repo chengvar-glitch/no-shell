@@ -31,7 +31,16 @@ Future<bool> doesLocalFileExist(String path) => File(path).exists();
 /// 后缀与远端那份（[SftpTransferQueue] 的 `.noshell-part`）保持一致：
 /// 失败与取消都会清掉它，但进程被强杀时可能留下一个半成品，
 /// 带上应用名才看得出是谁留下的、也才敢在别处认领。
-String localTemporaryPath(String path) => '$path.noshell-part';
+///
+/// 名字里还带一个进程内唯一的序号：下载队列是**每条会话一个**，同一个落点
+/// 可以被两条会话同时下载（两条会话各自下同名文件、又不巧落进同一个目录——
+/// iOS 的兜底目录与「选目录」批量下载都会这样），只按落点推导的临时名会让
+/// 后开始的那条 truncate 掉前一条正在写的文件：前一条 rename 转正的是半成品，
+/// 后一条则在自己改名时找不到临时文件。带序号之后各写各的，谁先写完谁先改名。
+String localTemporaryPath(String path) => '$path.${_tempTag++}.noshell-part';
+
+/// 只增不减：单个进程内不复用，两条会话撞上同一个序号的可能为零。
+int _tempTag = 0;
 
 /// 把写完的临时文件改名到目标路径，实现「要么是旧文件、要么是新文件」。
 ///

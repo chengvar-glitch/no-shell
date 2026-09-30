@@ -60,7 +60,12 @@ abstract interface class HostKeyStore {
   Future<HostKeyLoad> load(String host, int port);
 
   /// 追加一条记录；同一 (算法, 指纹) 已存在时不重复写。
-  Future<void> save(String host, int port, HostKeyRecord record);
+  ///
+  /// 返回**是否真的写进去了**：写失败绝不能报成功。TOFU 的全部意义在于
+  /// 「记下来了」，记不下来却放行的话，此后每次连接都是「首次」——
+  /// 攻击者换一把钥匙可以永远不触发变更警告（与 `CredentialStore.write`
+  /// 同一约定：底层故障不打断本次连接，但必须如实回报）。
+  Future<bool> save(String host, int port, HostKeyRecord record);
 
   /// 用户确认服务器密钥变更后清除全部记录，下次连接重新走首次记录流程。
   Future<void> delete(String host, int port);
@@ -95,7 +100,7 @@ final class SharedPreferencesHostKeyStore implements HostKeyStore {
   Future<void>? _saveTail;
 
   @override
-  Future<void> save(String host, int port, HostKeyRecord record) {
+  Future<bool> save(String host, int port, HostKeyRecord record) {
     final run = (_saveTail ?? Future<void>.value()).then(
       (_) => _saveAppended(host, port, record),
     );
@@ -104,22 +109,24 @@ final class SharedPreferencesHostKeyStore implements HostKeyStore {
     return run;
   }
 
-  Future<void> _saveAppended(
+  Future<bool> _saveAppended(
     String host,
     int port,
     HostKeyRecord record,
   ) async {
     final existing = await load(host, port);
     // 读不出来时不要盲写：那会把用户原有的记录清掉，只留当前这一条。
+    // 这次没写成，如实回报 false（调用方据此拒绝连接）。
     final records = switch (existing) {
       HostKeysLoaded(:final records) => records,
       HostKeysNeverRecorded() => const <HostKeyRecord>[],
       HostKeysUnavailable() => null,
     };
-    if (records == null) return;
-    if (records.contains(record)) return;
+    if (records == null) return false;
+    if (records.contains(record)) return true;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
+    // setString 返回 false 就是没写进去（存储满、平台写失败）：不能当成功。
+    return prefs.setString(
       _key(host, port),
       jsonEncode([...records, record].map((r) => r.toJson()).toList()),
     );
@@ -167,13 +174,13 @@ enum HostKeyDecision {
   /// 出示的指纹与该主机已记录的全部指纹都不一致：拒绝。
   mismatch,
 
-  /// 读取已记录指纹失败：拒绝，且不改写任何记录。
+  /// 已记录的指纹读不出来，或本次指纹存不进去：拒绝，且不改写任何记录。
   unavailable,
 }
 
 /// 比对本次出示的主机密钥与已记录指纹：
-/// - 读取失败 → 拒绝（unavailable），不写任何东西；
-/// - 从未记录 → 记录当前指纹并放行（firstUse）；
+/// - 读写指纹记录失败 → 拒绝（unavailable），不写任何东西；
+/// - 从未记录且**确实记下了** → 放行（firstUse）；
 /// - 指纹命中已记录的任何一条 → 放行（trusted），不写任何东西；
 /// - 都不命中 → 拒绝（mismatch），不改写记录，必须由用户显式清除。
 ///
@@ -198,7 +205,15 @@ Future<HostKeyDecision> verifyHostKey(
     case HostKeysUnavailable():
       return HostKeyDecision.unavailable;
     case HostKeysNeverRecorded():
-      await store.save(host, port, presented);
+      // 记不下来就别放行：放行等于每次连接都算「首次」，此后对方换钥匙
+      // 永远不会触发变更警告——TOFU 的信任锚就是这条记录本身。
+      try {
+        if (!await store.save(host, port, presented)) {
+          return HostKeyDecision.unavailable;
+        }
+      } catch (_) {
+        return HostKeyDecision.unavailable;
+      }
       return HostKeyDecision.firstUse;
     case HostKeysLoaded(:final records):
       if (!records.contains(presented)) return HostKeyDecision.mismatch;
@@ -226,7 +241,7 @@ final class HostKeyChangedException implements Exception {
       'Host key changed for $host:$port ($keyType $fingerprint)';
 }
 
-/// 已记录的指纹读不出来：连接被拒绝，记录保持原样。
+/// 指纹记录读不出来、或本次指纹存不进去：连接被拒绝，原有记录保持原样。
 /// 与 [HostKeyChangedException] 分开，因为处置方式不同：这里不该让用户
 /// 「清除指纹」（那会真的丢掉可信记录），而应提示存储层出了问题。
 final class HostKeyUnavailableException implements Exception {
@@ -236,5 +251,5 @@ final class HostKeyUnavailableException implements Exception {
   final int port;
 
   @override
-  String toString() => 'Host key record unreadable for $host:$port';
+  String toString() => 'Host key record unusable for $host:$port';
 }

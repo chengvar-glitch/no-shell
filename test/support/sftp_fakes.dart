@@ -26,6 +26,9 @@ final class FakeSftpFileSystem implements SftpFileSystem {
   /// list 调用记录，用于断言刷新行为。
   final List<String> listCalls = [];
 
+  /// write 的落点记录（含上传用的临时路径），用于断言「两条会话各写各的」。
+  final List<String> writeCalls = [];
+
   /// 非 null 时 [list] 抛出该错误。
   SftpException? listError;
 
@@ -137,6 +140,7 @@ final class FakeSftpFileSystem implements SftpFileSystem {
     void Function(int bytes)? onProgress,
     bool Function()? isAborted,
   }) async {
+    writeCalls.add(path);
     final buffer = <int>[];
     await for (final chunk in data) {
       buffer.addAll(chunk);
@@ -270,6 +274,10 @@ final class FakeLocalFileGateway implements LocalFileGateway {
   /// 多文件下载的落点；为 null 表示用户取消。
   List<LocalTarget>? downloadDirectory;
 
+  /// 网关收到的落点名字（单文件一次一个，批量一次一串）：
+  /// 名字来自服务端列目录，断言它已经被收成「最后一段」。
+  final List<String> downloadNames = [];
+
   /// 非 null 时 [pickUploads] 抛出该错误，模拟选择器不可用。
   Object? pickError;
 
@@ -315,13 +323,19 @@ final class FakeLocalFileGateway implements LocalFileGateway {
   Future<LocalTarget?> pickDownloadTarget(
     String suggestedName, {
     String? confirmLabel,
-  }) async => downloadTarget;
+  }) async {
+    downloadNames.add(suggestedName);
+    return downloadTarget;
+  }
 
   @override
   Future<List<LocalTarget>?> pickDownloadDirectory(
     List<String> names, {
     String? confirmLabel,
-  }) async => downloadDirectory;
+  }) async {
+    downloadNames.addAll(names);
+    return downloadDirectory;
+  }
 
   /// 收到过 ownerOnly 请求的路径（导出备份必须走这条）。
   final List<String> ownerOnlyWrites = [];

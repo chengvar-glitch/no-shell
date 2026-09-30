@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'package:no_shell/app_locale.dart';
 import 'package:no_shell/main.dart';
+import 'package:no_shell/models.dart';
+import 'package:no_shell/server_persistence.dart';
 import 'package:no_shell/settings.dart';
 import 'package:no_shell/settings_persistence.dart';
+import 'package:no_shell/store.dart';
 
 import 'support/credential_store_fake.dart';
 
@@ -23,6 +28,29 @@ final class _RecordingPersistence implements SettingsPersistence {
   Future<void> save(AppSettings settings) async {
     saves.add(settings);
     stored = settings;
+  }
+}
+
+/// 主机存档的内存假实现：关窗时「最后一笔改动有没有落盘」看它。
+final class _RecordingHosts implements ServerPersistence {
+  ServerArchive? stored;
+
+  @override
+  Future<ServerArchiveLoad> load() async {
+    final archive = stored;
+    return archive == null
+        ? const ServerArchiveMissing()
+        : ServerArchiveLoaded(archive);
+  }
+
+  @override
+  Future<void> save(ServerArchive archive) async {
+    // 与真实实现一致：存快照而不是引用。
+    stored = ServerArchive(
+      servers: List.of(archive.servers),
+      groupOrder: List.of(archive.groupOrder),
+      collapsedGroups: Set.of(archive.collapsedGroups),
+    );
   }
 }
 
@@ -362,5 +390,94 @@ void main() {
     test('保存时会写上默认值版本，供下次判断', () {
       expect(const AppSettings().toJson()['defaultsVersion'], kDefaultsVersion);
     });
+  });
+
+  testWidgets('关窗把防抖窗口里的偏好与排队中的主机改动一起写下去', (tester) async {
+    tester.platformDispatcher.localesTestValue = const [Locale('zh')];
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final settings = _RecordingPersistence();
+    final hosts = _RecordingHosts();
+    final store = ServerStore(persistence: hosts);
+    await store.load();
+    await tester.pumpWidget(
+      NoShellApp(
+        store: store,
+        credentials: FakeCredentialStore(),
+        settings: settings,
+        initialSettings: await settings.load(),
+      ),
+    );
+    await tester.pump();
+
+    // 两笔改动都还留在「排队中」：偏好等 400ms 防抖，主机走链式异步落盘。
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('增大字号'));
+    await tester.pumpAndSettle();
+    final fontSizeBefore = TerminalStyleScope.of(
+      tester.element(find.byTooltip('增大字号')),
+    ).notifier.value.fontSize;
+    await tester.tap(find.byTooltip('增大字号'));
+    await tester.pump();
+    store.upsert(
+      const SshServer(
+        id: 'h-close',
+        group: '默认',
+        name: '关窗测试机',
+        host: '10.0.0.9',
+        username: 'root',
+      ),
+    );
+    expect(settings.saves, isEmpty, reason: '防抖窗口内先不落盘');
+
+    // 关窗那一步会真的调 windowManager.destroy()（它的 addListener 是纯 Dart 的，
+    // 测试环境同样挂得上 _windowHooked）。契约是「先落盘、后销毁」，所以在
+    // destroy 被调用的那一刻取证：那时两笔改动必须都已经写下去了。
+    const windowChannel = MethodChannel('window_manager');
+    var destroyCalls = 0;
+    var flushedBeforeDestroy = false;
+    var archiveLandedBeforeDestroy = false;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(windowChannel, (call) async {
+          if (call.method == 'destroy') {
+            destroyCalls++;
+            flushedBeforeDestroy =
+                settings.stored?.terminalStyle.fontSize == fontSizeBefore + 1;
+            archiveLandedBeforeDestroy =
+                hosts.stored?.servers.any((s) => s.id == 'h-close') ?? false;
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(windowChannel, null),
+    );
+
+    // 防抖还没到就关窗。
+    final listener = tester.state<State<NoShellApp>>(
+      find.byType(NoShellApp),
+    ) as WindowListener;
+    listener.onWindowClose();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(destroyCalls, 1, reason: '关窗要真的走到销毁那一步，否则本用例没测到东西');
+    expect(
+      flushedBeforeDestroy,
+      isTrue,
+      reason: 'destroy() 抢在偏好写完之前，最后拨的开关就丢了',
+    );
+    expect(
+      archiveLandedBeforeDestroy,
+      isTrue,
+      reason: 'destroy() 抢在主机存档写完之前，最后一笔改动就丢了',
+    );
+
+    // 启动时那次静默版本检查还挂着一个计时器，跑完它再收尾。
+    await tester.pump(const Duration(seconds: 5));
   });
 }

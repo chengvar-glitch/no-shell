@@ -197,7 +197,13 @@ final class SftpTransferQueue extends ChangeNotifier {
   static const _flushThreshold = 4 * 1024 * 1024;
 
   /// 上传临时文件的后缀。与目标同目录，收尾的 rename 才是同卷操作。
-  /// 队列串行执行，同一目标的上传不会并发，因此这个后缀够用。
+  ///
+  /// 临时名里必须带上次任务自己的标识（[SftpTransfer.id]，形如
+  /// `a.txt.tx-3.noshell-part`）：队列的串行**只在本队列内**成立，而一台
+  /// 服务器可以同时被两条会话连着（多会话、或同一台主机的两条会话），
+  /// 两边传同名文件时，只按目标路径推导的临时名会让第二条 truncate 掉第一条
+  /// 正在写的文件——然后第一个 rename 转正的是一个半成品，且另一个 fd 还在
+  /// 往那个 inode 里写，目标文件在「上传完成」之后继续变。
   static const _partialSuffix = '.noshell-part';
 
   final List<SftpTransfer> _transfers = [];
@@ -224,7 +230,7 @@ final class SftpTransferQueue extends ChangeNotifier {
     return _enqueue(transfer, (transfer) async {
       // 先传到同目录的临时文件，成功后再改名到目标：直接往目标上写
       // （truncate）一旦中途失败或取消，用户原有的同名文件就没了。
-      final temporaryPath = '$remotePath$_partialSuffix';
+      final temporaryPath = '$remotePath.${transfer.id}$_partialSuffix';
       try {
         await fileSystem().write(
           temporaryPath,

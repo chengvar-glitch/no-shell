@@ -107,4 +107,22 @@ void main() {
       expect(File(target).existsSync(), isFalse);
     });
   });
+
+  group('临时路径唯一性', () {
+    test('同一个落点的两次下载不会撞同一个 .noshell-part', () async {
+      const target = '/tmp/app.log';
+
+      final first = localTemporaryPath(target);
+      final second = localTemporaryPath(target);
+
+      // 队列是每条会话一个：两条会话各自下同名文件、又不巧落进同一个目录时
+      // （iOS 兜底目录、批量下载选同一个目录都会这样），共用一个临时文件就是
+      // 后开始的那条 truncate 掉前一条正在写的内容。
+      expect(first, isNot(second), reason: '两次下载必须各写各的临时文件');
+      for (final path in [first, second]) {
+        expect(path, startsWith('$target.'));
+        expect(path, endsWith('.noshell-part'), reason: '残留仍要认得出来是谁留下的');
+      }
+    });
+  });
 }

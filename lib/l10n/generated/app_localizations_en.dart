@@ -921,7 +921,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get hostKeyUnavailableMsg =>
-      'Could not read the recorded host key fingerprint, so the connection was refused. This is a local storage problem, not a key change — your recorded fingerprint has been left untouched.';
+      'The host key fingerprint could not be read or stored (a local storage problem, not a key change), so the connection was refused. Previously recorded fingerprints are left untouched.';
 
   @override
   String get privateKeyUnsupportedMsg =>

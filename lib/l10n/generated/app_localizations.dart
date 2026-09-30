@@ -1571,7 +1571,7 @@ abstract class AppLocalizations {
   /// No description provided for @hostKeyUnavailableMsg.
   ///
   /// In en, this message translates to:
-  /// **'Could not read the recorded host key fingerprint, so the connection was refused. This is a local storage problem, not a key change — your recorded fingerprint has been left untouched.'**
+  /// **'The host key fingerprint could not be read or stored (a local storage problem, not a key change), so the connection was refused. Previously recorded fingerprints are left untouched.'**
   String get hostKeyUnavailableMsg;
 
   /// No description provided for @privateKeyUnsupportedMsg.

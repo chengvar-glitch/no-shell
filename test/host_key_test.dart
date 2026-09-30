@@ -169,6 +169,48 @@ void main() {
       expect(decision, HostKeyDecision.unavailable);
     });
 
+    test('首次记录写不进去时拒绝连接，不冒充「已记下」', () async {
+      // 安全底线：存不下却放行的话，此后每次连接都算「首次」——
+      // 对方换一把钥匙永远不会触发变更警告，TOFU 等于不存在。
+      final store = FakeHostKeyStore()..saveFails = true;
+      final decision = await verifyHostKey(
+        store,
+        host: 'h1',
+        port: 22,
+        keyType: 'ssh-ed25519',
+        fingerprint: 'SHA256:k1',
+      );
+      expect(decision, HostKeyDecision.unavailable);
+      expect(_recordsOf(store, 'h1', 22), isEmpty, reason: '没记下就是没记下');
+    });
+
+    test('写操作直接抛异常时同样拒绝，不冒泡给调用方', () async {
+      final store = FakeHostKeyStore()..saveError = StateError('disk full');
+      final decision = await verifyHostKey(
+        store,
+        host: 'h1',
+        port: 22,
+        keyType: 'ssh-ed25519',
+        fingerprint: 'SHA256:k1',
+      );
+      expect(decision, HostKeyDecision.unavailable);
+    });
+
+    test('记录已存在时不依赖写盘结果（命中即放行）', () async {
+      final store = FakeHostKeyStore();
+      await store.save('h1', 22, _rec('SHA256:k1'));
+      // 此后写盘一直失败：命中已记录指纹那条路本来就不写盘，不该受影响。
+      store.saveFails = true;
+      final decision = await verifyHostKey(
+        store,
+        host: 'h1',
+        port: 22,
+        keyType: 'ssh-ed25519',
+        fingerprint: 'SHA256:k1',
+      );
+      expect(decision, HostKeyDecision.trusted);
+    });
+
     test('同主机不同端口互不影响', () async {
       final store = FakeHostKeyStore();
       await store.save('h1', 22, _rec('SHA256:k1'));
