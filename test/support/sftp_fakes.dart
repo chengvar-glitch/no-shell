@@ -303,6 +303,14 @@ final class FakeLocalFileGateway implements LocalFileGateway {
     shared.add(path);
   }
 
+  /// 下载完成后被交给分享面板的落点（x 是标题，用来断言报的是哪个文件名）。
+  final List<({String path, String? title})> sharedDownloads = [];
+
+  @override
+  Future<void> shareDownload(String path, {String? title}) async {
+    sharedDownloads.add((path: path, title: title));
+  }
+
   @override
   Future<LocalTarget?> pickDownloadTarget(
     String suggestedName, {
@@ -319,7 +327,10 @@ final class FakeLocalFileGateway implements LocalFileGateway {
   final List<String> ownerOnlyWrites = [];
 
   @override
-  LocalWriteHandle openWrite(String path, {bool ownerOnly = false}) {
+  Future<LocalWriteHandle> openWrite(
+    String path, {
+    bool ownerOnly = false,
+  }) async {
     if (ownerOnly) ownerOnlyWrites.add(path);
     return _MemoryWriteHandle(
       (bytes) => written[path] = bytes,
@@ -330,11 +341,15 @@ final class FakeLocalFileGateway implements LocalFileGateway {
   @override
   String temporaryPath(String path) => '$path.noshell-part';
 
+  /// 收尾改名回报的落点最终名；null 表示与请求同名（真实网关的常态）。
+  String? promotedName;
+
   @override
-  Future<void> promote(String temporaryPath, String targetPath) async {
+  Future<String?> promote(String temporaryPath, String targetPath) async {
     promoted.add((from: temporaryPath, to: targetPath));
     final bytes = written.remove(temporaryPath);
     if (bytes != null) written[targetPath] = bytes;
+    return promotedName;
   }
 
   @override

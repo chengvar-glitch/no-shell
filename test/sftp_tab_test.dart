@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1229,6 +1230,83 @@ void main() {
       expect(gateway.bytesOf('/tmp/nginx.conf'), hasLength(8));
       expect(find.text('传输'), findsOneWidget);
       expect(find.text('已保存 nginx.conf'), findsOneWidget);
+    });
+
+    testWidgets('落点被系统改过名时提示照实说', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addFile(fs.home, 'nginx.conf', content: List.filled(4, 5));
+      // 公共下载目录遇到重名会把落点改成 `nginx (1).conf`——提示里报远端名
+      // 的话，用户拿着它去下载目录里找就会扑空。
+      final gateway = FakeLocalFileGateway()
+        ..downloadTarget = const LocalTarget(
+          path: '/tmp/nginx.conf',
+          name: 'nginx.conf',
+        )
+        ..promotedName = 'nginx (1).conf';
+      await pumpPanel(tester, fileSystem: fs, gateway: gateway);
+
+      await tester.tap(find.text('nginx.conf'), kind: PointerDeviceKind.mouse);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, '下载'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('已保存 nginx (1).conf'), findsOneWidget);
+    });
+
+    testWidgets('移动端下载完成后顺手把文件交给分享面板', (tester) async {
+      // 分享只挂 iOS / Android：桌面端有真正的「另存为」，再弹分享是多一步。
+      // 平台覆盖必须在测试体里还原——框架在收尾时会校验调试变量没被改动。
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final fs = FakeSftpFileSystem();
+        fs.addFile(fs.home, 'nginx.conf', content: List.filled(4, 5));
+        final gateway = FakeLocalFileGateway()
+          ..downloadTarget = const LocalTarget(
+            path: '/tmp/nginx.conf',
+            name: 'nginx.conf',
+          );
+        await pumpPanel(tester, fileSystem: fs, gateway: gateway);
+
+        await tester.tap(
+          find.text('nginx.conf'),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await tester.tap(find.widgetWithText(TextButton, '下载'));
+        await tester.pumpAndSettle();
+
+        expect(gateway.sharedDownloads, [
+          (path: '/tmp/nginx.conf', title: 'nginx.conf'),
+        ]);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('桌面端下载完成不弹分享面板', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        final fs = FakeSftpFileSystem();
+        fs.addFile(fs.home, 'nginx.conf', content: List.filled(4, 5));
+        final gateway = FakeLocalFileGateway()
+          ..downloadTarget = const LocalTarget(
+            path: '/tmp/nginx.conf',
+            name: 'nginx.conf',
+          );
+        await pumpPanel(tester, fileSystem: fs, gateway: gateway);
+
+        await tester.tap(
+          find.text('nginx.conf'),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await tester.tap(find.widgetWithText(TextButton, '下载'));
+        await tester.pumpAndSettle();
+
+        expect(gateway.sharedDownloads, isEmpty);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
   });
 

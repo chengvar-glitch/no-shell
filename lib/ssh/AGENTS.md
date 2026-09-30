@@ -34,7 +34,7 @@
 - `session_page.dart` — 移动端全屏终端页。**刻意不挂 AppBar**：手机上 AppBar + 状态栏要吃掉约 80pt，软键盘弹起时终端只剩个位数行。改成浮在终端之上的一条头部（返回 / 主机名 / 状态胶囊 / 断开）：进页面亮 3 秒自动收起，轻点顶部一条唤出，点终端正文立刻收回。两条实现要点——唤出条是 `HitTestBehavior.translucent` 的 `Listener`，只把自己加进命中结果、不吃掉事件，终端照样收得到那一下轻点，`Listener` 也不进手势竞技场；收起后整条头部包在 `IgnorePointer` 里，否则透明的一层仍然会拦住终端的点击。底色跟着终端配色（不挂 AppBar 后状态栏那一带露的是 Scaffold 底色，与终端底色差一点就是一道接缝）
 - `session_menu.dart` / `session_log_dialog.dart` — 会话菜单（一行一条会话：状态点 + 远端 OSC 标题 + 行尾关闭，另有「新建会话」与「会话日志」）与日志弹窗。点状态胶囊的规则收在 `openSessionPill` 一处：**只有一条会话时直接进日志**（多会话功能之前就是这个行为，界面不许变），多开了才换成菜单。桌面详情头部、移动端主机详情页、移动端全屏终端页共用它——移动端此前只接了日志，「同一台主机再开一条」在手机上因此没有入口
 - `sftp_browser.dart` / `sftp_transfer.dart` — SFTP 面板状态：目录浏览与串行传输队列（UI 入口在 `lib/widgets/sftp_browser.dart`，见 `lib/widgets/AGENTS.md`）
-- `local_files.dart` — 本地文件网关（选文件 / 落盘 / 导出落点）；`local_write*.dart` 为按平台条件导出的落盘实现（含 `promote` 改名与 `ownerOnly` 权限收紧），`local_chmod.dart` 是只为 0600 存在的最小 FFI 绑定，`local_share*.dart` 为按平台条件导出的分享面板实现
+- `local_files.dart` — 本地文件网关（选文件 / 落盘 / 导出落点）；`local_write*.dart` 为按平台条件导出的落盘实现（含 `promote` 改名与 `ownerOnly` 权限收紧），`local_chmod.dart` 是只为 0600 存在的最小 FFI 绑定，`local_share*.dart` 为按平台条件导出的分享面板实现，`android_downloads*.dart` 是 Android 公共下载目录那条落盘通道（见下面「SFTP 层」的下载落点条）
 
 ## 终端输入（xterm fork）
 
@@ -47,7 +47,11 @@
 - `lib/` 内禁止直接 `import 'dart:io'`；本地文件能力一律走 `ssh/local_write.dart` 的条件导出，web 由桩实现兜底（这条是全局铁律，根 `AGENTS.md` 也列了一份）
 - 传输进度只通知 `SftpTransfer` 自身，面板按行订阅；队列结构变化才通知整块面板
 - 删除主机时凭据与指纹一并清理，且**不 await**：钥匙串 / 存储层卡住不能把删除本身拖住（只影响下次连接的判定）。代价是「撤销删除」恢复的主机没有指纹，下次连接按首次记录处理——这是刻意取的舍
-- 上传 / 下载一律**先写临时文件、成功后再改名到目标**（远端与本地同名，都是 `.noshell-part`；本地后缀与远端一致，残留才看得出是谁留下的）：直接往目标上写（远端是 `truncate`）一旦中途失败或取消，用户原有的同名文件就没了；失败与取消只清临时文件，绝不删目标
+- 上传 / 下载一律**先写临时文件、成功后再改名到目标**（远端与本地同名，都是 `.noshell-part`；本地后缀与远端一致，残留才看得出是谁留下的）：直接往目标上写（远端是 `truncate`）一旦中途失败或取消，用户原有的同名文件就没了；失败与取消只清临时文件，绝不删目标。Android MediaStore 那支例外：那里没有 `.noshell-part` 这个文件，临时态由 `IS_PENDING` 承担（见下两条）
+- 下载落点分平台（`LocalFileGateway.pickDownloadTarget`）：桌面弹「另存为」，iOS 落应用文档目录（靠 `UIFileSharingEnabled` 才在「文件」App 里可见），**Android 落系统公共下载目录 `Download/`**——10 起走 MediaStore，9 及以下在首次下载时当场申请 `WRITE_EXTERNAL_STORAGE` 后直接写真路径。以下是 Android 那两支的要点
+- Android 公共下载目录，MediaStore 那支（Android 10+，`android_downloads_io.dart` + 宿主 `DownloadsChannel.kt`）：公共目录只能经 MediaStore 写，拿不到可写的绝对路径，所以落点不是真路径，而是一枚暗号 `mediastore:<文件名>`，网关认前缀就改走通道。宿主建一条 `IS_PENDING=1` 的行（写完之前对别的应用不可见）并把它以 `/proc/self/fd/N` 交回来，`dart:io` 照常往里灌数据——全文件只落一份，绝不先写应用目录再拷一遍（那既费一倍磁盘也让进度条卡在 100%）。四条要点：一是 `IS_PENDING` 就是「先写临时、成功再改名」里那层临时态，所以 `temporaryPath(token)` 返回暗号本身、`promote` 就是转正、`discard` 就是删行；二是**从不覆盖**——重名由系统改成 `name (1).ext`（Chrome 那套），因此 `localFileExists` 对暗号恒为 false，覆盖确认弹窗不会出现（MediaStore 没法原子替换别家应用建的同名文件，硬来就得先删旧的，下载失败会连用户原有文件一起毁掉）；三是 `finish` 会回报该行**最终**的显示名，`SftpTransfer.localName` 带着它去弹提示——提示里报远端名的话，用户拿着名字去下载目录里找会扑空；四是**探测通不过就退回应用目录**（`mediaStoreAvailable` 只查版本与挂载，而 Android 10 上有 OEM 要求 `WRITE_EXTERNAL_STORAGE`、`/proc/self/fd/N` 能不能打开也只有试过才知道）：先真建一条记录试一次再决定走哪条路，宁可退回「用户看不见」也不把落点定在一个写不进去的地方
+- Android 公共下载目录，真路径那支（Android 9 及以下）：那些系统上公共目录就是普通文件路径，缺的只有 `WRITE_EXTERNAL_STORAGE`——用户在下载那一刻才被问（`MainActivity.requestStoragePermission`，权限框只有 Activity 能弹），拒绝过一次本次运行就不再问。落点是 `publicdownload:<绝对路径>`：**临时文件也带同一个暗号**（`<真路径>.noshell-part`），因为 gateway 拿到的临时路径必须能认出「这是公共目录里的文件」——公共目录里的文件不收 0600（那是共享资源，相册 / 办公套件都要读得到），而 `.noshell-part` 改名之后就是用户要留下的那个文件。目录不存在时（没权限 / 存储异常）返回 null 退回应用目录；清单里那条权限卡了 `maxSdkVersion=28`——Android 10 起写下载目录免权限，留着只会让新系统用户白看一个权限框
+- 下载完成顺手分享（移动端）：`SftpBrowserPanel._announceTransfer` 在 done + download + iOS/Android 时调 `LocalFileGateway.shareDownload`。与导出那条 `shareLocalFile` 的分别是**不删文件**（文件是用户的，导出那份才是临时产物）。MediaStore 那支走宿主 `ACTION_SEND` + `content://` 地址（带读授权，不再拷第二份，大文件也不怕）；真路径那支走 `share_plus` 的 `shareLocalPathOnDevice`。两个前提：只在应用处于前台时弹（Android 10 起后台启动界面会被拒），分享失败静默吞掉（文件已经落地，这只是一步顺路的方便）。桌面端不弹——那里有真正的「另存为」
 - `SftpTransferQueue.dispose()` 只清自己的记录，不打断在跑的传输：`_drain` 与下载循环在 `await` 之后都必须复查 `_disposed` 再改状态或通知，否则会对已 dispose 的 `SftpTransfer` 调 `notifyListeners()`（debug 下直接抛 `used after being disposed`）
 - `_mutate` 的 `isMutating` 必须保持到**刷新结束**才放开：刷新在大目录 / 慢链路上要几百毫秒，提前放开等于允许第二个结构性操作挤进刷新窗口；忙时抛 `SftpErrorKind.busy`，不静默 return（那会让调用方谎报成功）
 - 下载落点数量必须与目标一一对应才开工：网关换了实现（移动端 SAF 选择器）可能少回落点，直接下标取用会在循环中途 RangeError，而前面的任务已经入队

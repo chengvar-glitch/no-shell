@@ -51,7 +51,7 @@
 - `docs/prototypes/` — 设计评审用的交互原型图（`mobile-terminal-ux.png`）与其渲染脚本 `render.py`（Pillow 直绘，无第三方依赖；`python3 docs/prototypes/render.py` 重跑）。只给人看布局，不参与构建、不进版本日志
 - `icon/` — 应用图标：`art.svg` 是唯一样式来源，`render.py` 生成 `png/` 全套尺寸；iOS / macOS / Windows / Android / Web 由 `dart run flutter_launcher_icons`（配置在 `pubspec.yaml`）写入平台目录，Linux 走 `icon/png/linux/*.png`，由 `release.yml` 装成 hicolor 主题
 - `third_party/xterm/` — 打了补丁的 xterm 副本（MIT，只留 `lib/` 与许可），由根 `pubspec.yaml` 的 `dependency_overrides` 挂上。补丁内容、为什么必须 fork、上游修好后怎么撤，都写在 `third_party/README.md`；`analysis_options.yaml` 已排除该目录
-- `android/` `ios/` `macos/` `linux/` `windows/` `web/` — 六个平台的原生宿主工程；`analysis_options.yaml` 已排除这些目录。macOS **未开 App Sandbox**：沙盒下钥匙串访问组必须通过 application-identifier（团队签名）校验，而项目无 Apple 团队（ad-hoc，TeamIdentifier=not set），$(AppIdentifierPrefix) 展开为空，flutter_secure_storage 读写一律 -34018；同时 macOS 侧 `MacOsOptions.usesDataProtectionKeychain` 必须为 false（数据保护钥匙串同样要求团队签名）。恢复沙盒的前提是接入 DEVELOPMENT_TEAM 并逐项重验凭据链路（本机开发的证书签名与钥匙串授权弹窗问题见编辑约定「macOS 签名」条）
+- `android/` `ios/` `macos/` `linux/` `windows/` `web/` — 六个平台的原生宿主工程；`analysis_options.yaml` 已排除这些目录。macOS **未开 App Sandbox**：沙盒下钥匙串访问组必须通过 application-identifier（团队签名）校验，而项目无 Apple 团队（ad-hoc，TeamIdentifier=not set），$(AppIdentifierPrefix) 展开为空，flutter_secure_storage 读写一律 -34018；同时 macOS 侧 `MacOsOptions.usesDataProtectionKeychain` 必须为 false（数据保护钥匙串同样要求团队签名）。恢复沙盒的前提是接入 DEVELOPMENT_TEAM 并逐项重验凭据链路（本机开发的证书签名与钥匙串授权弹窗问题见编辑约定「macOS 签名」条）。Android 宿主里除 Activity 外只有两块自写原生件：保活服务 `SessionKeepAliveService.kt` 与公共下载目录通道 `DownloadsChannel.kt`（后者见 `lib/ssh/AGENTS.md` 的「SFTP 层」）
 
 ## 编辑约定
 
@@ -102,7 +102,7 @@
   - 信封里只放解密必需的参数（`kdf` 及其参数 / `cipher` / `salt` / `nonce`），不写版本号：本项目仍在开发阶段，格式不背历史包袱，只写也只读当前这一种（没有旧 KDF 回退分支）
   - KDF 参数的上下限是防呆：改过的文件不该让 scrypt 吃掉几十 GB 内存
   - 导出落点分两条：桌面端走「另存为」对话框（`LocalDestination.share` 为 false）；移动端没有「另存为」（选择器返回 SAF / 沙盒 URL，`dart:io` 写不进去），写进临时目录后**必须**过 `share_plus` 的分享面板，由用户决定存到「文件」还是发给别人，实现方负责删掉临时文件。不加这道分享，文件就躺在用户找不到的地方
-  - SFTP 下载仍走 `pickDownloadTarget`，移动端落到应用文档目录——这条靠 iOS 的 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace` 才对用户可见，改动 `ios/Runner/Info.plist` 时不要删掉
+  - SFTP 下载走 `pickDownloadTarget`：Android 落到系统公共下载目录 `Download/`（10+ 经 MediaStore，9 及以下在首次下载时当场申请 `WRITE_EXTERNAL_STORAGE` 后直接写路径——那条权限只在老系统上有用，清单里因此卡了 `maxSdkVersion=28`；两支的实现与自写通道见 `lib/ssh/AGENTS.md` 的「SFTP 层」），iOS 落到应用文档目录——后者靠 iOS 的 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace` 才对用户可见，改动 `ios/Runner/Info.plist` 时不要删掉。移动端下载完成后还会顺手把文件交给系统分享面板（`LocalFileGateway.shareDownload`，分享不删文件），桌面端不弹
   - `.nsbak` 的 UTI 是 `com.noshell.hosts-backup`（conforms to `public.json`），在 Info.plist 的 `UTExportedTypeDeclarations` 与 `CFBundleDocumentTypes` 里各声明一次；后缀名改了就三处一起改（`backupFileExtension`、UTI 的 tag、Info.plist）
 - 文案（面向专业用户，默认「能删就删」）：
   - `SettingsRow` 的加粗标题说「这是什么」，下面的小字只在**真有信息**时才有：「什么时候用 / 代价是什么 / 会发生什么」。**只有一项的分区不写标题**（标题只会把小字的意思再说一遍）；**开关类不配小字**，「选中即复制」四个字已经说完了这件事，效果一拨自明（这两条都是返工过的地方）

@@ -11,6 +11,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- SFTP 下载落点：Android 9 及以下写系统公共「下载」目录需要它，用户点下载
+         时才当场申请。maxSdkVersion 卡在 28 是刻意的——Android 10 起写下载目录
+         走 MediaStore，本来就不需要任何存储权限，留着只会让新系统用户白看一个
+         权限框。读侧不申请：选文件走系统选择器，拿的是逐次的读授权，够用且不必
+         要整机存储权限。 -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"/>
     <application
         android:label="NoShell"
         android:name="${applicationName}"

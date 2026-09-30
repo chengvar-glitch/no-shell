@@ -4,4 +4,10 @@ library;
 
 Future<String?> defaultShareDirectory() async => null;
 
+Future<void> shareLocalPathOnDevice(
+  String path, {
+  String? title,
+  String? mimeType,
+}) async {}
+
 Future<void> shareLocalFileOnDevice(String path, {String? title}) async {}

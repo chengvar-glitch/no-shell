@@ -21,6 +21,7 @@ final class SftpTransfer extends ChangeNotifier {
     required this.direction,
     required this.remotePath,
     required this.total,
+    this.localPath,
   });
 
   static int _sequence = 0;
@@ -31,6 +32,10 @@ final class SftpTransfer extends ChangeNotifier {
   final String name;
   final SftpTransferDirection direction;
   final String remotePath;
+
+  /// 下载落点在本地这一侧的标识（桌面 / iOS 是真路径，Android 公共下载目录
+  /// 是 `mediastore:` / `publicdownload:` 暗号）。分享按它办；上传为 null。
+  final String? localPath;
 
   /// 总字节数；0 表示未知，此时进度按不确定态展示。
   final int total;
@@ -44,6 +49,7 @@ final class SftpTransfer extends ChangeNotifier {
   /// 请求改变不了「目标已被新内容替换」这个既成事实。状态必须如实——
   /// 效果已发生却报「已取消」等于骗用户（取消后文件还是被覆盖了）。
   bool _effectApplied = false;
+  String? _localName;
   DateTime? _startedAt;
   DateTime? _finishedAt;
   DateTime? _lastProgressNotifyAt;
@@ -56,6 +62,10 @@ final class SftpTransfer extends ChangeNotifier {
       _state == SftpTransferState.done ||
       _state == SftpTransferState.failed ||
       _state == SftpTransferState.canceled;
+
+  /// 落点最终的显示名（收尾改名回报，见 [_markLocalName]）。
+  /// 与远端同名或无从得知时为 null，界面提示据此退回落点的远端名。
+  String? get localName => _localName;
 
   /// 0~1；总量未知时为 null，界面按不确定进度条渲染。
   double? get progress =>
@@ -142,6 +152,11 @@ final class SftpTransfer extends ChangeNotifier {
   /// 收尾改名已执行（见 [_effectApplied]）。
   void _markEffectApplied() {
     _effectApplied = true;
+  }
+
+  void _markLocalName(String? name) {
+    if (name == null || name == this.name) return;
+    _localName = name;
   }
 
   void _fail(Object error) {
@@ -247,6 +262,7 @@ final class SftpTransferQueue extends ChangeNotifier {
       direction: SftpTransferDirection.download,
       remotePath: entry.path,
       total: entry.size,
+      localPath: target.path,
     );
     return _enqueue(transfer, (transfer) async {
       // 同理：先写临时文件，成功了再改名到落点。桌面的「另存为」可以
@@ -254,7 +270,7 @@ final class SftpTransferQueue extends ChangeNotifier {
       final temporaryPath = localFiles.temporaryPath(target.path);
       // ownerOnly：临时文件与改名后的目标权限一致，而远端内容里可能是私钥
       // 这类只该自己读的东西——下载落点不该是世界可读的。
-      final sink = localFiles.openWrite(temporaryPath, ownerOnly: true);
+      final sink = await localFiles.openWrite(temporaryPath, ownerOnly: true);
       var written = 0;
       var unflushed = 0;
       // 取消观察器：每 200ms 查一次取消标记。远端卡死时 read 流不再来块，
@@ -303,7 +319,12 @@ final class SftpTransferQueue extends ChangeNotifier {
         if (transfer.isCancelRequested || _disposed) {
           throw const _TransferCanceled();
         }
-        await localFiles.promote(temporaryPath, target.path);
+        // 落点名字可能与远端不同（公共下载目录遇重名会改成 `name (1).ext`，
+        // 桌面「另存为」也可能被改过）——完成提示照实说，否则用户按提示
+        // 去找会扑空。
+        transfer._markLocalName(
+          await localFiles.promote(temporaryPath, target.path),
+        );
         // promote 已落地：此后到达的取消不再把结果标成「已取消」。
         transfer._markEffectApplied();
       } on Object {
@@ -336,6 +357,7 @@ final class SftpTransferQueue extends ChangeNotifier {
     required SftpTransferDirection direction,
     required String remotePath,
     required int total,
+    String? localPath,
   }) {
     SftpTransfer._sequence++;
     return SftpTransfer._(
@@ -344,6 +366,7 @@ final class SftpTransferQueue extends ChangeNotifier {
       direction: direction,
       remotePath: remotePath,
       total: total,
+      localPath: localPath,
     );
   }
 
