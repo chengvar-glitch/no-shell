@@ -22,7 +22,7 @@
 
 - Dart SDK：`^3.13.3`（见 `pubspec.yaml`）
 - Lint 规则：`flutter_lints ^6.0.0`，通过 `analysis_options.yaml` 引入 `package:flutter_lints/flutter.yaml`
-- 运行时依赖：`dartssh2 ^4.1.0`（SSH 传输 / SFTP）、`xterm ^4.0.0`（终端渲染；**实际取的是仓库内打了补丁的 `third_party/xterm`**，由 `dependency_overrides` 挂上，见 `lib/ssh/AGENTS.md` 的「终端输入」条）、`url_launcher ^6.3.2`（终端里的链接与发布页交给系统浏览器打开）、`file_selector ^1.1.0`（上传选文件、下载另存为）、`share_plus ^13.3.0`（移动端导出的系统分享面板）、`path_provider ^2.1.6`（下载默认目录 / 导出临时目录）、`pointycastle ^4.0.0`（加密备份的 scrypt + AES-256-GCM，纯 Dart、六端通用）、`ffi ^2.1.0`（只用于绑 libc 的 chmod，导出备份收到 0600）、`flutter_secure_storage`（凭据安全存储，macOS 需钥匙串 entitlement，已在 entitlements 中配置）、`shared_preferences`（主机列表持久化）、`package_info_plus ^10.2.1`（读宿主包信息拿真实版本号，见 `app_version.dart`）、`flutter_localizations` + `intl`（国际化）
+- 运行时依赖：`dartssh2 ^4.1.0`（SSH 传输 / SFTP）、`xterm ^4.0.0`（终端渲染；**实际取的是仓库内打了补丁的 `third_party/xterm`**，由 `dependency_overrides` 挂上，见 `lib/ssh/AGENTS.md` 的「终端输入」条）、`url_launcher ^6.3.3`（终端里的链接与发布页交给系统浏览器打开）、`file_selector ^1.1.0`（上传选文件、下载另存为）、`share_plus ^13.3.1`（移动端导出的系统分享面板）、`path_provider ^2.1.6`（下载默认目录 / 导出临时目录）、`pointycastle ^4.0.0`（加密备份的 scrypt + AES-256-GCM，纯 Dart、六端通用）、`ffi ^2.1.0`（只用于绑 libc 的 chmod，导出备份收到 0600）、`flutter_secure_storage`（凭据安全存储，macOS 需钥匙串 entitlement，已在 entitlements 中配置）、`shared_preferences`（主机列表持久化）、`package_info_plus ^10.2.2`（读宿主包信息拿真实版本号，见 `app_version.dart`）、`flutter_localizations` + `intl`（国际化）
 - 添加新依赖必须同步更新 `pubspec.yaml` 并重新执行 `flutter pub get`
 
 ## 目录结构
