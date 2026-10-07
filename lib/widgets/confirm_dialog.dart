@@ -20,6 +20,7 @@ Future<bool> showConfirmDialog(
 }) async {
   final confirmed = await showDialog<bool>(
     context: context,
+    barrierDismissible: false,
     builder: (dialogContext) {
       final l10n = AppLocalizations.of(dialogContext);
       return AlertDialog(
@@ -53,6 +54,7 @@ Future<void> showInfoDialog(
 }) {
   return showDialog<void>(
     context: context,
+    barrierDismissible: false,
     builder: (dialogContext) {
       final l10n = AppLocalizations.of(dialogContext);
       return AlertDialog(

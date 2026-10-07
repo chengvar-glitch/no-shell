@@ -124,6 +124,7 @@ Future<SftpQuickPreviewOutcome> showSftpQuickPreview(
   final kind = sftpQuickPreviewKind(entry)!;
   final result = await showDialog<SftpQuickPreviewOutcome>(
     context: context,
+    barrierDismissible: false,
     useSafeArea: true,
     barrierColor: _previewBarrierColor(kind),
     builder: (_) => _SftpQuickPreviewDialog(

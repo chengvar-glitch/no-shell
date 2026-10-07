@@ -298,6 +298,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _editOrCreate([SshServer? existing, String? group]) async {
     final result = await showDialog<SshServer>(
       context: context,
+      barrierDismissible: false,
       builder: (_) => _ServerDialog(
         initial: existing,
         initialGroup: group,

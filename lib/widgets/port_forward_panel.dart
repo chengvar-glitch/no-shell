@@ -524,6 +524,7 @@ Future<PortForwardRule?> _showForwardRuleDialog(
   PortForwardRule? existing,
 }) => showDialog<PortForwardRule>(
   context: context,
+  barrierDismissible: false,
   builder: (_) => _ForwardRuleDialog(existing: existing),
 );
 

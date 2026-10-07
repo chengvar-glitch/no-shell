@@ -197,6 +197,7 @@ Future<String?> _promptGroupName(
 }) {
   return showDialog<String>(
     context: context,
+    barrierDismissible: false,
     builder: (_) =>
         _GroupNameDialog(title: title, initial: initial, taken: taken.toSet()),
   );
@@ -276,6 +277,7 @@ Future<void> moveServerToGroupFlow(
   }
   final target = await showDialog<String>(
     context: context,
+    barrierDismissible: false,
     builder: (dialogContext) => SimpleDialog(
       title: Text(l10n.groupMoveTitle(server.name)),
       children: [

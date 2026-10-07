@@ -23,6 +23,7 @@ Future<void> showSessionLogDialog(
 }) {
   return showDialog<void>(
     context: context,
+    barrierDismissible: false,
     builder: (dialogContext) => _SessionLogDialog(session: session),
   );
 }

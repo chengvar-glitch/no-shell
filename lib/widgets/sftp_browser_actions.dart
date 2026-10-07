@@ -185,6 +185,7 @@ Future<String?> _promptName(
 }) {
   return showDialog<String>(
     context: context,
+    barrierDismissible: false,
     builder: (dialogContext) => _NameDialog(
       title: title,
       fieldLabel: fieldLabel,

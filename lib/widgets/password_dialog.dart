@@ -15,6 +15,7 @@ Future<String?> showBackupPasswordDialog(
   required BackupPasswordMode mode,
 }) => showDialog<String>(
   context: context,
+  barrierDismissible: false,
   builder: (_) => _BackupPasswordDialog(mode: mode),
 );
 

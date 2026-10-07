@@ -19,6 +19,7 @@ Future<void> showSnippetDialog(
 }) {
   return showDialog<void>(
     context: context,
+    barrierDismissible: false,
     builder: (dialogContext) =>
         _SnippetListDialog(snippets: snippets, session: session),
   );
@@ -183,6 +184,7 @@ Future<void> _showSnippetEditorDialog(
 }) {
   return showDialog<void>(
     context: context,
+    barrierDismissible: false,
     builder: (dialogContext) =>
         _SnippetEditorDialog(snippets: snippets, initial: initial),
   );
