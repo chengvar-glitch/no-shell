@@ -105,6 +105,7 @@ Future<CredentialsSubmission?> showCredentialsDialog(
 }) {
   return showDialog<CredentialsSubmission>(
     context: context,
+    barrierDismissible: false,
     builder: (_) => _CredentialsDialog(
       server: server,
       initial: initial,

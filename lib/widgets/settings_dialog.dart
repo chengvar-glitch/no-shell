@@ -28,6 +28,7 @@ Future<void> showSettingsDialog(
 }) {
   return showDialog<void>(
     context: context,
+    barrierDismissible: false,
     builder: (_) => _SettingsDialog(
       initialThemeMode: themeMode,
       onThemeModeChanged: onThemeModeChanged,

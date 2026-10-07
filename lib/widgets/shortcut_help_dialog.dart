@@ -12,6 +12,7 @@ import '../theme.dart';
 Future<void> showShortcutHelpDialog(BuildContext context) {
   return showDialog<void>(
     context: context,
+    barrierDismissible: false,
     builder: (_) => const ShortcutHelpDialog(),
   );
 }

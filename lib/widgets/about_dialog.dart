@@ -22,6 +22,7 @@ void showAppAboutDialog({
 }) {
   showDialog<void>(
     context: context,
+    barrierDismissible: false,
     builder: (context) {
       final dialog = AboutDialog(
         applicationName: applicationName,

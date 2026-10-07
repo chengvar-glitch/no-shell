@@ -26,6 +26,7 @@ Future<List<SshServer>?> showHostExportSelection(
 }) {
   return showDialog<List<SshServer>>(
     context: context,
+    barrierDismissible: false,
     builder: (_) => _HostExportDialog(groups: groups),
   );
 }
