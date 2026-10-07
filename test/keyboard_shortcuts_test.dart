@@ -75,12 +75,22 @@ void main() {
     // 汇总里必须有「搜索主机」这一条（Ctrl+F 的去向要能查到）。
     expect(find.text('搜索主机'), findsOneWidget);
     expect(find.text('Ctrl+F'), findsOneWidget);
+    // 终端剪贴板按动作各占一行：全选在非 Apple 平台是 Ctrl+Shift+A（此前
+    // 只写了动作、没给键位），有选区时 Ctrl+C 也复制。
+    expect(find.text('Ctrl+Shift+C'), findsOneWidget);
+    expect(find.text('Ctrl+V'), findsOneWidget);
+    expect(find.text('Ctrl+Shift+A'), findsOneWidget);
+    expect(find.text('有选区时复制'), findsOneWidget);
+    expect(find.text('Ctrl+C'), findsOneWidget);
     await pressCtrl(tester, LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
   });
 
   testWidgets('Ctrl+F 聚焦侧边栏搜索框并可直接输入', (tester) async {
     await pumpDesktop(tester);
+
+    // 占位符就说清这个框是 Ctrl+F 的去向（此前这里写的是终端查找的提示语）。
+    expect(find.text('搜索主机（Ctrl+F）'), findsOneWidget);
 
     await pressCtrl(tester, LogicalKeyboardKey.keyF);
     await tester.pumpAndSettle();

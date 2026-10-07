@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'confirm_dialog.dart';
 import 'window_caption.dart';
 
 /// 「关于」对话框：内容与 [showAboutDialog] 一致，只是顺手把 macOS 上
@@ -20,9 +21,8 @@ void showAppAboutDialog({
   required String applicationVersion,
   Widget? applicationIcon,
 }) {
-  showDialog<void>(
+  showAppDialog<void>(
     context: context,
-    barrierDismissible: false,
     builder: (context) {
       final dialog = AboutDialog(
         applicationName: applicationName,

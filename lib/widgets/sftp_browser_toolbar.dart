@@ -590,7 +590,12 @@ class _PathBarState extends State<_PathBar> {
             child: editing
                 ? _field(context, theme, l10n)
                 : Tooltip(
-                    message: l10n.sftpEditPath,
+                    // 进编辑态的键位（Ctrl/⌘+L）在这里标出来：键位绑在
+                    // 面板级的 CallbackShortcuts 上，别处看不到。
+                    message: l10n.withShortcut(
+                      l10n.sftpEditPath,
+                      sftpPathEditShortcut,
+                    ),
                     child: _crumbs(context, l10n),
                   ),
           ),

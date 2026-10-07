@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../app_locale.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import 'window_caption.dart';

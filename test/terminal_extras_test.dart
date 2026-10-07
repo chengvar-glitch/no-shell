@@ -97,6 +97,22 @@ void main() {
   setUp(_installClipboardMock);
 
   group('SshTerminalView 会话工具条（桌面端）', () {
+    testWidgets('工具条按钮标出各自的键位', (tester) async {
+      await _asDesktop(() async {
+        final transport = _connected();
+        final session = await _connectedSession(transport);
+        addTearDown(session.dispose);
+
+        await tester.pumpWidget(_host(SshTerminalView(session: session)));
+        await tester.pump();
+
+        // 悬停提示是这三颗按钮唯一的键位说明（完整汇总要翻一层帮助弹窗）。
+        expect(find.byTooltip('复制（Ctrl+Shift+C）'), findsOneWidget);
+        expect(find.byTooltip('粘贴（Ctrl+V）'), findsOneWidget);
+        expect(find.byTooltip('查找（Ctrl+Shift+F）'), findsOneWidget);
+      });
+    });
+
     testWidgets('展示片段入口，空态可打开可关闭', (tester) async {
       await _asDesktop(() async {
         final transport = _connected();

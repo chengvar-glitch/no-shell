@@ -502,7 +502,10 @@ class _DetailHeader extends StatelessWidget {
         if (sessionCount > 0) ...[
           const SizedBox(width: 4),
           IconButton(
-            tooltip: l10n.newSession,
+            tooltip: l10n.withShortcut(
+              l10n.newSession,
+              newSessionShortcutLabel,
+            ),
             icon: const Icon(Icons.add_rounded, size: 18),
             onPressed: onCreateSession,
             padding: EdgeInsets.zero,

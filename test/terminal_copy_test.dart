@@ -100,11 +100,25 @@ void main() {
 
     test('Ctrl+A 不再绑全选（readline 的回行首要进 shell）', () {
       final shortcuts = terminalShortcuts();
-      final keyA = shortcuts.keys
+      final plainCtrlA = shortcuts.keys
           .whereType<SingleActivator>()
-          .where((a) => a.trigger == LogicalKeyboardKey.keyA)
+          .where(
+            (a) =>
+                a.trigger == LogicalKeyboardKey.keyA && a.control && !a.shift,
+          )
           .toList();
-      expect(keyA, isEmpty);
+      expect(plainCtrlA, isEmpty);
+    });
+
+    test('全选落在 Ctrl+Shift+A（帮助弹窗那一行写着「全选」）', () {
+      final selectAll = terminalShortcuts().entries.where(
+        (e) => e.value is SelectAllTextIntent,
+      );
+      expect(selectAll, hasLength(1));
+      final activator = selectAll.single.key as SingleActivator;
+      expect(activator.trigger, LogicalKeyboardKey.keyA);
+      expect(activator.control, isTrue);
+      expect(activator.shift, isTrue);
     });
   });
 

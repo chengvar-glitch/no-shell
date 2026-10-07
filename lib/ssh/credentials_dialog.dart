@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../theme.dart';
-import '../widgets/confirm_dialog.dart' show showInfoDialog;
+import '../widgets/confirm_dialog.dart' show showAppDialog, showInfoDialog;
 import '../widgets/host_form.dart' show AuthMethodSelector;
 import 'ssh_credentials.dart';
 
@@ -103,9 +103,8 @@ Future<CredentialsSubmission?> showCredentialsDialog(
   String? confirmLabel,
   bool lockRemember = false,
 }) {
-  return showDialog<CredentialsSubmission>(
+  return showAppDialog<CredentialsSubmission>(
     context: context,
-    barrierDismissible: false,
     builder: (_) => _CredentialsDialog(
       server: server,
       initial: initial,

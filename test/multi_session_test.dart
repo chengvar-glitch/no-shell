@@ -123,7 +123,8 @@ void main() {
 
     expect(find.text('已连接'), findsOneWidget);
     expect(find.text('已连接 · 2'), findsNothing);
-    expect(find.byTooltip('新建会话'), findsOneWidget);
+    // 桌面端的 ⊕ 顺带标出 ⌘/Ctrl+T（键位展示与入口同一条用例守着）。
+    expect(find.byTooltip('新建会话（Ctrl+T）'), findsOneWidget);
 
     await tester.tap(find.byTooltip('会话日志'));
     await tester.pumpAndSettle();
@@ -256,7 +257,7 @@ void main() {
     await tester.pumpWidget(_host(panel()));
     await connectFirst(tester);
 
-    await tester.tap(find.byTooltip('新建会话'));
+    await tester.tap(find.byTooltip('新建会话（Ctrl+T）'));
     await _settle(tester);
 
     expect(sessions.sessionCount, 2);

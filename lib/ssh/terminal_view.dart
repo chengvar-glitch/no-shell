@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:xterm/core.dart';
 import 'package:xterm/ui.dart';
 
+import '../app_locale.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models.dart';
 import '../settings.dart';
@@ -1995,7 +1996,7 @@ final class _SessionToolbar extends StatelessWidget {
                 builder: (context, _) {
                   final hasSelection = controller.selection != null;
                   return _ToolbarButton(
-                    tooltip: l10n.copy,
+                    tooltip: l10n.withShortcut(l10n.copy, terminalCopyShortcut),
                     icon: Icons.copy_rounded,
                     color: hasSelection
                         ? foreground
@@ -2010,13 +2011,16 @@ final class _SessionToolbar extends StatelessWidget {
                 },
               ),
               _ToolbarButton(
-                tooltip: l10n.paste,
+                tooltip: l10n.withShortcut(l10n.paste, terminalPasteShortcut),
                 icon: Icons.content_paste_rounded,
                 color: foreground,
                 onTap: () => pasteIntoTerminal(session.terminal),
               ),
               _ToolbarButton(
-                tooltip: l10n.searchTerminal,
+                tooltip: l10n.withShortcut(
+                  l10n.searchTerminal,
+                  terminalFindShortcut,
+                ),
                 icon: Icons.search_rounded,
                 color: foreground,
                 onTap: onSearch,

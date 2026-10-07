@@ -4,6 +4,8 @@
 /// 一份：两端观感一致，只是弹窗宽度受限（窄屏自适应）。
 library;
 
+import 'confirm_dialog.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -24,9 +26,8 @@ Future<List<SshServer>?> showHostExportSelection(
   BuildContext context, {
   required List<ServerGroup> groups,
 }) {
-  return showDialog<List<SshServer>>(
+  return showAppDialog<List<SshServer>>(
     context: context,
-    barrierDismissible: false,
     builder: (_) => _HostExportDialog(groups: groups),
   );
 }

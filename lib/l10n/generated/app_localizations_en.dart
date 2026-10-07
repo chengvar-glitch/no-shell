@@ -1357,9 +1357,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shortcutFindInTerminal => 'Find in terminal';
 
   @override
-  String get shortcutCopyPaste => 'Copy / Paste / Select all';
-
-  @override
   String shortcutOpenSettingsWithShortcut(String shortcut) {
     return 'Settings ($shortcut)';
   }
@@ -1368,6 +1365,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String shortcutShortcutsHelpWithShortcut(String shortcut) {
     return 'Keyboard shortcuts ($shortcut)';
   }
+
+  @override
+  String withShortcut(String label, String shortcut) {
+    return '$label ($shortcut)';
+  }
+
+  @override
+  String get shortcutCopySelection => 'Copy when text is selected';
 
   @override
   String sessionOrdinal(int n, int total) {

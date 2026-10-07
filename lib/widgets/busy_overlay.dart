@@ -12,6 +12,8 @@
 /// 现身（动作都在微任务里做完时，定时器已被取消，不会闪）。
 library;
 
+import 'confirm_dialog.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -34,9 +36,9 @@ Future<T> runWithBusyOverlay<T>(
     if (!context.mounted) return;
     shown = true;
     unawaited(
-      showDialog<void>(
+      showAppDialog<void>(
         context: context,
-        barrierDismissible: false,
+        escapeDismissible: false,
         builder: (_) => _BusyDialog(message: message),
       ),
     );

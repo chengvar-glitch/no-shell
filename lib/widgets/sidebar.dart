@@ -480,6 +480,7 @@ class _SidebarState extends State<Sidebar> {
   }
 
   Widget _buildSearchField(ThemeData theme) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: TextField(
@@ -488,7 +489,11 @@ class _SidebarState extends State<Sidebar> {
         onChanged: (value) => _query.value = value,
         style: const TextStyle(fontSize: 13),
         decoration: InputDecoration(
-          hintText: AppLocalizations.of(context).searchHint,
+          // 搜索主机是 ⌘F / Ctrl+F 的去向，占位符里直接标出键位。
+          hintText: l10n.withShortcut(
+            l10n.shortcutSearchHosts,
+            searchHostsShortcut,
+          ),
           hintStyle: TextStyle(fontSize: 12.5, color: theme.secondaryText),
           prefixIcon: Icon(
             Icons.search_rounded,

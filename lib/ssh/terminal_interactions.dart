@@ -5,6 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:xterm/core.dart';
 import 'package:xterm/ui.dart';
 
+import '../app_shortcuts.dart';
+
 /// 终端便捷交互的公共件：字号缩放键位、复制 / 粘贴 / 全选动作、
 /// 超链接识别。只依赖 xterm 公共 API，web 也要能编译。
 
@@ -100,16 +102,22 @@ class TerminalSearchIntent extends Intent {
   const TerminalSearchIntent();
 }
 
-/// 终端键位表：包默认（复制 / 粘贴 / 全选）+ 字号缩放。
+/// 终端键位表：包默认（复制 / 粘贴 / 全选）+ 字号缩放 + 让给应用级动作的那几个。
 ///
 /// `TerminalView.shortcuts` 会**整体替换**包的默认表，所以必须把
 /// [defaultTerminalShortcuts] 展开合并，否则复制粘贴快捷键会丢。
 /// 缩放的修饰键按平台取：Apple 用 Cmd，其余用 Ctrl——Ctrl 系在终端里
 /// 有既有含义（Ctrl+C 是中断信号），不能在 macOS 上被缩放抢走。
+///
+/// [terminalAppShortcutIntents] 那几个键位（Ctrl+F / N / T 与侧边栏的
+/// Ctrl+Shift+B）同理：不先由这张表认下来，xterm 就会把它们当控制字符发给
+/// 远端，骨架那层的键位表根本轮不到（Action 仍在骨架手里，这里只出意图）。
+/// 裸 Ctrl+B 不在此列——那是 tmux 的前缀键，留给远端。
 Map<ShortcutActivator, Intent> terminalShortcuts() {
   final meta = isAppleLikePlatform();
   return {
     ...defaultTerminalShortcuts,
+    ...terminalAppShortcutIntents(),
     ..._zoomKeys(
       modifier: meta,
       // Cmd/Ctrl + + 在美式键盘上是 Shift+=，逻辑键仍是 keyEqual；
@@ -158,6 +166,17 @@ Map<ShortcutActivator, Intent> terminalShortcuts() {
     if (!meta)
       const SingleActivator(LogicalKeyboardKey.insert, control: true):
           CopySelectionTextIntent.copy,
+    // 全选：Ctrl+A 在 shell 里是 readline 的「回行首」，只能让位，用 GNOME
+    // Terminal 的 Ctrl+Shift+A（快捷键帮助里那一行写着「全选」，此前非 Apple
+    // 平台压根没有对应键位）。
+    if (!meta)
+      const SingleActivator(
+        LogicalKeyboardKey.keyA,
+        control: true,
+        shift: true,
+      ): const SelectAllTextIntent(
+        SelectionChangedCause.keyboard,
+      ),
   };
 }
 

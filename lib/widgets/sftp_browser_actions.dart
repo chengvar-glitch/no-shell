@@ -183,9 +183,8 @@ Future<String?> _promptName(
   required String initial,
   required String confirmLabel,
 }) {
-  return showDialog<String>(
+  return showAppDialog<String>(
     context: context,
-    barrierDismissible: false,
     builder: (dialogContext) => _NameDialog(
       title: title,
       fieldLabel: fieldLabel,

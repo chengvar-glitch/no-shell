@@ -676,7 +676,6 @@
   "shortcutFontZoom": "调整终端字号",
   "shortcutFontReset": "恢复默认字号",
   "shortcutFindInTerminal": "终端内查找",
-  "shortcutCopyPaste": "复制 / 粘贴 / 全选",
   "shortcutOpenSettingsWithShortcut": "设置（{shortcut}）",
   "@shortcutOpenSettingsWithShortcut": {
     "placeholders": {
@@ -693,6 +692,18 @@
       }
     }
   },
+  "withShortcut": "{label}（{shortcut}）",
+  "@withShortcut": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  },
+  "shortcutCopySelection": "有选区时复制",
   "sessionOrdinal": "会话 {n}/{total}",
   "@sessionOrdinal": {
     "placeholders": {

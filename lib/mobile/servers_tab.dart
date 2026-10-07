@@ -314,7 +314,8 @@ class _ServersTabState extends State<ServersTab> {
       autofocus: true,
       onChanged: (value) => _query.value = value,
       decoration: InputDecoration(
-        hintText: AppLocalizations.of(context).searchHint,
+        // 手机上没有键盘，占位符不标键位（桌面侧边栏那份标了 ⌘F）。
+        hintText: AppLocalizations.of(context).shortcutSearchHosts,
         border: InputBorder.none,
       ),
     );
