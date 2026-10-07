@@ -17,9 +17,8 @@ Future<void> showSnippetDialog(
   required SnippetStore snippets,
   TerminalSession? session,
 }) {
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
-    barrierDismissible: false,
     builder: (dialogContext) =>
         _SnippetListDialog(snippets: snippets, session: session),
   );
@@ -182,9 +181,8 @@ Future<void> _showSnippetEditorDialog(
   required SnippetStore snippets,
   CommandSnippet? initial,
 }) {
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
-    barrierDismissible: false,
     builder: (dialogContext) =>
         _SnippetEditorDialog(snippets: snippets, initial: initial),
   );

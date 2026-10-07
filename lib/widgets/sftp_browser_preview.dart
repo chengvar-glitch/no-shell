@@ -122,9 +122,8 @@ Future<SftpQuickPreviewOutcome> showSftpQuickPreview(
   // 列表 stat 已给出大小：超限时不闪一帧预览，直接让原有下载入口接管。
   if (entry.size > maxBytes) return SftpQuickPreviewOutcome.tooLarge;
   final kind = sftpQuickPreviewKind(entry)!;
-  final result = await showDialog<SftpQuickPreviewOutcome>(
+  final result = await showAppDialog<SftpQuickPreviewOutcome>(
     context: context,
-    barrierDismissible: false,
     useSafeArea: true,
     barrierColor: _previewBarrierColor(kind),
     builder: (_) => _SftpQuickPreviewDialog(

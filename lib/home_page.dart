@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_locale.dart';
+import 'app_shortcuts.dart';
 import 'host_portable.dart';
 import 'host_transfer.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -76,19 +77,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  /// ⌘1…⌘9 用到的数字键（终端字号缩放用的是无修饰键的 0，不冲突）。
-  static const List<LogicalKeyboardKey> _sessionDigitKeys = [
-    LogicalKeyboardKey.digit1,
-    LogicalKeyboardKey.digit2,
-    LogicalKeyboardKey.digit3,
-    LogicalKeyboardKey.digit4,
-    LogicalKeyboardKey.digit5,
-    LogicalKeyboardKey.digit6,
-    LogicalKeyboardKey.digit7,
-    LogicalKeyboardKey.digit8,
-    LogicalKeyboardKey.digit9,
-  ];
-
   /// 跨断点保留的那几个值（选中项 / 侧边栏折叠）放在这里，而不是本 State：
   /// 窗口宽度跨过 640px 时整套骨架会被换掉，State 连同它一起销毁重建。
   late final ShellLayoutState _layout = widget.layout ?? ShellLayoutState();
@@ -296,9 +284,8 @@ class _HomePageState extends State<HomePage> {
 
   /// [group] 非空表示「在这个分组里新建」（分组头菜单的入口），表单预填该分组。
   Future<void> _editOrCreate([SshServer? existing, String? group]) async {
-    final result = await showDialog<SshServer>(
+    final result = await showAppDialog<SshServer>(
       context: context,
-      barrierDismissible: false,
       builder: (_) => _ServerDialog(
         initial: existing,
         initialGroup: group,
@@ -317,84 +304,62 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final collapsed = _sidebarCollapsed;
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyB, meta: true):
-            _toggleSidebar,
-        const SingleActivator(LogicalKeyboardKey.keyB, control: true):
-            _toggleSidebar,
-        // 多开会话的两个键位：⌘T 再来一条，⌘1…⌘9 直达第 N 条。
-        // 终端自己的快捷键（字号缩放）用的是无修饰键，不会撞上。
-        const SingleActivator(LogicalKeyboardKey.keyT, meta: true):
-            _newSessionShortcut,
-        const SingleActivator(LogicalKeyboardKey.keyT, control: true):
-            _newSessionShortcut,
-        // 全局动作：新建连接 / 搜索主机 / 设置 / 快捷键帮助。
-        // 搜索与设置的键位说明分别标注在新建按钮 tooltip 与设置行上，
-        // 汇总见 ⌘/ 打开的快捷键帮助弹窗。
-        const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
-            unawaited(_editOrCreate()),
-        const SingleActivator(LogicalKeyboardKey.keyN, control: true): () =>
-            unawaited(_editOrCreate()),
-        const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
-            _focusSearch,
-        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
-            _focusSearch,
-        const SingleActivator(LogicalKeyboardKey.comma, meta: true):
-            _openSettings,
-        const SingleActivator(LogicalKeyboardKey.comma, control: true):
-            _openSettings,
-        const SingleActivator(LogicalKeyboardKey.slash, meta: true):
-            _openShortcutHelp,
-        const SingleActivator(LogicalKeyboardKey.slash, control: true):
-            _openShortcutHelp,
-        for (var i = 0; i < _sessionDigitKeys.length; i++) ...{
-          SingleActivator(_sessionDigitKeys[i], meta: true): () =>
-              _activateSession(i + 1),
-          SingleActivator(_sessionDigitKeys[i], control: true): () =>
-              _activateSession(i + 1),
-        },
-      },
-      child: Focus(
-        autofocus: true,
-        child: Scaffold(
-          body: _SplitPane(
-            collapsed: collapsed,
-            sidebar: Sidebar(
-              store: widget.store,
-              sessions: widget.sessions,
-              selectedId: _selectedId,
-              onSelect: (server) =>
-                  setState(() => _layout.selectedId = server.id),
-              onQuickConnect: _quickConnect,
-              onCreate: () => _editOrCreate(),
-              onCreateInGroup: (group) => _editOrCreate(null, group),
-              onEdit: (server) => _editOrCreate(server),
-              onDelete: _deleteServer,
-              onCopyHostInfo: _copyHostInfo,
-              onToggleConnect: _toggleConnect,
-              onCreateSession: _newSession,
-              onToggleSidebar: _toggleSidebar,
-              onOpenSettings: _openSettings,
-              searchFocusNode: _searchFocus,
-              onImportHosts: _importHosts,
-              onExportHosts: _exportHosts,
-              updateCheck: widget.updateCheck,
-            ),
-            // 详情面板自带窗口标题条（Windows/Linux 上是它里面的第一行，
-            // 且服务器头部就排在这一行里），侧边栏因此可以整块顶到窗口最上沿。
-            detail: ServerDetailPanel(
-              server: _selected,
-              store: widget.store,
-              sessions: widget.sessions,
-              credentials: widget.credentials,
-              onConnect: _toggleConnect,
-              onCreate: () => _editOrCreate(),
-              sidebarCollapsed: collapsed,
-              onToggleSidebar: _toggleSidebar,
-              // Tab 下标归 _layout 持有：双击直连改写它，用户切 Tab 写回它。
-              detailTab: _layout.detailTab,
-              onDetailTabChanged: (index) => _layout.detailTab = index,
+    // 键位与意图来自 app_shortcuts.dart（终端那张更近的键位表也绑同一批意图，
+    // 否则终端聚焦时 Ctrl+N / F / T 会被 xterm 当控制字符吃掉）；动作在这里，
+    // store 与 sessions 都在本层手里。
+    return Shortcuts(
+      shortcuts: appShortcutIntents(),
+      child: Actions(
+        actions: appShortcutActions(
+          onToggleSidebar: _toggleSidebar,
+          onFocusHostSearch: _focusSearch,
+          onNewConnection: () => unawaited(_editOrCreate()),
+          onNewSession: _newSessionShortcut,
+          onOpenSettings: _openSettings,
+          onShortcutsHelp: _openShortcutHelp,
+          onSwitchSession: _activateSession,
+        ),
+        child: Focus(
+          autofocus: true,
+          child: Scaffold(
+            body: _SplitPane(
+              collapsed: collapsed,
+              sidebar: Sidebar(
+                store: widget.store,
+                sessions: widget.sessions,
+                selectedId: _selectedId,
+                onSelect: (server) =>
+                    setState(() => _layout.selectedId = server.id),
+                onQuickConnect: _quickConnect,
+                onCreate: () => _editOrCreate(),
+                onCreateInGroup: (group) => _editOrCreate(null, group),
+                onEdit: (server) => _editOrCreate(server),
+                onDelete: _deleteServer,
+                onCopyHostInfo: _copyHostInfo,
+                onToggleConnect: _toggleConnect,
+                onCreateSession: _newSession,
+                onToggleSidebar: _toggleSidebar,
+                onOpenSettings: _openSettings,
+                searchFocusNode: _searchFocus,
+                onImportHosts: _importHosts,
+                onExportHosts: _exportHosts,
+                updateCheck: widget.updateCheck,
+              ),
+              // 详情面板自带窗口标题条（Windows/Linux 上是它里面的第一行，
+              // 且服务器头部就排在这一行里），侧边栏因此可以整块顶到窗口最上沿。
+              detail: ServerDetailPanel(
+                server: _selected,
+                store: widget.store,
+                sessions: widget.sessions,
+                credentials: widget.credentials,
+                onConnect: _toggleConnect,
+                onCreate: () => _editOrCreate(),
+                sidebarCollapsed: collapsed,
+                onToggleSidebar: _toggleSidebar,
+                // Tab 下标归 _layout 持有：双击直连改写它，用户切 Tab 写回它。
+                detailTab: _layout.detailTab,
+                onDetailTabChanged: (index) => _layout.detailTab = index,
+              ),
             ),
           ),
         ),

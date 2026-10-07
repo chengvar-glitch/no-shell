@@ -522,9 +522,8 @@ class _ExposeWarning extends StatelessWidget {
 Future<PortForwardRule?> _showForwardRuleDialog(
   BuildContext context, {
   PortForwardRule? existing,
-}) => showDialog<PortForwardRule>(
+}) => showAppDialog<PortForwardRule>(
   context: context,
-  barrierDismissible: false,
   builder: (_) => _ForwardRuleDialog(existing: existing),
 );
 

@@ -1303,9 +1303,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shortcutFindInTerminal => '终端内查找';
 
   @override
-  String get shortcutCopyPaste => '复制 / 粘贴 / 全选';
-
-  @override
   String shortcutOpenSettingsWithShortcut(String shortcut) {
     return '设置（$shortcut）';
   }
@@ -1314,6 +1311,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String shortcutShortcutsHelpWithShortcut(String shortcut) {
     return '键盘快捷键（$shortcut）';
   }
+
+  @override
+  String withShortcut(String label, String shortcut) {
+    return '$label（$shortcut）';
+  }
+
+  @override
+  String get shortcutCopySelection => '有选区时复制';
 
   @override
   String sessionOrdinal(int n, int total) {

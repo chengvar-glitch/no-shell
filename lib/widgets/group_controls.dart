@@ -195,9 +195,8 @@ Future<String?> _promptGroupName(
   required Iterable<String> taken,
   String initial = '',
 }) {
-  return showDialog<String>(
+  return showAppDialog<String>(
     context: context,
-    barrierDismissible: false,
     builder: (_) =>
         _GroupNameDialog(title: title, initial: initial, taken: taken.toSet()),
   );
@@ -275,9 +274,8 @@ Future<void> moveServerToGroupFlow(
     showToast(context, l10n.groupCreateFirst);
     return;
   }
-  final target = await showDialog<String>(
+  final target = await showAppDialog<String>(
     context: context,
-    barrierDismissible: false,
     builder: (dialogContext) => SimpleDialog(
       title: Text(l10n.groupMoveTitle(server.name)),
       children: [

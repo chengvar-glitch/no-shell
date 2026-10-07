@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_locale.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../theme.dart';
+import 'confirm_dialog.dart';
 
 /// 键盘快捷键帮助弹窗（桌面端）。
 ///
@@ -10,9 +11,8 @@ import '../theme.dart';
 /// 键位文案统一由 app_locale.dart 的 shortcut* 取值器按平台生成，
 /// 与 CallbackShortcuts 里真正绑定的键位一一对应——改键位时两边一起改。
 Future<void> showShortcutHelpDialog(BuildContext context) {
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
-    barrierDismissible: false,
     builder: (_) => const ShortcutHelpDialog(),
   );
 }
@@ -38,11 +38,19 @@ class ShortcutHelpDialog extends StatelessWidget {
     _ShortcutRowSpec(l10n.shortcutShortcutsHelp, shortcutsHelpShortcut),
   ];
 
+  // 剪贴板三件事各占一行：非 Apple 平台那三个键位之间没有共同的修饰键规律
+  // （Ctrl+Shift+C / Ctrl+V / Ctrl+Shift+A），拼成一行会挤成一团。
   List<_ShortcutRowSpec> _terminalRows(AppLocalizations l10n) => [
     _ShortcutRowSpec(l10n.shortcutFontZoom, terminalFontZoomShortcut),
     _ShortcutRowSpec(l10n.shortcutFontReset, terminalFontResetShortcut),
     _ShortcutRowSpec(l10n.shortcutFindInTerminal, terminalFindShortcut),
-    _ShortcutRowSpec(l10n.shortcutCopyPaste, terminalClipboardShortcut),
+    _ShortcutRowSpec(l10n.copy, terminalCopyShortcut),
+    _ShortcutRowSpec(l10n.paste, terminalPasteShortcut),
+    _ShortcutRowSpec(l10n.selectAll, terminalSelectAllShortcut),
+    // 非 Apple 平台多一条：Ctrl+C 在有选区时也是复制（它的中断语义只在
+    // 没有选区时成立，见 terminal_interactions.dart 的 resolveCtrlC）。
+    if (terminalCopySelectionShortcut case final keys?)
+      _ShortcutRowSpec(l10n.shortcutCopySelection, keys),
   ];
 
   @override

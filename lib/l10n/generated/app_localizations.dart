@@ -2306,12 +2306,6 @@ abstract class AppLocalizations {
   /// **'Find in terminal'**
   String get shortcutFindInTerminal;
 
-  /// No description provided for @shortcutCopyPaste.
-  ///
-  /// In en, this message translates to:
-  /// **'Copy / Paste / Select all'**
-  String get shortcutCopyPaste;
-
   /// No description provided for @shortcutOpenSettingsWithShortcut.
   ///
   /// In en, this message translates to:
@@ -2323,6 +2317,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keyboard shortcuts ({shortcut})'**
   String shortcutShortcutsHelpWithShortcut(String shortcut);
+
+  /// No description provided for @withShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'{label} ({shortcut})'**
+  String withShortcut(String label, String shortcut);
+
+  /// No description provided for @shortcutCopySelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy when text is selected'**
+  String get shortcutCopySelection;
 
   /// No description provided for @sessionOrdinal.
   ///

@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import 'confirm_dialog.dart';
 
 /// 弹窗的两种用途：新建备份要确认口令，打开备份只要输一次。
 enum BackupPasswordMode { create, open }
@@ -13,9 +14,8 @@ enum BackupPasswordMode { create, open }
 Future<String?> showBackupPasswordDialog(
   BuildContext context, {
   required BackupPasswordMode mode,
-}) => showDialog<String>(
+}) => showAppDialog<String>(
   context: context,
-  barrierDismissible: false,
   builder: (_) => _BackupPasswordDialog(mode: mode),
 );
 

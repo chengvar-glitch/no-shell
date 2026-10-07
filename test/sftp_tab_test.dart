@@ -945,6 +945,9 @@ void main() {
       fs.addFile(fs.home, 'nginx.conf');
       await pumpPanel(tester, fileSystem: fs);
 
+      // 键位同时标在地址栏的悬停提示上——它绑在面板级，别处看不到。
+      expect(find.byTooltip('编辑路径（Ctrl+L）'), findsOneWidget);
+
       await tester.tap(find.text('nginx.conf'));
       await tester.pumpAndSettle();
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);

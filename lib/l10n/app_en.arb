@@ -801,7 +801,6 @@
   "shortcutFontZoom": "Adjust terminal font size",
   "shortcutFontReset": "Reset terminal font size",
   "shortcutFindInTerminal": "Find in terminal",
-  "shortcutCopyPaste": "Copy / Paste / Select all",
   "shortcutOpenSettingsWithShortcut": "Settings ({shortcut})",
   "@shortcutOpenSettingsWithShortcut": {
     "placeholders": {
@@ -818,6 +817,18 @@
       }
     }
   },
+  "withShortcut": "{label} ({shortcut})",
+  "@withShortcut": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  },
+  "shortcutCopySelection": "Copy when text is selected",
   "sessionOrdinal": "Session {n}/{total}",
   "@sessionOrdinal": {
     "placeholders": {

@@ -21,9 +21,8 @@ Future<void> showSessionLogDialog(
   BuildContext context, {
   required TerminalSession session,
 }) {
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
-    barrierDismissible: false,
     builder: (dialogContext) => _SessionLogDialog(session: session),
   );
 }

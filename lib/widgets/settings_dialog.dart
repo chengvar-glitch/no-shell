@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../update_check.dart';
 import 'about_dialog.dart';
 import 'app_icon_mark.dart';
+import 'confirm_dialog.dart';
 import 'settings_controls.dart';
 
 /// 桌面端设置弹窗：外观（主题）、终端（配色 / 字体 / 字号 / 预览）与语言。
@@ -26,9 +27,8 @@ Future<void> showSettingsDialog(
   UpdateCheckService? updateCheck,
   Future<bool> Function(Uri uri)? openReleasePage,
 }) {
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
-    barrierDismissible: false,
     builder: (_) => _SettingsDialog(
       initialThemeMode: themeMode,
       onThemeModeChanged: onThemeModeChanged,
