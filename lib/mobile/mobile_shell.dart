@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app_locale.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -66,6 +69,20 @@ class _MobileShellState extends State<MobileShell> {
   /// 留在 State 里就会跳回第一个 Tab。
   late final ShellLayoutState _layout = widget.layout ?? ShellLayoutState();
 
+  /// 底部 Tab 切换：先给一次触感反馈再换页。
+  ///
+  /// 触感走系统通道 `HapticFeedback.selectionClick()`——Android 落到
+  /// `HapticFeedbackConstants.CLOCK_TICK`（振动马达轻敲一下），iOS 落到
+  /// `UISelectionFeedbackGenerator`（Taptic Engine）。它正是「选择变更」这一类
+  /// 反馈，不引第三方依赖，Android 也不需要 `VIBRATE` 权限；平台不支持时
+  /// 通道是 OptionalMethodChannel，静默无操作（web / Linux / Windows）。
+  void _onTabSelected(int index) {
+    // 重复点当前 Tab 并没有发生选择变更，不该再振一下。
+    if (index == _layout.tab) return;
+    unawaited(HapticFeedback.selectionClick());
+    setState(() => _layout.tab = index);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -106,7 +123,7 @@ class _MobileShellState extends State<MobileShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _layout.tab,
-        onDestinationSelected: (index) => setState(() => _layout.tab = index),
+        onDestinationSelected: _onTabSelected,
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.dns_outlined),
