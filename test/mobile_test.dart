@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:no_shell/main.dart';
@@ -66,6 +67,40 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('外观'), findsOneWidget);
     expect(find.text('浅色'), findsOneWidget);
+  });
+
+  testWidgets('切换底部 Tab 触发一次触感反馈，重复点当前 Tab 不再触发', (tester) async {
+    final haptics = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'HapticFeedback.vibrate') {
+          haptics.add(call.arguments);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await pumpMobile(tester);
+
+    await tester.tap(navLabel('终端'));
+    await tester.pumpAndSettle();
+    expect(haptics, ['HapticFeedbackType.selectionClick']);
+
+    await tester.tap(navLabel('设置'));
+    await tester.pumpAndSettle();
+    expect(haptics, hasLength(2));
+
+    // 已停在该 Tab 再点一次：没有发生选择变更，不该重复振动。
+    await tester.tap(navLabel('设置'));
+    await tester.pumpAndSettle();
+    expect(haptics, hasLength(2));
   });
 
   testWidgets('点击主机进入移动端详情页，连接前弹出凭据确认', (tester) async {
