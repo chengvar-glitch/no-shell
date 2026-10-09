@@ -677,6 +677,172 @@ void main() {
     });
   });
 
+  group('拖选贴边自动滚动（fork 补丁）', () {
+    /// 造一段比视口长的输出，回滚缓冲里才有可滚的余地。
+    String manyLines() => List.generate(200, (i) => 'line $i').join('\n');
+
+    ScrollableState scrollable(WidgetTester tester) =>
+        tester.state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(TerminalView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+
+    /// 鼠标从终端中间按下、拖到视口坐标 [dy] 处停住，等自动滚动跑几帧。
+    ///
+    /// 触屏那条长按拖选走的是同一个 [_autoScrollDirectionOf]，但长按在
+    /// 本应用里 550ms 就会弹菜单（模态层会吃掉后续指针），所以这里用鼠标
+    /// 拖动来断方向——fork 里两条路共用一份方向判定。
+    Future<void> dragTo(WidgetTester tester, double dy) async {
+      final rect = tester.getRect(find.byType(TerminalView));
+      final start = Offset(rect.center.dx, rect.center.dy);
+      final gesture = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await gesture.moveTo(Offset(start.dx, dy));
+      await tester.pump();
+      // 自动滚动 50ms 一行：给够几帧，方向错了这里就会滚出一大截。
+      await tester.pump(const Duration(milliseconds: 300));
+      await gesture.up();
+      await tester.pump();
+    }
+
+    testWidgets('拖出下边界往最新输出滚，在底部不会把画面拽进回滚', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await _pumpTerminal(tester, output: manyLines());
+        final position = scrollable(tester).position;
+        final rect = tester.getRect(find.byType(TerminalView));
+
+        // 停在中段往外拖：该看到更新的行（pixels 变大）。
+        position.jumpTo(position.maxScrollExtent / 2);
+        await tester.pump();
+        final before = position.pixels;
+        await dragTo(tester, rect.bottom + 40);
+        expect(
+          position.pixels,
+          greaterThan(before),
+          reason: '拖出下边界要朝最新输出滚（pixels 变大），不能反向滚进回滚',
+        );
+
+        // 已经在底部（用户要选的就是最新那几行）再往外拖：下方没有更新的
+        // 行，画面必须纹丝不动——此前的反号会把整个回滚一路拽到顶。
+        position.jumpTo(position.maxScrollExtent);
+        await tester.pump();
+        final atBottom = position.pixels;
+        await dragTo(tester, rect.bottom + 40);
+        expect(position.pixels, atBottom, reason: '在底部拖出下边界不该滚进回滚');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('拖出上边界往回滚里滚，滚到顶自停', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await _pumpTerminal(tester, output: manyLines());
+        final position = scrollable(tester).position;
+        final rect = tester.getRect(find.byType(TerminalView));
+
+        position.jumpTo(position.maxScrollExtent);
+        await tester.pump();
+        final before = position.pixels;
+        await dragTo(tester, rect.top - 40);
+        expect(
+          position.pixels,
+          lessThan(before),
+          reason: '拖出上边界要朝回滚里滚（pixels 变小）',
+        );
+
+        // 贴近顶端再拖：停在 0，不会顺着错误方向又滑回最新。
+        position.jumpTo(100);
+        await tester.pump();
+        await dragTo(tester, rect.top - 40);
+        expect(position.pixels, 0, reason: '滚到回滚顶就要自停');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('贴边滚动时选区跟着文本长，不跟着画面滑走', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await _pumpTerminal(tester, output: manyLines());
+        final view = tester.widget<TerminalView>(find.byType(TerminalView));
+        final position = scrollable(tester).position;
+        // 停在中段：上面还有回滚可滚。
+        position.jumpTo(2000);
+        await tester.pump();
+
+        final rect = tester.getRect(find.byType(TerminalView));
+        final gesture = await tester.startGesture(
+          Offset(rect.center.dx, rect.center.dy),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await gesture.moveTo(Offset(rect.center.dx, rect.top - 40));
+        await tester.pump();
+        final before = view.controller!.selection!.normalized;
+
+        await tester.pump(const Duration(milliseconds: 300));
+        final after = view.controller!.selection!.normalized;
+        await gesture.up();
+        await tester.pump();
+
+        expect(after.begin.y, lessThan(before.begin.y), reason: '往上滚要往后选');
+        expect(
+          after.end.y,
+          before.end.y,
+          reason: '起点钉在按下的那行文本上——起点跟着画面滑就等于把已选中的字丢出去',
+        );
+        expect(position.pixels, lessThan(2000), reason: '画面确实滚了');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('一行 50ms：不再一帧一行地飞', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await _pumpTerminal(tester, output: manyLines());
+        final render = tester
+            .state<TerminalViewState>(find.byType(TerminalView))
+            .renderTerminal;
+        final position = scrollable(tester).position;
+        position.jumpTo(2000);
+        await tester.pump();
+
+        final rect = tester.getRect(find.byType(TerminalView));
+        final gesture = await tester.startGesture(
+          Offset(rect.center.dx, rect.center.dy),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await gesture.moveTo(Offset(rect.center.dx, rect.top - 40));
+        await tester.pump();
+
+        final start = position.pixels;
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(position.pixels, start, reason: '16ms（一帧）内不该滚');
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(
+          position.pixels,
+          start - render.lineHeight,
+          reason: '一格 50ms',
+        );
+        await gesture.up();
+        await tester.pump();
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+  });
+
   group('选区手柄（触屏）', () {
     /// 选区文本：手柄拖到哪儿，缓冲区里选中的就是哪儿。
     String selectedText(WidgetTester tester) {
