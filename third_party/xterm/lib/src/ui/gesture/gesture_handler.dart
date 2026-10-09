@@ -258,12 +258,19 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
     });
   }
 
-  /// -1 to scroll toward newer lines (bottom edge), +1 toward the scrollback
-  /// (top edge), 0 when the pointer is outside both edge zones.
+  /// -1 to scroll toward the scrollback (top edge), +1 toward newer lines
+  /// (bottom edge), 0 when the pointer is outside both edge zones.
+  ///
+  /// The sign matches [_autoScrollTick]'s `pixels + direction * lineHeight`
+  /// and its stop conditions: a bigger offset shows newer rows, so the top
+  /// edge must decrease the offset. Returning the opposite signs here made a
+  /// selection dragged past the *bottom* edge run away into the scrollback
+  /// (the view scrolled up and only stopped at the very top) — exactly the
+  /// newest lines the user was trying to copy.
   int _autoScrollDirectionOf(Offset pointer) {
     final height = renderTerminal.size.height;
-    if (pointer.dy < _autoScrollEdgeZone) return 1;
-    if (pointer.dy > height - _autoScrollEdgeZone) return -1;
+    if (pointer.dy < _autoScrollEdgeZone) return -1;
+    if (pointer.dy > height - _autoScrollEdgeZone) return 1;
     return 0;
   }
 
@@ -297,8 +304,11 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
         _stopAutoScroll();
         return;
     }
+    // Clamp the last step: it would otherwise land one line past the edge and
+    // stay there (nothing snaps the offset back once the tick stops), which
+    // shows as a blank strip above the first line.
     terminalView.scrollController.jumpTo(
-      pixels + _autoScrollDirection * lineHeight,
+      (pixels + _autoScrollDirection * lineHeight).clamp(0.0, maxOffset),
     );
 
     // The pointer has not moved, but the cell under it changed with the
