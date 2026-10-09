@@ -706,8 +706,8 @@ void main() {
       await tester.pump();
       await gesture.moveTo(Offset(start.dx, dy));
       await tester.pump();
-      // 16ms 一行的自动滚动：给够几帧，方向错了这里就会滚出一大截。
-      await tester.pump(const Duration(milliseconds: 100));
+      // 自动滚动 50ms 一行：给够几帧，方向错了这里就会滚出一大截。
+      await tester.pump(const Duration(milliseconds: 300));
       await gesture.up();
       await tester.pump();
     }
@@ -764,6 +764,79 @@ void main() {
         await tester.pump();
         await dragTo(tester, rect.top - 40);
         expect(position.pixels, 0, reason: '滚到回滚顶就要自停');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('贴边滚动时选区跟着文本长，不跟着画面滑走', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await _pumpTerminal(tester, output: manyLines());
+        final view = tester.widget<TerminalView>(find.byType(TerminalView));
+        final position = scrollable(tester).position;
+        // 停在中段：上面还有回滚可滚。
+        position.jumpTo(2000);
+        await tester.pump();
+
+        final rect = tester.getRect(find.byType(TerminalView));
+        final gesture = await tester.startGesture(
+          Offset(rect.center.dx, rect.center.dy),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await gesture.moveTo(Offset(rect.center.dx, rect.top - 40));
+        await tester.pump();
+        final before = view.controller!.selection!.normalized;
+
+        await tester.pump(const Duration(milliseconds: 300));
+        final after = view.controller!.selection!.normalized;
+        await gesture.up();
+        await tester.pump();
+
+        expect(after.begin.y, lessThan(before.begin.y), reason: '往上滚要往后选');
+        expect(
+          after.end.y,
+          before.end.y,
+          reason: '起点钉在按下的那行文本上——起点跟着画面滑就等于把已选中的字丢出去',
+        );
+        expect(position.pixels, lessThan(2000), reason: '画面确实滚了');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('一行 50ms：不再一帧一行地飞', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await _pumpTerminal(tester, output: manyLines());
+        final render = tester
+            .state<TerminalViewState>(find.byType(TerminalView))
+            .renderTerminal;
+        final position = scrollable(tester).position;
+        position.jumpTo(2000);
+        await tester.pump();
+
+        final rect = tester.getRect(find.byType(TerminalView));
+        final gesture = await tester.startGesture(
+          Offset(rect.center.dx, rect.center.dy),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await gesture.moveTo(Offset(rect.center.dx, rect.top - 40));
+        await tester.pump();
+
+        final start = position.pixels;
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(position.pixels, start, reason: '16ms（一帧）内不该滚');
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(
+          position.pixels,
+          start - render.lineHeight,
+          reason: '一格 50ms',
+        );
+        await gesture.up();
+        await tester.pump();
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
