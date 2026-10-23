@@ -123,7 +123,10 @@ final class SftpBrowserController extends ChangeNotifier {
   /// 当前目录所有文件的总字节数（不含目录）。
   int get totalBytes => _totalBytes;
 
-  /// 首次载入（还没有任何目录内容）。
+  /// 首次载入中：从打开通道到首屏目录落地都算。
+  ///
+  /// 不能只包住列目录那一步——开通道（SFTP 握手）与读家目录同样是网络往返，
+  /// 慢链路上能有一两秒；那段时间没有这个标记，面板就会画成「此目录为空」。
   bool get isLoading => _isLoading;
 
   /// 已有内容时的刷新，界面保留旧列表并显示细进度条。
@@ -171,6 +174,13 @@ final class SftpBrowserController extends ChangeNotifier {
     if (_disposed || _opening) return;
     if (_fileSystem != null && _path != null) return;
     _opening = true;
+    // 加载态从**第一刻**亮起，而不是等 [_load] 开始列目录：打开通道（SFTP
+    // 握手）与读家目录都是网络往返，此前那几百毫秒 ~ 一两秒里面板画的是
+    // 「此目录为空」，状态栏还报「0 项」——用户会以为这台机器上什么都没有。
+    // 顺带清掉上一次打开失败留下的错误：重试期间那一帧不该还是错误页。
+    _error = null;
+    _isLoading = true;
+    notifyListeners();
     try {
       var fileSystem = _fileSystem;
       if (fileSystem == null) {

@@ -159,6 +159,43 @@ void main() {
       expect(transport.openSftpCalls, 1);
       expect(find.text('nginx.conf'), findsOneWidget);
     });
+
+    testWidgets('首次切到 SFTP Tab：先给「正在打开」，不闪一下空目录', (tester) async {
+      tester.view.physicalSize = const Size(900, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final fs = FakeSftpFileSystem();
+      fs.addFile(fs.home, 'nginx.conf');
+      // 把开通道那一段钉住：SSH 通道握手 + 读家目录都是真实往返，
+      // 这段时间（慢链路上能有一两秒）此前画的是「此目录为空 / 0 项」。
+      final gate = Completer<void>();
+      final transport = FakeSftpTransport(fileSystem: fs, openSftpGate: gate);
+      final session = TerminalSession(
+        server: testServer(),
+        credentials: const SshCredentials(password: 'pw'),
+        transport: transport,
+      );
+      addTearDown(session.dispose);
+      await session.start();
+
+      await tester.pumpWidget(
+        host(Visibility(visible: true, child: SftpTab(session: session))),
+      );
+      await tester.pump();
+
+      expect(find.text('正在打开 SFTP…'), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
+      expect(find.text('此目录为空'), findsNothing, reason: '还没读到目录，不该先报空');
+      expect(find.text('0 项'), findsNothing, reason: '状态栏也不该报 0 项');
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('正在打开 SFTP…'), findsNothing);
+      expect(find.text('nginx.conf'), findsOneWidget);
+      expect(find.text('1 项'), findsOneWidget);
+    });
   });
 
   group('SftpTab 浏览', () {

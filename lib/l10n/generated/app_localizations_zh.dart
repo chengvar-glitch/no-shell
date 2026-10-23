@@ -494,6 +494,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sftpSessionMobileHint => '会话未建立 —— 点击顶部「连接」建立 SSH 会话后即可浏览服务器文件。\n';
 
   @override
+  String get sftpOpening => '正在打开 SFTP…';
+
+  @override
   String get sftpRetry => '重试';
 
   @override

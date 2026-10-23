@@ -551,12 +551,16 @@ final class _MemoryWriteHandle implements LocalWriteHandle {
 
 /// 假传输层：直接给出 [openSftp] 的结果，便于会话层与面板层测试。
 final class FakeSftpTransport with NoForwardingTransport {
-  FakeSftpTransport({this.fileSystem, this.sftpError});
+  FakeSftpTransport({this.fileSystem, this.sftpError, this.openSftpGate});
 
   final SftpFileSystem? fileSystem;
 
   /// 非 null 时 [openSftp] 抛出该错误（如服务端未启用 sftp 子系统）。
   final Object? sftpError;
+
+  /// 非 null 时 [openSftp] 等它完成：把面板钉在「通道正在打开」那一帧上，
+  /// 用来断言这段时间画的是加载态而不是空目录。
+  final Completer<void>? openSftpGate;
 
   Terminal? attachedTerminal;
   bool disposed = false;
@@ -575,6 +579,8 @@ final class FakeSftpTransport with NoForwardingTransport {
   @override
   Future<SftpFileSystem> openSftp() async {
     openSftpCalls++;
+    final gate = openSftpGate;
+    if (gate != null) await gate.future;
     final error = sftpError;
     if (error != null) throw error;
     return fileSystem!;
