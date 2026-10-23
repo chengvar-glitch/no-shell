@@ -270,6 +270,7 @@
   "done": "Done",
   "sftpSessionHint": "No session yet — click \"Connect\" at the top right to browse the server files.\n",
   "sftpSessionMobileHint": "No session yet — tap \"Connect\" at the top to browse the server files.\n",
+  "sftpOpening": "Opening SFTP…",
   "sftpRetry": "Retry",
   "sftpUp": "Parent folder",
   "sftpRefresh": "Refresh",

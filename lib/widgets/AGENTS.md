@@ -9,7 +9,7 @@
 - `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）
 - `port_forward_panel.dart` — 「转发」页（规则列表 + 新建 / 编辑弹窗），桌面与移动端共用
 - `jump_host_field.dart` — 跳板机下拉（桌面弹窗与移动端编辑页共用）
-- `sftp_browser.dart` — 库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`
+- `sftp_browser.dart` — 库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`。首屏等待态（`sftp_browser_list.dart` 的 `_LoadingState` 与状态栏）只在 `controller.isLoading` 时出现，文案共用 `sftpOpening`：打开通道 / 读家目录期间不许画成空态或报「0 项」，那两处此前被读成「目录是空的」
 - `settings_controls.dart` — 设置面板共用件（分组卡片 `SettingsSection` / `SettingsCard` / 设置行 `SettingsRow` / `SettingsIconButton`、各设置控件，以及四个分区的正文 `AppearanceSettingsSection` / `TerminalSettingsSection` / `LanguageSettingsSection` / `ConnectionSettingsSection`，外加「更新」分区的 `UpdateSettingsRow` 与红点 `UpdateAvailableDot`），桌面设置弹窗与移动端设置 Tab 共用同一套，两端观感必须一致，只差配色选择器的形态（宽屏色卡平铺 / 窄屏下拉）
 - `host_form.dart` — 主机表单共用件（`HostFormController` 持有输入框、校验与保存时构造 `SshServer`，`HostFormFields` 是字段列，`AuthMethodSelector` 是认证方式三段选择器），桌面编辑弹窗与移动端编辑页共用——两端外壳不同（弹窗 / 整页），字段、校验与主机构造只此一份。**表单里没有「粘贴元数据」入口**（两端都没有，`HostFormDensity` 只管间距 / 字号 / 备注行数 / 输入框有没有「下一项」动作）：主机文本（`key: value` 那种）只在「导入主机」里解析（`host_transfer.dart` → `parseHostsText`），表单逐格输入——此前桌面去掉、移动端保留，后来两端统一去掉，别只在一端加回来。构造 `SshServer` 时**必须显式带上 `forwards` 与 `jumpServerId`**（见 `lib/ssh/AGENTS.md` 的「端口转发」「跳板机」）
 - `group_controls.dart` — 分组共用件（分组下拉 `GroupField`——只选已建分组，新建分组走分组菜单；重命名 / 删除 / 移动分组流程 `runGroupAction`；六项菜单的条目表 `groupMenuItems`），桌面侧边栏与移动端主机页共用，两端观感必须一致

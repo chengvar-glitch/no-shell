@@ -58,6 +58,11 @@ final class _StatusBar extends StatelessWidget {
         ],
       );
     }
+    // 首屏还在开通道 / 读目录时不报「0 项」：那一帧会被读成「目录是空的」。
+    // 文字与列表中央的等待面一致，状态栏高度也不跳。
+    if (controller.isLoading) {
+      return Row(children: [Text(l10n.sftpOpening, style: style)]);
+    }
     final total = controller.totalBytes;
     return Row(
       children: [

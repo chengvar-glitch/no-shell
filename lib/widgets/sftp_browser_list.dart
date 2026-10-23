@@ -26,13 +26,7 @@ final class _Body extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     if (controller.isLoading) {
-      return const Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2.2),
-        ),
-      );
+      return _LoadingState(label: l10n.sftpOpening);
     }
     final error = controller.error;
     if (error != null) {
@@ -72,6 +66,39 @@ final class _Body extends StatelessWidget {
                 compact: compact,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 首屏等待面：转圈 + 一行说明。
+///
+/// 此前这里只有一个 22px 的转圈，四周全是空白：用户分不清是「正在连」还是
+/// 「连上了、目录为空」——而空态还会顺手写一句「此目录为空」。打开通道与
+/// 读家目录都是网络往返，慢链路上这段等待能有一两秒，值得说明白。
+final class _LoadingState extends StatelessWidget {
+  const _LoadingState({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.2),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12.5, color: theme.secondaryText),
           ),
         ],
       ),

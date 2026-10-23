@@ -509,6 +509,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'No session yet — tap \"Connect\" at the top to browse the server files.\n';
 
   @override
+  String get sftpOpening => 'Opening SFTP…';
+
+  @override
   String get sftpRetry => 'Retry';
 
   @override

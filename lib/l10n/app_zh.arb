@@ -187,6 +187,7 @@
   "done": "完成",
   "sftpSessionHint": "会话未建立 —— 点击右上角「连接」建立 SSH 会话后即可浏览服务器文件。\n",
   "sftpSessionMobileHint": "会话未建立 —— 点击顶部「连接」建立 SSH 会话后即可浏览服务器文件。\n",
+  "sftpOpening": "正在打开 SFTP…",
   "sftpRetry": "重试",
   "sftpUp": "上级目录",
   "sftpRefresh": "刷新",

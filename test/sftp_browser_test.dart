@@ -265,6 +265,26 @@ void main() {
       expect(fs.listCalls.length, 1);
     });
 
+    test('首屏加载态从打开通道那一刻就亮起，直到目录落地', () async {
+      final fs = FakeSftpFileSystem();
+      final opened = Completer<SftpFileSystem>();
+      final controller = SftpBrowserController(
+        openFileSystem: () => opened.future,
+      );
+      addTearDown(controller.dispose);
+
+      final pending = controller.ensureReady();
+      // 通道握手 / 读家目录都是网络往返：这几百毫秒里面板必须报「正在打开」，
+      // 否则这一帧会被画成「此目录为空」，用户以为机器上什么都没有。
+      expect(controller.isLoading, isTrue);
+      expect(controller.isReady, isFalse);
+
+      opened.complete(fs);
+      await pending;
+      expect(controller.isLoading, isFalse);
+      expect(controller.isReady, isTrue);
+    });
+
     test('Windows 远端后台探测盘符，升序给出；Unix 远端不探测', () async {
       // 根目录条目名按 Win32 OpenSSH 的两种形态给：`c:` 与带尾斜杠的 `d:/`。
       final fs = FakeSftpFileSystem(home: '/C:/Users/deploy');
@@ -547,6 +567,39 @@ void main() {
       await controller.refresh();
       expect(controller.isReady, isTrue);
       expect(controller.error, isNull);
+      expect(calls, 2);
+    });
+
+    test('重试失败过的通道：立刻清掉旧错误并亮起加载态', () async {
+      final fs = FakeSftpFileSystem();
+      final gate = Completer<void>();
+      var calls = 0;
+      Object? failure = const SftpException(SftpErrorKind.network);
+      final controller = SftpBrowserController(
+        openFileSystem: () async {
+          calls++;
+          final error = failure;
+          if (error != null) throw error;
+          await gate.future;
+          return fs;
+        },
+      );
+      addTearDown(controller.dispose);
+
+      await controller.ensureReady();
+      expect(controller.error?.kind, SftpErrorKind.network);
+
+      // 用户点「重试」重新进面板：上一条错误必须马上收走，否则那一帧还是
+      // 错误页 + 重试按钮，看起来像没点上。
+      failure = null;
+      final retry = controller.ensureReady();
+      expect(controller.isLoading, isTrue);
+      expect(controller.error, isNull);
+
+      gate.complete();
+      await retry;
+      expect(controller.isReady, isTrue);
+      expect(controller.isLoading, isFalse);
       expect(calls, 2);
     });
 

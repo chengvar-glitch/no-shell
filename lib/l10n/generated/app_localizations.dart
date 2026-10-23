@@ -968,6 +968,12 @@ abstract class AppLocalizations {
   /// **'No session yet — tap \"Connect\" at the top to browse the server files.\n'**
   String get sftpSessionMobileHint;
 
+  /// No description provided for @sftpOpening.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening SFTP…'**
+  String get sftpOpening;
+
   /// No description provided for @sftpRetry.
   ///
   /// In en, this message translates to:
