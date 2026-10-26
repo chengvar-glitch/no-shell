@@ -6,7 +6,7 @@
 
 ## 组件职责与共用件契约
 
-- `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）
+- `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）。三个大件各管一摊：`sidebar.dart` 是主机列表（分组头、主机行、搜索、底部入口），行内边距、图标列与行高由文件顶部的 `_kRow*` 常量定义——分组头、主机行、底部入口三者共用同一列文字与同一行高，改其中一个常量就是整条侧边栏一起改，**不要在单个组件里另写一套 padding**（这正是 4.9.2 之后返工过一轮的地方）；`server_detail.dart` 是详情面板外壳与四个 Tab 的常见态（概览 / 未连接引导 / 状态），Tab 下标归 `ShellLayoutState.detailTab`；`sftp_browser.dart` 见下一条
 - `port_forward_panel.dart` — 「转发」页（规则列表 + 新建 / 编辑弹窗），桌面与移动端共用
 - `jump_host_field.dart` — 跳板机下拉（桌面弹窗与移动端编辑页共用）
 - `sftp_browser.dart` — 库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`。首屏等待态（`sftp_browser_list.dart` 的 `_LoadingState` 与状态栏）只在 `controller.isLoading` 时出现，文案共用 `sftpOpening`：打开通道 / 读家目录期间不许画成空态或报「0 项」，那两处此前被读成「目录是空的」
@@ -20,6 +20,18 @@
 - `confirm_dialog.dart` — 确认框 / 说明框 / 轻提示共用件（`showConfirmDialog` 危险确认统一红色实心按钮 / `showInfoDialog` 单键说明框，给「用户得读完才能做对」的失败指引用 / `showToast` 统一轻提示），删除主机、删分组、删转发、删文件等确认一律走它，不要各处自绘。**弹窗一律走 `showAppDialog`**（该文件是唯一直接调 `showDialog` 的地方），它一处管住两条规矩：遮罩不可点关（误点窗口空白处不该把填了一半的表单连窗口一起收走）、Esc 照常关。后者必须自己补——Flutter 把这两件事挂在同一个开关上（`ModalRoute._DismissModalAction.isEnabled` 读的就是 `barrierDismissible`），关掉遮罩误点等于顺手把 Esc 也关掉。补法是弹窗内容外面套一层 `FocusScope(autofocus: true)`：它比框架那层更近，输入框自己的 autofocus 照样落得进去；裸 `CallbackShortcuts` 不行，它不在焦点链上（实测按 Esc 没反应）。不允许中途取消的弹窗（`busy_overlay.dart` 的等待遮罩）传 `escapeDismissible: false`。`test/dialog_dismiss_test.dart` 守这条：`lib/` 里再出现裸 `showDialog` 就变红
 - `busy_overlay.dart` — 等待遮罩 `runWithBusyOverlay`（口令弹窗关掉到结果提示之间那段静默：scrypt 派生、逐条读写安全存储）。**慢才现身**（`kBusyShowDelay` 内完成的不闪一下）、**不可取消**（点遮罩与系统返回键都收不掉，护的就是这段窗口）、**抛错也收走**（卡住一层模态遮罩等于锁死界面）。传进去的 `run` 里不许再开路由，选文件 / 输口令的步骤留在遮罩外；结果提示也留在外面（遮罩挡着时 SnackBar 会被压暗）
 - `about_dialog.dart` — 「关于」入口（`showAppAboutDialog`，观感与 `showAboutDialog` 一致，只多一层 macOS 适配——许可页自带 AppBar，返回键默认落在红绿灯底下，靠给对话框那层塞让位主题、再被 `showLicensePage` 的 `InheritedTheme.capture` 带进许可页来挪开）
+- `sftp_browser_list.dart` / `sftp_browser_toolbar.dart` / `sftp_browser_actions.dart` / `sftp_browser_transfer.dart` / `sftp_browser_preview.dart` — SFTP 面板按区域拆出的 part（列表与滚动物理 / 路径栏与工具条 / 文件操作与错误文案 / 传输队列与底部状态栏 / 图片与源码快速预览），外部只可见 `sftp_browser.dart` 的 `SftpTab`。快速预览有独立的字节上限（`QuickPreviewLimitScope`，默认 16 MB），超限时返回 `tooLarge` 并退回下载链路
+- `file_type_icon.dart` — SFTP 列表的文件类型图标（vscode-icons 的 SVG 子集），只按扩展名与少数文件名认，认不出的回落到 `default_file.svg`；新增图标要同时改这里与 `assets/icons/file_type/LICENSE`
+- `settings_dialog.dart` — 桌面端设置弹窗外壳（分区正文全在 `settings_controls.dart` 里）。所有改动即时生效，底部只有「完成」，没有「保存」
+- `session_log_dialog.dart` — 会话日志查看器（纯文本快照，复制与保存出自同一份），桌面与移动端都以弹窗呈现
+- `session_menu.dart` — 多会话时点详情头部状态胶囊弹出的会话切换浮层
+- `session_switch_flash.dart` — 切换会话后终端顶部短暂浮出「会话 N · 远端标题」的提示条（约 1.4 秒淡出）；整层 `IgnorePointer`、不占布局高度，PTY 不因它重排。单会话主机不提示
+- `status_badges.dart` — 主机状态圆点与徽章，颜色一律取自 `theme.dart` 的语义色
+- `jump_host_field.dart` — 跳板机下拉（`jumpHostCandidates` 负责过滤掉自己与成环的候选），桌面弹窗与移动端编辑页共用
+- `window_caption.dart` — Windows / Linux 的自绘窗口标题条（原生标题栏已被隐藏），高度 `kWindowCaptionHeight` 同时是侧边栏头部与内容区顶部的对齐基准
+- `app_icon_mark.dart` — 应用内品牌标，直接用 `icon/png/icon-128.png`，侧边栏头部、设置弹窗与「关于」共用同一份
+- `snippet_dialog.dart` — 命令片段的列表弹窗（点按发送、行内编辑 / 删除）与编辑表单，桌面与移动端同一套；发送只在会话已连接时可用
+- `shortcut_help_dialog.dart` — 桌面端快捷键汇总弹窗，键位文案由 `app_locale.dart` 的 `shortcut*` 取值器按平台生成，与真正绑定的键位（`app_shortcuts.dart` / `terminal_interactions.dart`）一一对应——改键位时两处一起改
 
 ## 相关
 

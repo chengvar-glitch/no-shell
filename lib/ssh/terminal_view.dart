@@ -199,6 +199,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   /// 命中的重算节流器。
   Timer? _searchRefreshTimer;
+
+  /// 搜索时逐行复用上一次拼好的文本与小写折叠：远端还在输出时每 300ms
+  /// 就要重扫整块回滚，未变的行不该每次重拼一遍（见 [TerminalLineCache]）。
+  final TerminalLineCache _lineCache = TerminalLineCache();
   int _matchIndex = 0;
 
   /// 挂在控制器上的高亮对象：重新查找或收起查找栏时必须逐个 dispose，
@@ -347,11 +351,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     // 视图被复用到另一条会话上：监听要跟着搬，否则下划线盯着旧终端算。
     oldWidget.session.terminal.removeListener(_onTerminalOutput);
     widget.session.terminal.addListener(_onTerminalOutput);
-    // 旧会话的在飞事务全部收掉：选区锚点挂在旧缓冲区的行对象上，留着
-    // 的话复制按钮会用旧行号对新 buffer 取文本（复制到错误内容），手柄
-    // 会错位画在新缓冲区的同号行上；在飞计时器到期会在新会话上、旧坐标
-    // 处弹菜单或把错误内容写进剪贴板。桌面端用 ObjectKey 整树重建绕开
-    // 这一切，移动端走这条复用路径，必须自己清干净。
+    // 旧会话的在飞事务全部收掉：选区锚点与在飞计时器都绑着旧缓冲区，
+    // 留着会拿旧行号对新缓冲区取文本、在新会话上旧坐标处弹菜单。
+    // 桌面端用 ObjectKey 整树重建绕开这一切，移动端走复用路径，必须自己清。
     _controller.clearSelection();
     _onHandleDragEnd();
     _copyOnSelectTimer?.cancel();
@@ -473,13 +475,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     });
   }
 
-  /// 收掉软键盘（触屏专用，桌面端是空操作）：**只关输入连接，不动焦点**。
-  ///
-  /// 不动焦点是刻意的：焦点还在终端上，键条（Esc / Tab / 方向键）照常发键、
-  /// 外接键盘也照常收键，也不会触发 `_restoreTerminalFocus` 那条「补焦点」
-  /// 的路（那条路一补焦点键盘就跟着弹回来）。用户想接着打字时点一下终端，
-  /// xterm 自己的 `_onTapDown` 会把键盘要回来——有选区时第一下是「点掉选区」、
-  /// 第二下才弹键盘，那是包的既有语义，别在应用侧抢着改。
+  /// 收掉软键盘（触屏专用）：**只关输入连接，不动焦点**——焦点还在终端上，
+  /// 键条与外接键盘照常收键，也不会触发补焦点那条路把键盘再弹回来。
   void _closeSoftKeyboard() {
     if (!_isTouchPlatform) return;
     final view = _terminalKey.currentState;
@@ -487,18 +484,11 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     view.closeKeyboard();
   }
 
-  /// 焦点回到终端时，若屏幕上还有选区，就别让软键盘跟着回来。
+  /// 焦点回到终端时若有选区，吃掉聚焦带的键盘令牌，别让软键盘跟着回来。
   ///
-  /// 长按弹出的菜单一关，焦点就还给终端，而**聚焦本身会带一个键盘令牌**
-  /// （Flutter 那套「只有成功 `consumeKeyboardToken()` 的一方才有资格 show
-  /// 键盘」的约定，xterm 的 `_onFocusChange` 正是靠它）：不拦的话，刚收下去
-  /// 的键盘立刻又压回来，前面的让位等于白做。本监听器注册在 xterm 自己的
-  /// 焦点回调**之前**——父 State 的 `initState` 先跑、子节点后建，所以这里
-  /// 先吃掉令牌，xterm 那边就安静地不弹；顺序要是被谁调反了，
-  /// `terminal_key_bar_test.dart` 的「复制完不会自己弹回来」会当场变红。
-  ///
-  /// 没有选区时不管：那时焦点回来（比如长按空白处点「粘贴」之后）键盘跟着
-  /// 回来，正是用户接下来要打字的期望。
+  /// 本监听器必须注册在 xterm 自己的焦点回调之前（父 State 的 initState
+  /// 先跑）：顺序反了键盘会立刻压回来，`terminal_key_bar_test.dart` 的
+  /// 「复制完不会自己弹回来」会当场变红。
   void _onTerminalFocusChanged() {
     // 只管触屏。桌面端那条输入连接还兼着输入法组字（中文上屏走的就是它），
     // 令牌抢过来会让重新聚焦之后组不了字——那边也不存在「软键盘挡着」。
@@ -522,11 +512,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     );
   }
 
-  /// 写回字号，并在下一帧让手柄几何重算。
-  ///
-  /// 同一个 build 里读到的还是旧的 `cellSize`（渲染对象要等这一帧布局完
-  /// 才更新），不补这一下，选区手柄会停在旧字号的格子上——字号差得越多、
-  /// 行号越靠下，偏得越离谱。
+  /// 写回字号，并在下一帧让手柄几何重算：同一个 build 里读到的还是旧的
+  /// `cellSize`（渲染对象要等这一帧布局完才更新）。
   void _applyFontSize(TerminalStylePrefs next) {
     TerminalStyleScope.of(context).notifier.value = next;
     if (!_hasSelection) return;
@@ -583,10 +570,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _longPressTimer = Timer(_longPressDelay, () {
       if (!mounted) return;
       _longPressFired = true;
-      // 键盘先让位，菜单随后才弹：长按的地方马上会成为选区，键盘压着
-      // 半屏就看不见自己选了什么。这里**不看有没有选区**——长按落在空白处
-      // 时 xterm 的 selectWord 直接返回、根本不产生选区，而用户的意图一样
-      // 是复制（菜单里的复制置灰，粘贴 / 全选照常可用）。
+      // 键盘先让位，菜单随后才弹：长按处马上会成为选区。**不看有没有选区**
+      // ——长按落在空白处时 selectWord 不产生选区，用户意图一样是复制。
       _closeSoftKeyboard();
       _showContextMenuAt(event.position);
     });
@@ -651,12 +636,10 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// Cmd/Ctrl+单击（鼠标）或直接单击（触屏）：命中链接就交给系统打开；
   /// 普通点击原样还给终端。
   ///
-  /// 这里收的是原始指针事件，没用 `TerminalView.onTapUp`：xterm 4.0.0 里那条
-  /// 回调是断的——手势层的 `_handleTapUp` 调的是 `onSingleTapUp`，而
-  /// `TerminalView` 把处理器传在 `onTapUp` 上，该字段在包内没有任何读取点，
-  /// 回调一次都不会触发（上游 master 同样如此，pub 上也没有更新的版本）。
-  /// `Listener` 不参与手势竞技场，因此不会被包内层的 TapGestureRecognizer
-  /// 挤掉。等上游修好也**不要**把 onTapUp 一并接上：一次点击会开两个标签页。
+  /// 这里收的是原始指针事件，没用 `TerminalView.onTapUp`：xterm 4.0.0 里
+  /// `TerminalView` 把处理器传在 `onTapUp` 上而包内只读 `onSingleTapUp`，
+  /// 那条回调一次都不会触发。上游修好后也**不要**一并接上：一次点击会开
+  /// 两个标签页。
   Future<void> _onPointerUp(PointerUpEvent event) async {
     // 松手后指针还在原处：把拖动期间作废的悬停判定恢复回来。
     _pointer = event.position;
@@ -712,10 +695,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     });
   }
 
-  /// 触屏上单击就打开链接：手机上按不出 Cmd/Ctrl，否则链接永远点不动。
-  ///
-  /// 全屏程序（vim / less / tmux 走备用缓冲区）里例外——那里的点按属于
-  /// 远端应用（鼠标上报），抢来开浏览器会让「点一下定位光标」失灵。
+  /// 触屏上单击就打开链接（手机上按不出 Cmd/Ctrl）。备用缓冲区里例外：
+  /// 那里的点按属于远端应用，抢来开浏览器会让「点一下定位光标」失灵。
   bool get _touchTapOpensLinks => !widget.session.terminal.isUsingAltBuffer;
 
   /// 打开坐标底下的链接；没命中就什么都不做。返回是否真的打开过。
@@ -733,10 +714,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     }
   }
 
-  /// 重算「指针此刻是否停在链接上」，并让下划线跟上。
-  ///
-  /// 调用点很多（鼠标移动、修饰键起落、滚动、每一笔远端输出），所以第一件
-  /// 事是尽快退出：没按修饰键、本来也没显示下划线时什么都不用做。
+  /// 重算「指针此刻是否停在链接上」，并让下划线跟上。调用点很多（移动、
+  /// 修饰键、滚动、每笔远端输出），所以没按修饰键且本来没有下划线时直接退出。
   void _refreshLinkHover() {
     final current = _hoveredLink.value;
     if (!isLinkModifierPressed() && current == null) return;
@@ -772,33 +751,20 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   /// [view] 上报的软键盘高度（逻辑像素）。
   ///
-  /// **不能**改成读 `MediaQuery.viewInsetsOf`：`resizeToAvoidBottomInset` 打开
-  /// 时（终端的所有宿主都走默认值）Scaffold 会把 body 那层的 viewInsets 摘成
-  /// 0（`MediaQuery.removeViewInsets`），而键盘动画期间那层 MediaQuery 的其余
-  /// 字段一个都不变，body 子树因此连重建都不会发生。FlutterView 上那份没人动过，
-  /// 除以 devicePixelRatio 就是同一口径（`MediaQueryData.fromView` 也这么算）。
+  /// **不能**改成读 `MediaQuery.viewInsetsOf`：`resizeToAvoidBottomInset`
+  /// 打开时 Scaffold 会把 body 那层的 viewInsets 摘成 0，而键盘动画期间那层
+  /// MediaQuery 其余字段一个都不变，body 子树连重建都不会发生。
   double _insetOfView(FlutterView view) =>
       view.viewInsets.bottom / view.devicePixelRatio;
 
   /// 这一帧终端盒子要按哪一份槽高来摆（build 里那个 `OverflowBox` 用它）。
   ///
-  /// 键盘弹起 / 收起会把槽位逐帧压矮 / 撑高（Android 上一帧一个高度），而终端
-  /// 每变一行都要重排行列、给远端发一次 window-change（SIGWINCH）——逐帧转发
-  /// 等于远端 shell / vim / tmux 跟着重画十六遍，用户看到的就是切到终端 Tab、
-  /// 键盘弹起时画面抖。所以这里把盒子**按在键盘动画开始前的那份槽高上**：
-  /// 行列数不动，多出来的上半截裁掉（底边仍贴着槽位，提示符与光标不挪窝），
-  /// 键盘停稳 [_keyboardSettleDelay] 之后再一次性落定，整段动画只发一次。
+  /// 键盘动画期间把盒子按在动画开始前的槽高上，多出来的上半截裁掉，停稳
+  /// [_keyboardSettleDelay] 后才落定——整段动画只给远端发一次 SIGWINCH。
+  /// 取槽高而不是键盘高度：home indicator / 导航条的 padding 也会同时塌掉。
   ///
-  /// 目标取的是槽高而不是键盘高度：iPhone 的 home indicator、Android 的导航条
-  /// 那一截 padding 也会在键盘弹起时同时塌掉（`removePadding` 把它算进 padding），
-  /// 按键盘高度补差会漏掉它。按「动画前的槽高」来摆，宿主怎么组合都不差。
-  ///
-  /// 非键盘引起的布局变化（折叠键条、展开查找栏、拖窗口）不动键盘高度，
-  /// 这里根本不进保持态，当帧就跟着槽位走。
-  ///
-  /// 只在**布局期**调用：键盘高度变化既不会通知 `didChangeDependencies`，
-  /// 也不会让本组件重建，LayoutBuilder 是唯一能逐帧进来的时机，所以读键盘、
-  /// 记槽高、排落定计时都收在这一个方法里。
+  /// 只在**布局期**调用：键盘高度变化不通知 `didChangeDependencies`、也不让
+  /// 本组件重建，LayoutBuilder 是唯一能逐帧进来的时机。
   double _keyboardHold(double slot) {
     final view = _view;
     if (view != null) {
@@ -847,15 +813,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     _atBottom.value = atBottom;
   }
 
-  /// 滚动条只挂在触屏平台：桌面端框架自己会按平台加一条
-  /// （`MaterialScrollBehavior`），这里再加就是两条；移动端框架不加，
-  /// 而手机上没有任何滚动位置反馈，一屏刷过去的日志会让人不知道身在何处。
-  ///
-  /// `interactive` 保持 false：拖动拇指要跟包内层的选字识别器抢手势，
-  /// 而竞技场里更深的那一个（xterm 的）会赢——给了拖动也是白给。
-  /// 鼠标模式与捏合期间关掉本地滚动：前者拖动整段都归远端，后者两指
-  /// 张开时画面不该跟着往下滚（物理一换，Scrollable 就算认领了拖动也
-  /// 走不动，连带把在飞的那次拖动一并作废）。
+  /// 鼠标模式与捏合期间关掉本地滚动：前者拖动整段归远端，后者两指张开时
+  /// 画面不该跟着往下滚。
   Widget _withGesturePhysics(Widget child) {
     if (!_mouseModeActive && !_pinching) return child;
     return ScrollConfiguration(
@@ -865,6 +824,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     );
   }
 
+  /// 滚动条只挂在触屏平台：桌面端框架已经按平台加了一条。
+  /// `interactive` 保持默认 false——拖动拇指会跟包内层的选字识别器抢手势。
   Widget _withScrollbar(TerminalStylePrefs prefs, Widget child) {
     if (!_isTouchPlatform) return child;
     return Scrollbar(
@@ -902,7 +863,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   void _runSearch(String query) {
     final buffer = widget.session.terminal.buffer;
-    final matches = findTerminalMatches(buffer, query);
+    final matches = findTerminalMatches(buffer, query, lines: _lineCache);
     _query = query;
     _matches = matches;
     _matchIndex = 0;
@@ -924,7 +885,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 重算命中列表与高亮，尽量留在原来那一条上。
   void _refreshMatches() {
     final buffer = widget.session.terminal.buffer;
-    final matches = findTerminalMatches(buffer, _query);
+    final matches = findTerminalMatches(buffer, _query, lines: _lineCache);
     _matches = matches;
     if (matches.isEmpty) {
       _matchIndex = 0;
@@ -1175,10 +1136,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     return null;
   }
 
-  /// 手柄只负责**显示**：拖动判定收在下面那几个指针回调里（与链接点击、
-  /// 长按菜单同一处）。浮层上挂手势识别器看着更顺，实际靠不住——它在
-  /// `Stack` 里的命中测试会被终端自己那层 `MouseRegion` 先接走，还会往
-  /// 竞技场里再塞一个平移识别器跟滚动抢。
+  /// 手柄只负责**显示**，拖动判定在指针回调里：浮层上挂手势识别器会被终端
+  /// 那层 `MouseRegion` 先接走命中测试，还会往竞技场里再塞一个平移识别器。
   List<Widget> _selectionHandles(TerminalStylePrefs prefs) {
     if (_controller.selection == null) return const [];
     final theme = prefs.theme;
@@ -1514,10 +1473,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 
   /// 终端本体：指针监听、滚动通知与 xterm 视图。
-  ///
-  /// 单独摘出来是因为它外面还套着「键盘动画期间按住行列数」的那层盒子
-  /// （见 [_keyboardHold] 与 build 里的 `OverflowBox`），嵌在 build 里写
-  /// 会一路缩进到没法看。
+  /// 摘出来单放是因为它外面还套着 [_keyboardHold] 那层盒子，嵌在 build
+  /// 里会一路缩进到没法看。
   Widget _terminalSurface(TerminalStylePrefs prefs) => MouseRegion(
     // 指针离开终端：下划线跟着消失。
     onExit: _onPointerExit,
@@ -1630,18 +1587,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
                       child: Stack(
                         children: [
                           Positioned.fill(
-                            // 软键盘弹起 / 收起是逐帧动画，而终端每变一行都要
-                            // 重排行列、给远端发一次 window-change（SIGWINCH）：
-                            // 逐帧转发就是远端反复重画同一个提示符，用户看到的
-                            // 是切到终端 Tab、键盘弹起时画面抖。这里让动画期间
-                            // 的行列数不动——盒子按在动画前的槽高上（见
-                            // [_keyboardHold]），底边贴住槽位、多出来的上半截
-                            // 裁掉：提示符与光标位置纹丝不动，键盘停稳之后再
-                            // 一次性落到最终尺寸。
-                            //
-                            // LayoutBuilder 是布局期唯一能逐帧进来的钩子：
-                            // 键盘动画既不会让本组件重建，Scaffold 也只把
-                            // 收缩后的槽位给下来（viewInsets 被它摘成 0）。
+                            // 键盘动画期间的行列数保持不动，见 [_keyboardHold]。
                             child: LayoutBuilder(
                               builder: (context, slot) {
                                 final hold = _keyboardHold(slot.maxHeight);
@@ -1747,10 +1693,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
               ),
               if (phase != TerminalPhase.connected)
                 _overlay(context, phase, prefs),
-              // 会话工具条只在桌面端挂：鼠标够得着、右键菜单也顺手。触屏上
-              // 它悬浮在输出之上，右上角那几行字既看不见也选不中，正是复制
-              // 时最碍事的一块——查找与命令片段改到长按菜单里（见
-              // [_showContextMenu]），复制 / 粘贴 / 全选本来就在那里。
+              // 会话工具条只在桌面端挂：触屏上它压住的正是要复制的字，
+              // 查找与命令片段改走长按菜单（见 [_showContextMenu]）。
               if (!_isTouchPlatform)
                 Positioned(
                   top: 6,
@@ -1770,11 +1714,9 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   /// 按偏好缓存 [TerminalStyle]。
   ///
-  /// 必须缓存，不能每次 build 新建：xterm 的 `TerminalStyle` 没有
-  /// `operator ==`，而它在 painter 与 render 两处的守卫都是身份比较。
-  /// 新建一个内容相同的实例会一路穿过守卫，触发 `_measureCharSize()`
-  /// （一次 `mmmmmmmmmm` 的 TextPainter 排版）并清空 10240 条段落缓存，
-  /// 随后整个视口重排版。偏好没变就复用同一个实例。
+  /// 必须缓存：xterm 的 `TerminalStyle` 没有 `operator ==`，painter 与
+  /// render 两处守卫都是身份比较，内容相同的新实例会触发 `_measureCharSize()`
+  /// 并清空 10240 条段落缓存，整屏重排版。
   static TerminalStylePrefs? _cachedPrefsStyle;
   static TerminalStyle? _cachedStyle;
 
@@ -1924,9 +1866,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   /// 记录（[HostKeyChangedException] 自带 host / port），否则记录原封不动、
   /// 用户点几次都还是同一个错。
   ///
-  /// 清之前先确认一次：这个按钮就摆在「疑似中间人」那段文案下面，一键点掉
-  /// 等于把「警告 → 信任新密钥」压缩成一次点击，而新密钥此后就是可信记录。
-  /// 文案里点明「下次连接直接信任对方出示的密钥」，把带外核对这件事说清楚。
+  /// 清之前先确认：按钮就摆在「疑似中间人」那段文案下面，一键点掉等于把
+  /// 「警告 → 信任新密钥」压缩成一次点击。
   Future<void> _forgetHostKeyAndRetry() async {
     final l10n = AppLocalizations.of(context);
     final changed = widget.session.hostKeyChanged;
@@ -1949,11 +1890,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
   }
 }
 
-/// 桌面终端右上角的会话工具条：复制 / 粘贴 / 查找 / 命令片段的入口。
-/// 悬浮在终端内容之上，底色用终端配色，图标对比度不随主题漂移。
-///
-/// **只在桌面端挂**（见 build 里的 `_isTouchPlatform` 判断）：触屏上它挡住
-/// 的那几行字正是用户要复制的东西，查找与命令片段改走长按菜单。
+/// 桌面终端右上角的会话工具条，底色用终端配色。
+/// **只在桌面端挂**：触屏上它挡住的正是用户要复制的那几行字。
 final class _SessionToolbar extends StatelessWidget {
   const _SessionToolbar({
     required this.session,
@@ -2073,11 +2011,8 @@ final class _ToolbarButton extends StatelessWidget {
 
 /// 链接下划线：把命中的链接按格子跨度换算成像素，画一条 1px 线。
 ///
-/// 公开只为可测：widget 测试直接断言它拿到的链接跨度，不必去抠像素。
-///
-/// 几何全部问终端自己的 render object（`RenderTerminal.getOffset`），
-/// 坐标换算走 `globalToLocal`：浮层与终端之间隔着 Container 的 padding，
-/// 自己按格宽乘会和包对不上。改字号 / 折行 / 滚动因此都不会错位。
+/// 公开只为可测。几何全问终端自己的 render object 并走 `globalToLocal`：
+/// 浮层与终端之间隔着 padding，自己按格宽乘会错位。
 @visibleForTesting
 final class LinkUnderlinePainter extends CustomPainter {
   LinkUnderlinePainter({
