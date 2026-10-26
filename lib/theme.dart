@@ -254,6 +254,25 @@ abstract final class AppTheme {
           padding: const WidgetStatePropertyAll(
             EdgeInsets.symmetric(horizontal: 8),
           ),
+          // 选中段不铺淡紫底（M3 默认涂 secondaryContainer，设置面板里其它
+          // 选中态都不铺色块，只这一块紫底像另一个系统的控件），但**保留**
+          // 外框描边——底色一透明，M3 就不再给选中段画边框，整组只剩外轮廓，
+          // 看不出选了哪一段。选中态 = 描边 + 前景色变深，与终端配色的选中
+          // 方式一致。
+          backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+          side: WidgetStateProperty.resolveWith((states) {
+            return BorderSide(
+              color: states.contains(WidgetState.selected)
+                  ? scheme.onSurface.withValues(alpha: 0.55)
+                  : hairline,
+              width: 1,
+            );
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.selected)
+                ? scheme.onSurface
+                : scheme.onSurface.withValues(alpha: 0.62);
+          }),
         ),
       ),
       inputDecorationTheme: InputDecorationThemeData(

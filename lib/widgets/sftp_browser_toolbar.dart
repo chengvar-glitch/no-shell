@@ -245,32 +245,32 @@ final class _CompactMenu extends StatelessWidget {
       itemBuilder: (context) => [
         PopupMenuItem(
           value: 'upload',
-          height: 38,
+          height: kMenuItemHeight,
           // 与桌面工具条同一守卫：忙时上传会把文件传进过期目录。
           enabled: !busy,
           child: Text(l10n.sftpUpload),
         ),
         PopupMenuItem(
           value: 'folder',
-          height: 38,
+          height: kMenuItemHeight,
           enabled: !busy,
           child: Text(l10n.sftpNewFolder),
         ),
         PopupMenuItem(
           value: 'refresh',
-          height: 38,
+          height: kMenuItemHeight,
           child: Text(l10n.sftpRefresh),
         ),
         PopupMenuItem(
           value: 'hidden',
-          height: 38,
+          height: kMenuItemHeight,
           child: Text(
             controller.showHidden ? l10n.sftpHideHidden : l10n.sftpShowHidden,
           ),
         ),
         PopupMenuItem(
           value: 'filter',
-          height: 38,
+          height: kMenuItemHeight,
           child: Text(l10n.sftpFilter),
         ),
       ],
@@ -299,7 +299,7 @@ final class _SortButton extends StatelessWidget {
         for (final field in SftpSortField.values)
           PopupMenuItem(
             value: field,
-            height: 38,
+            height: kMenuItemHeight,
             child: Row(
               children: [
                 Expanded(child: Text(_sortLabel(l10n, field))),

@@ -16,6 +16,56 @@ import 'status_badges.dart';
 import 'app_icon_mark.dart';
 import 'window_caption.dart';
 
+// 侧边栏的几何全部从这里取，别再往各控件里散落数字：此前头部、搜索框、
+// 分组头、主机行、底部设置入口各自写了一套内外边距，图标列对不上，
+// 整条侧边栏看起来是「一堆靠自己居中凑齐的行」。
+
+/// 整块内容距离侧边栏左右边缘的留白。
+const double _kSidebarGutter = 12;
+
+/// 分组头 / 主机行这类整行可点条目再往里让出的量：悬停底色、选中底色
+/// 都落在这一圈内缩后的圆角矩形里，与侧边栏边缘保持同一道视觉留白。
+const double _kRowInset = 8;
+
+/// 行内文字的起点（相对侧边栏左边缘）：行内缩 + 行自己的左内边距。
+/// 分组头、主机行、底部设置入口的文字都落在这一列。
+const double _kRowTextLeft = _kRowInset + 10;
+
+/// 行左侧图标列的宽度：分组头、主机行、底部设置入口的行首图标 / 状态点
+/// 都在这条竖线上居中，往下扫一眼就是一列。
+const double _kRowLeadingWidth = 24;
+
+/// 主机行与分组头的行高：两者的悬停块一样高，扫下来才是同一张表。
+const double _kRowHeight = 46;
+
+/// 行内元素之间的固定间距。
+const double _kRowGap = 10;
+
+/// 行内右侧动作按钮的命中区（主机行的连接 / 分组头的「⋯」）。
+/// 行高按它算：上下各留 9，刚好落在 [_kRowHeight] 里。
+const double _kRowActionSize = 28;
+
+/// 行内左右内边距：行左边距 [_kRowTextLeft] 减去行内缩 [_kRowInset]。
+const double _kRowPadding = _kRowTextLeft - _kRowInset;
+
+/// 整行悬停 / 选中底色的圆角。
+const double _kRowRadius = 8;
+
+/// 侧边栏头部与底部动作按钮的命中区。比行内动作大一档：它们是常驻入口，
+/// 命中的容错更重要。
+const double _kHeaderActionSize = 32;
+
+/// 头部动作按钮的字形尺寸。
+const double _kHeaderActionIconSize = 18;
+
+/// 搜索框高度：与设置面板里的下拉框同一套控件高度。
+const double _kSearchFieldHeight = 36;
+
+/// 标题 / 正文 / 次要文字三档字号。侧边栏与设置面板共用同一套层级：
+/// 13 是正文（主机名、行标签），11.5 是次要信息（地址、数量、键位）。
+const double _kSidebarTitleFontSize = 13;
+const double _kSidebarSecondaryFontSize = 11.5;
+
 /// 桌面端连接侧边栏。
 /// 头部是「收起 / 导入导出 / 新建」三个同级动作，底部只留设置入口：
 /// 主题、语言都收进设置，避免同一件事在两个地方各摆一个按钮。
@@ -135,7 +185,7 @@ class _SidebarState extends State<Sidebar> {
       items: [
         PopupMenuItem(
           value: 'connect',
-          height: 36,
+          height: kMenuItemHeight,
           child: Row(
             children: [
               // connecting 也算活跃：此刻按下走的是断开，按钮不许再画
@@ -147,13 +197,13 @@ class _SidebarState extends State<Sidebar> {
                     : Icons.play_arrow_rounded,
                 size: 16,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: kMenuItemIconGap),
               Text(
                 server.status == ServerStatus.connected ||
                         server.status == ServerStatus.connecting
                     ? l10n.disconnect
                     : l10n.connect,
-                style: const TextStyle(fontSize: 13),
+                style: const TextStyle(fontSize: kMenuItemFontSize),
               ),
             ],
           ),
@@ -161,44 +211,47 @@ class _SidebarState extends State<Sidebar> {
         if (hasSession)
           PopupMenuItem(
             value: 'new-session',
-            height: 36,
+            height: kMenuItemHeight,
             child: Row(
               children: [
-                const Icon(Icons.add_rounded, size: 16),
-                const SizedBox(width: 8),
+                const Icon(Icons.add_rounded, size: kMenuItemIconSize),
+                const SizedBox(width: kMenuItemIconGap),
                 Text(l10n.newSession, style: const TextStyle(fontSize: 13)),
               ],
             ),
           ),
         PopupMenuItem(
           value: 'copy',
-          height: 36,
+          height: kMenuItemHeight,
           child: Row(
             children: [
-              const Icon(Icons.copy_rounded, size: 16),
-              const SizedBox(width: 8),
+              const Icon(Icons.copy_rounded, size: kMenuItemIconSize),
+              const SizedBox(width: kMenuItemIconGap),
               Text(l10n.copyHostInfo, style: const TextStyle(fontSize: 13)),
             ],
           ),
         ),
         PopupMenuItem(
           value: 'edit',
-          height: 36,
+          height: kMenuItemHeight,
           child: Row(
             children: [
-              const Icon(Icons.edit_outlined, size: 16),
-              const SizedBox(width: 8),
+              const Icon(Icons.edit_outlined, size: kMenuItemIconSize),
+              const SizedBox(width: kMenuItemIconGap),
               Text(l10n.edit, style: const TextStyle(fontSize: 13)),
             ],
           ),
         ),
         PopupMenuItem(
           value: 'move',
-          height: 36,
+          height: kMenuItemHeight,
           child: Row(
             children: [
-              const Icon(Icons.drive_file_move_outline, size: 16),
-              const SizedBox(width: 8),
+              const Icon(
+                Icons.drive_file_move_outline,
+                size: kMenuItemIconSize,
+              ),
+              const SizedBox(width: kMenuItemIconGap),
               Text(l10n.groupMoveTo, style: const TextStyle(fontSize: 13)),
             ],
           ),
@@ -206,7 +259,7 @@ class _SidebarState extends State<Sidebar> {
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'delete',
-          height: 36,
+          height: kMenuItemHeight,
           child: Row(
             children: [
               Icon(
@@ -214,10 +267,13 @@ class _SidebarState extends State<Sidebar> {
                 size: 16,
                 color: AppPalette.danger,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: kMenuItemIconGap),
               Text(
                 l10n.delete,
-                style: TextStyle(fontSize: 13, color: AppPalette.danger),
+                style: TextStyle(
+                  fontSize: kMenuItemFontSize,
+                  color: AppPalette.danger,
+                ),
               ),
             ],
           ),
@@ -264,22 +320,22 @@ class _SidebarState extends State<Sidebar> {
           if (item.action == GroupAction.delete) const PopupMenuDivider(),
           PopupMenuItem(
             value: item.action,
-            height: 36,
+            height: kMenuItemHeight,
             enabled: item.enabled,
             child: Row(
               children: [
                 Icon(
                   item.icon,
-                  size: 16,
+                  size: kMenuItemIconSize,
                   color: item.action == GroupAction.delete
                       ? AppPalette.danger
                       : null,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: kMenuItemIconGap),
                 Text(
                   item.label,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: kMenuItemFontSize,
                     color: item.action == GroupAction.delete
                         ? AppPalette.danger
                         : null,
@@ -325,9 +381,9 @@ class _SidebarState extends State<Sidebar> {
     final brand = Expanded(
       child: Row(
         children: [
-          // 品牌标 30px：在 48px 标题区里上下各留 9px，不再贴边。
-          const AppIconMark(size: 30),
-          const SizedBox(width: 10),
+          // 品牌标 28px：在 48px 标题区里上下各留 10px，不再贴边。
+          const AppIconMark(size: 28),
+          const SizedBox(width: _kRowGap),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -347,14 +403,14 @@ class _SidebarState extends State<Sidebar> {
                     color: theme.colorScheme.onSurface,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   l10n.hostCount(widget.store.serverCount),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
-                    height: 1.1,
+                    fontSize: _kSidebarSecondaryFontSize,
+                    height: 1.2,
                     color: theme.secondaryText,
                   ),
                 ),
@@ -369,7 +425,7 @@ class _SidebarState extends State<Sidebar> {
     // 头部空白处也能拖动窗口；按钮照旧可点（点击与拖拽在竞技场里各归各的）。
     if (usesCustomWindowCaption) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 8, 10),
+        padding: const EdgeInsets.fromLTRB(_kSidebarGutter, 0, 6, 8),
         child: WindowDragRegion(
           key: const ValueKey('sidebar-header-drag'),
           child: SizedBox(
@@ -384,7 +440,7 @@ class _SidebarState extends State<Sidebar> {
     // trafficLightTopInset 20pt + 半个灯高），整行平行于红绿灯。
     if (usesFloatingTrafficLights) {
       return Padding(
-        padding: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.only(right: 6),
         child: SizedBox(
           height: 54,
           child: Row(
@@ -396,7 +452,7 @@ class _SidebarState extends State<Sidebar> {
     }
     // 其余平台（web 桌面宽屏）：顶部没有窗口按钮，头部照旧带动作整体排布。
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 8, 10),
+      padding: const EdgeInsets.fromLTRB(_kSidebarGutter, 10, 6, 8),
       child: Row(children: [brand, ..._headerActions()]),
     );
   }
@@ -409,13 +465,16 @@ class _SidebarState extends State<Sidebar> {
     // 注意 PopupMenuButton.constraints 约束的是菜单本身，不是图标按钮，
     // 命中区尺寸只能靠外层 SizedBox 保证。
     SizedBox(
-      width: 34,
-      height: 34,
+      width: _kHeaderActionSize,
+      height: _kHeaderActionSize,
       child: PopupMenuButton<HostTransferAction>(
         tooltip: AppLocalizations.of(context).importExportHosts,
-        icon: const Icon(Icons.import_export_rounded, size: 18),
+        icon: const Icon(
+          Icons.import_export_rounded,
+          size: _kHeaderActionIconSize,
+        ),
         padding: EdgeInsets.zero,
-        iconSize: 18,
+        iconSize: _kHeaderActionIconSize,
         onSelected: (action) {
           switch (action) {
             case HostTransferAction.import:
@@ -430,12 +489,15 @@ class _SidebarState extends State<Sidebar> {
             for (final item in hostTransferMenuItems(menuL10n))
               PopupMenuItem(
                 value: item.action,
-                height: 36,
+                height: kMenuItemHeight,
                 child: Row(
                   children: [
-                    Icon(item.icon, size: 16),
-                    const SizedBox(width: 8),
-                    Text(item.label, style: const TextStyle(fontSize: 13)),
+                    Icon(item.icon, size: kMenuItemIconSize),
+                    const SizedBox(width: kMenuItemIconGap),
+                    Text(
+                      item.label,
+                      style: const TextStyle(fontSize: kMenuItemFontSize),
+                    ),
                   ],
                 ),
               ),
@@ -461,13 +523,13 @@ class _SidebarState extends State<Sidebar> {
     );
   }
 
-  /// 头部动作按钮：统一 34×34 命中区、无内边距，在 48px 标题区里垂直居中，
-  /// 视觉密度与窗口按钮一致。
+  /// 头部动作按钮：统一 [_kHeaderActionSize] 命中区、无内边距，在 48px
+  /// 标题区里垂直居中，视觉密度与窗口按钮一致。
   Widget _headerAction({
     required IconData icon,
     required String tooltip,
     required VoidCallback onPressed,
-    double size = 18,
+    double size = _kHeaderActionIconSize,
   }) {
     return IconButton(
       tooltip: tooltip,
@@ -475,55 +537,68 @@ class _SidebarState extends State<Sidebar> {
       onPressed: onPressed,
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+      constraints: const BoxConstraints.tightFor(
+        width: _kHeaderActionSize,
+        height: _kHeaderActionSize,
+      ),
     );
   }
 
   Widget _buildSearchField(ThemeData theme) {
     final l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: TextField(
-        controller: _searchController,
-        focusNode: widget.searchFocusNode,
-        onChanged: (value) => _query.value = value,
-        style: const TextStyle(fontSize: 13),
-        decoration: InputDecoration(
-          // 搜索主机是 ⌘F / Ctrl+F 的去向，占位符里直接标出键位。
-          hintText: l10n.withShortcut(
-            l10n.shortcutSearchHosts,
-            searchHostsShortcut,
-          ),
-          hintStyle: TextStyle(fontSize: 12.5, color: theme.secondaryText),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            size: 16,
-            color: theme.secondaryText,
-          ),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 34,
-            minHeight: 34,
-          ),
-          // 清除按钮只在有输入时出现：这里单独订阅关键词，
-          // 免得每次输入都把整个输入框（乃至侧边栏）重建一遍。
-          suffixIcon: ValueListenableBuilder<String>(
-            valueListenable: _query,
-            builder: (context, query, _) => query.isEmpty
-                ? const SizedBox.shrink()
-                : IconButton(
-                    visualDensity: VisualDensity.compact,
-                    icon: Icon(
-                      Icons.close_rounded,
-                      size: 14,
-                      color: theme.secondaryText,
+      // 与头部、底部入口同一列留白：搜索框左右边缘对齐行内缩后的块。
+      padding: const EdgeInsets.symmetric(horizontal: _kSidebarGutter),
+      child: SizedBox(
+        height: _kSearchFieldHeight,
+        child: TextField(
+          controller: _searchController,
+          focusNode: widget.searchFocusNode,
+          onChanged: (value) => _query.value = value,
+          style: const TextStyle(fontSize: _kSidebarTitleFontSize),
+          textAlignVertical: TextAlignVertical.center,
+          decoration: InputDecoration(
+            // 搜索主机是 ⌘F / Ctrl+F 的去向，占位符里直接标出键位。
+            hintText: l10n.withShortcut(
+              l10n.shortcutSearchHosts,
+              searchHostsShortcut,
+            ),
+            hintStyle: TextStyle(
+              fontSize: _kSidebarTitleFontSize,
+              color: theme.secondaryText,
+            ),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              size: 16,
+              color: theme.secondaryText,
+            ),
+            // 图标槽与行首图标列同宽：搜索框里的放大镜落在主机行状态点
+            // 那一条竖线上，搜索开合时整列不跳。
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 36,
+              minHeight: 36,
+            ),
+            // 清除按钮只在有输入时出现：这里单独订阅关键词，
+            // 免得每次输入都把整个输入框（乃至侧边栏）重建一遍。
+            suffixIcon: ValueListenableBuilder<String>(
+              valueListenable: _query,
+              builder: (context, query, _) => query.isEmpty
+                  ? const SizedBox.shrink()
+                  : IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 14,
+                        color: theme.secondaryText,
+                      ),
+                      onPressed: () {
+                        _searchController.clear();
+                        _query.value = '';
+                      },
                     ),
-                    onPressed: () {
-                      _searchController.clear();
-                      _query.value = '';
-                    },
-                  ),
+            ),
+            fillColor: theme.hoverOverlay,
           ),
-          fillColor: theme.hoverOverlay,
         ),
       ),
     );
@@ -601,7 +676,7 @@ class _SidebarState extends State<Sidebar> {
       children: [
         // 不再画横线：列表底部留白 + 这一行的悬停底色已经把它和主机列表分开。
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+          padding: const EdgeInsets.fromLTRB(_kRowInset, 4, _kRowInset, 6),
           child: Row(
             children: [
               Expanded(
@@ -611,65 +686,76 @@ class _SidebarState extends State<Sidebar> {
                   ),
                   child: InkWell(
                     onTap: widget.onOpenSettings,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(_kRowRadius),
                     hoverColor: theme.rowHover,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          _SettingsEntryIcon(updateCheck: widget.updateCheck),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              l10n.navSettings,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.88,
+                    child: SizedBox(
+                      height: _kRowHeight,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: _kRowPadding,
+                        ),
+                        child: Row(
+                          children: [
+                            // 图标槽与主机行同为一行图标列，设置入口的齿轮
+                            // 落在状态点那条竖线上。
+                            SizedBox(
+                              width: _kRowLeadingWidth,
+                              child: Center(
+                                child: _SettingsEntryIcon(
+                                  updateCheck: widget.updateCheck,
                                 ),
                               ),
                             ),
-                          ),
-                          // 键位标注：悬停提示之外的常驻提示，窄行放不下
-                          // 完整句子，只放键位本身。
-                          Text(
-                            openSettingsShortcut,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: theme.secondaryText.withValues(
-                                alpha: 0.75,
+                            const SizedBox(width: _kRowGap),
+                            Expanded(
+                              child: Text(
+                                l10n.navSettings,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: _kSidebarTitleFontSize,
+                                  fontWeight: FontWeight.w500,
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.88,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                            // 键位标注：悬停提示之外的常驻提示，窄行放不下
+                            // 完整句子，只放键位本身。
+                            Text(
+                              openSettingsShortcut,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: theme.secondaryText.withValues(
+                                  alpha: 0.75,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
               // 快捷键帮助（⌘/）：图标按钮不抢焦点体系之外的任何东西，
-              // 弹窗是只读的，看完即走。
-              IconButton(
-                tooltip: l10n.shortcutShortcutsHelpWithShortcut(
-                  shortcutsHelpShortcut,
-                ),
-                icon: Icon(
-                  Icons.keyboard_outlined,
-                  size: 18,
-                  color: theme.secondaryText,
-                ),
-                onPressed: () => showShortcutHelpDialog(context),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(
-                  width: 34,
-                  height: 34,
+              // 弹窗是只读的，看完即走。命中区与设置行同高，二者底边对齐。
+              SizedBox(
+                width: _kHeaderActionSize,
+                height: _kHeaderActionSize,
+                child: IconButton(
+                  tooltip: l10n.shortcutShortcutsHelpWithShortcut(
+                    shortcutsHelpShortcut,
+                  ),
+                  icon: Icon(
+                    Icons.keyboard_outlined,
+                    size: _kHeaderActionIconSize,
+                    color: theme.secondaryText,
+                  ),
+                  onPressed: () => showShortcutHelpDialog(context),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
                 ),
               ),
             ],
@@ -806,73 +892,95 @@ class _GroupHeaderState extends State<_GroupHeader> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onSecondaryTapUp: (details) => widget.onMenu(details.globalPosition),
-        // 与主机行同一套悬停几何：内缩 8px 的圆角矩形 + 同一个底色 token。
+        // 与主机行同一套悬停几何：同一圈内缩、同一个圆角、同一个底色 token，
+        // 行高也一致——分组头与主机行是一张表里的两种行，高度不许不一样。
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+          padding: const EdgeInsets.symmetric(
+            horizontal: _kRowInset,
+            vertical: 1,
+          ),
           child: InkWell(
             onTap: widget.onToggle,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(_kRowRadius),
             hoverColor: theme.rowHover,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
-              child: Row(
-                children: [
-                  AnimatedRotation(
-                    turns: collapsed ? -0.25 : 0,
-                    duration: const Duration(milliseconds: 150),
-                    child: Icon(
-                      Icons.chevron_right_rounded,
-                      size: 15,
-                      color: theme.secondaryText,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      widget.group.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.4,
-                        color: theme.secondaryText,
+            child: SizedBox(
+              height: _kRowHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: _kRowPadding),
+                child: Row(
+                  children: [
+                    // 行首图标列：折叠箭头在图标列里居中，文字起点与主机名
+                    // 对齐；箭头比图标小，所以单独居中而不是贴左。
+                    SizedBox(
+                      width: _kRowLeadingWidth,
+                      child: Center(
+                        child: AnimatedRotation(
+                          turns: collapsed ? -0.25 : 0,
+                          duration: const Duration(milliseconds: 150),
+                          child: Icon(
+                            Icons.chevron_right_rounded,
+                            size: 16,
+                            color: theme.secondaryText,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${widget.group.servers.length}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: theme.secondaryText.withValues(alpha: 0.7),
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  AnimatedOpacity(
-                    duration: const Duration(milliseconds: 120),
-                    opacity: _hovered ? 1 : 0,
-                    child: IgnorePointer(
-                      ignoring: !_hovered,
-                      child: IconButton(
-                        key: _menuKey,
-                        tooltip: l10n.moreActions,
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints.tightFor(
-                          width: 26,
-                          height: 26,
-                        ),
-                        iconSize: 16,
-                        icon: Icon(
-                          Icons.more_horiz_rounded,
+                    const SizedBox(width: _kRowGap),
+                    Expanded(
+                      child: Text(
+                        widget.group.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        // 不加 letterSpacing：它会给每个字形右侧留白，
+                        // 分组名的首字因此比主机名右移半个间距，一列文字
+                        // 看着是歪的（小字号上尤其明显）。分组名与主机名
+                        // 靠字号 + 颜色区分层级就够了。
+                        style: TextStyle(
+                          fontSize: _kSidebarSecondaryFontSize,
+                          fontWeight: FontWeight.w600,
                           color: theme.secondaryText,
                         ),
-                        onPressed: _openMenu,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    // 数量跟「⋯」同占一个尾部位置：数量一直在、只是变得
+                    // 更淡，所以「⋯」出现 / 消失时它不会左右跳。
+                    Text(
+                      '${widget.group.servers.length}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        color: theme.secondaryText.withValues(
+                          alpha: _hovered ? 0.35 : 0.7,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 120),
+                      opacity: _hovered ? 1 : 0,
+                      child: IgnorePointer(
+                        ignoring: !_hovered,
+                        child: IconButton(
+                          key: _menuKey,
+                          tooltip: l10n.moreActions,
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: _kRowActionSize,
+                            height: _kRowActionSize,
+                          ),
+                          iconSize: 16,
+                          icon: Icon(
+                            Icons.more_horiz_rounded,
+                            color: theme.secondaryText,
+                          ),
+                          onPressed: _openMenu,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -959,32 +1067,36 @@ class _ServerTileState extends State<_ServerTile> {
         // 矩形里。以前 AnimatedContainer 自己内缩、InkWell 的高亮却铺满整行，
         // 两层错位，行两侧会露出一圈深浅不一的边。
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+          padding: const EdgeInsets.symmetric(
+            horizontal: _kRowInset,
+            vertical: 1,
+          ),
           // Listener 只旁观按下、不进手势竞技场：点击 / 拖动 / 右键的判定
           // 一个字都不变，它只负责把时间戳递进来（见 [_recordDown]）。
           child: Listener(
             onPointerDown: _recordDown,
             child: InkWell(
               onTap: _handleTap,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(_kRowRadius),
               hoverColor: theme.rowHover,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
+                height: _kRowHeight,
+                padding: const EdgeInsets.symmetric(horizontal: _kRowPadding),
                 decoration: BoxDecoration(
                   // 悬停由 InkWell 画，这里只管选中态；选中时悬停不再叠一层。
                   color: widget.selected
                       ? theme.selectedOverlay
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(_kRowRadius),
                 ),
                 child: Row(
                   children: [
-                    StatusDot(status: server.status),
-                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: _kRowLeadingWidth,
+                      child: Center(child: StatusDot(status: server.status)),
+                    ),
+                    const SizedBox(width: _kRowGap),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -995,8 +1107,9 @@ class _ServerTileState extends State<_ServerTile> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: _kSidebarTitleFontSize,
                               fontWeight: FontWeight.w600,
+                              height: 1.25,
                               color: theme.colorScheme.onSurface.withValues(
                                 alpha: widget.selected ? 1 : 0.88,
                               ),
@@ -1008,7 +1121,8 @@ class _ServerTileState extends State<_ServerTile> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 11.5,
+                              fontSize: _kSidebarSecondaryFontSize,
+                              height: 1.2,
                               color: theme.secondaryText,
                             ),
                           ),
@@ -1029,8 +1143,8 @@ class _ServerTileState extends State<_ServerTile> {
                           visualDensity: VisualDensity.compact,
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints.tightFor(
-                            width: 28,
-                            height: 28,
+                            width: _kRowActionSize,
+                            height: _kRowActionSize,
                           ),
                           iconSize: 17,
                           icon: Icon(
