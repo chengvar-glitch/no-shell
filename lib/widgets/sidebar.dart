@@ -27,10 +27,6 @@ const double _kSidebarGutter = 12;
 /// 都落在这一圈内缩后的圆角矩形里，与侧边栏边缘保持同一道视觉留白。
 const double _kRowInset = 8;
 
-/// 行内文字的起点（相对侧边栏左边缘）：行内缩 + 行自己的左内边距。
-/// 分组头、主机行、底部设置入口的文字都落在这一列。
-const double _kRowTextLeft = _kRowInset + 10;
-
 /// 行左侧图标列的宽度：分组头、主机行、底部设置入口的行首图标 / 状态点
 /// 都在这条竖线上居中，往下扫一眼就是一列。
 const double _kRowLeadingWidth = 24;
@@ -45,8 +41,9 @@ const double _kRowGap = 10;
 /// 行高按它算：上下各留 9，刚好落在 [_kRowHeight] 里。
 const double _kRowActionSize = 28;
 
-/// 行内左右内边距：行左边距 [_kRowTextLeft] 减去行内缩 [_kRowInset]。
-const double _kRowPadding = _kRowTextLeft - _kRowInset;
+/// 行内左右内边距：图标列从行内缩之后的这条线排起；文字起点还要再加
+/// 图标列宽 [_kRowLeadingWidth] 与间距 [_kRowGap]。
+const double _kRowPadding = 10;
 
 /// 整行悬停 / 选中底色的圆角。
 const double _kRowRadius = 8;
@@ -58,7 +55,8 @@ const double _kHeaderActionSize = 32;
 /// 头部动作按钮的字形尺寸。
 const double _kHeaderActionIconSize = 18;
 
-/// 搜索框高度：与设置面板里的下拉框同一套控件高度。
+/// 搜索框高度：比设置面板里的下拉框（40）矮一档，和列表行贴得更近。
+/// 只作最小高度用：大字号下输入框能自己撑开，不被裁。
 const double _kSearchFieldHeight = 36;
 
 /// 标题 / 正文 / 次要文字三档字号。侧边栏与设置面板共用同一套层级：
@@ -195,7 +193,7 @@ class _SidebarState extends State<Sidebar> {
                         server.status == ServerStatus.connecting
                     ? Icons.link_off_rounded
                     : Icons.play_arrow_rounded,
-                size: 16,
+                size: kMenuItemIconSize,
               ),
               const SizedBox(width: kMenuItemIconGap),
               Text(
@@ -216,7 +214,10 @@ class _SidebarState extends State<Sidebar> {
               children: [
                 const Icon(Icons.add_rounded, size: kMenuItemIconSize),
                 const SizedBox(width: kMenuItemIconGap),
-                Text(l10n.newSession, style: const TextStyle(fontSize: 13)),
+                Text(
+                  l10n.newSession,
+                  style: const TextStyle(fontSize: kMenuItemFontSize),
+                ),
               ],
             ),
           ),
@@ -227,7 +228,10 @@ class _SidebarState extends State<Sidebar> {
             children: [
               const Icon(Icons.copy_rounded, size: kMenuItemIconSize),
               const SizedBox(width: kMenuItemIconGap),
-              Text(l10n.copyHostInfo, style: const TextStyle(fontSize: 13)),
+              Text(
+                l10n.copyHostInfo,
+                style: const TextStyle(fontSize: kMenuItemFontSize),
+              ),
             ],
           ),
         ),
@@ -238,7 +242,10 @@ class _SidebarState extends State<Sidebar> {
             children: [
               const Icon(Icons.edit_outlined, size: kMenuItemIconSize),
               const SizedBox(width: kMenuItemIconGap),
-              Text(l10n.edit, style: const TextStyle(fontSize: 13)),
+              Text(
+                l10n.edit,
+                style: const TextStyle(fontSize: kMenuItemFontSize),
+              ),
             ],
           ),
         ),
@@ -252,7 +259,10 @@ class _SidebarState extends State<Sidebar> {
                 size: kMenuItemIconSize,
               ),
               const SizedBox(width: kMenuItemIconGap),
-              Text(l10n.groupMoveTo, style: const TextStyle(fontSize: 13)),
+              Text(
+                l10n.groupMoveTo,
+                style: const TextStyle(fontSize: kMenuItemFontSize),
+              ),
             ],
           ),
         ),
@@ -264,7 +274,7 @@ class _SidebarState extends State<Sidebar> {
             children: [
               Icon(
                 Icons.delete_outline_rounded,
-                size: 16,
+                size: kMenuItemIconSize,
                 color: AppPalette.danger,
               ),
               const SizedBox(width: kMenuItemIconGap),
@@ -549,8 +559,8 @@ class _SidebarState extends State<Sidebar> {
     return Padding(
       // 与头部、底部入口同一列留白：搜索框左右边缘对齐行内缩后的块。
       padding: const EdgeInsets.symmetric(horizontal: _kSidebarGutter),
-      child: SizedBox(
-        height: _kSearchFieldHeight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: _kSearchFieldHeight),
         child: TextField(
           controller: _searchController,
           focusNode: widget.searchFocusNode,
@@ -572,8 +582,8 @@ class _SidebarState extends State<Sidebar> {
               size: 16,
               color: theme.secondaryText,
             ),
-            // 图标槽与行首图标列同宽：搜索框里的放大镜落在主机行状态点
-            // 那一条竖线上，搜索开合时整列不跳。
+            // 放大镜与行首图标列**中心**落在同一竖线上（槽宽 36、图标列 24，
+            // 两者中心都在 x=30；宽度不必相等）：搜索开合时整列不跳。
             prefixIconConstraints: const BoxConstraints(
               minWidth: 36,
               minHeight: 36,
@@ -688,8 +698,10 @@ class _SidebarState extends State<Sidebar> {
                     onTap: widget.onOpenSettings,
                     borderRadius: BorderRadius.circular(_kRowRadius),
                     hoverColor: theme.rowHover,
-                    child: SizedBox(
-                      height: _kRowHeight,
+                    child: ConstrainedBox(
+                      // 最小高度而不是写死：常态仍是 [_kRowHeight]，大字号下
+                      // 行能自己撑开（与主机行同一个约定）。
+                      constraints: const BoxConstraints(minHeight: _kRowHeight),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: _kRowPadding,
@@ -903,8 +915,8 @@ class _GroupHeaderState extends State<_GroupHeader> {
             onTap: widget.onToggle,
             borderRadius: BorderRadius.circular(_kRowRadius),
             hoverColor: theme.rowHover,
-            child: SizedBox(
-              height: _kRowHeight,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: _kRowHeight),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: _kRowPadding),
                 child: Row(
@@ -1081,7 +1093,9 @@ class _ServerTileState extends State<_ServerTile> {
               hoverColor: theme.rowHover,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
-                height: _kRowHeight,
+                // 最小高度而不是写死：常态仍是 [_kRowHeight]（分组头、主机行、
+                // 底部入口等高），无障碍大字号下两行文字能自己撑开，不被裁。
+                constraints: const BoxConstraints(minHeight: _kRowHeight),
                 padding: const EdgeInsets.symmetric(horizontal: _kRowPadding),
                 decoration: BoxDecoration(
                   // 悬停由 InkWell 画，这里只管选中态；选中时悬停不再叠一层。

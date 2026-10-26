@@ -92,8 +92,11 @@ class SettingsSection extends StatelessWidget {
           // 图标与标题**按字形中心对齐**：默认布局是中心线对齐，比它略高的
           // 图标看着会「浮」在文字上方半行；这里取两者外接框的中心，
           // 在图标的字号与标题的字号不同时也稳。
-          SizedBox(
-            height: 20,
+          //
+          // 用最小高度而不是写死 20：大字号（无障碍字体缩放）下标题行要能
+          // 自己撑开，否则文字顶破 20 的盒子糊到下面的卡片上。
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 20),
             child: Row(
               children: [
                 Center(
@@ -458,12 +461,20 @@ class TerminalFontSizeControl extends StatelessWidget {
       valueListenable: scope.notifier,
       builder: (context, prefs, _) {
         final size = prefs.fontSize;
-        // 固定成与下拉框同高：里面那对 30px 的加减按钮会把 InputDecorator
-        // 撑到 46，与上下两个下拉框（40）排在一列时高矮不一。
+        // 固定成与下拉框同高（[kSettingsControlHeight]）：里面那对 30px 的
+        // 加减按钮会把 InputDecorator 撑到 46，与上下两个下拉框（40）排成
+        // 一列时高矮不一。
+        //
+        // 压到 40 时必须同时把装饰器的竖向内边距收掉：默认上下各 8 只剩
+        // 24 的内容高度，30px 按钮会被压扁（命中区与悬停浮层一起缩水）。
         return SizedBox(
           height: kSettingsControlHeight,
           child: InputDecorator(
-            decoration: const InputDecoration(isDense: true),
+            decoration: const InputDecoration(
+              isDense: true,
+              // 30（按钮）+ 5+5（内边距）= 40，与下拉框等高且按钮保持原尺寸。
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            ),
             child: Row(
               children: [
                 SettingsIconButton(
