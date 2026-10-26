@@ -242,11 +242,30 @@ void main() {
       tester.getTopLeft(find.text('外观')).dx,
     );
 
-    // 卡片内相邻两项之间画一根分隔线；它在行内容的左端开始（与标签同一列
-    // 所属的行内边距一致），不顶到卡片圆角上。
+    // 卡片内相邻两项之间画一根分隔线；它与行内容同一列（左缘落在行内缩
+    // 之后，不是贴着卡片边缘），也不顶到卡片圆角上。断几何而不是断常量：
+    // 常量之间互相比较永远抓不到渲染回归。
     expect(find.byType(SettingsDivider), findsWidgets);
-    expect(kSettingsDividerPadding.left, kSettingsRowInset);
-    expect(kSettingsDividerPadding.right, kSettingsRowInset);
+    // 断实际画出来的那根线（内层 Divider），不是包裹它的 Padding。
+    final dividerRect = tester.getRect(
+      find.descendant(
+        of: find.byType(SettingsDivider).first,
+        matching: find.byType(Divider),
+      ),
+    );
+    final cardRect = tester.getRect(
+      find.descendant(of: section, matching: find.byType(SettingsCard)).first,
+    );
+    expect(
+      dividerRect.left,
+      closeTo(tester.getTopLeft(find.text('主题')).dx, 0.5),
+      reason: '分隔线与行标签同一列（同一条行内缩）',
+    );
+    expect(
+      cardRect.right - dividerRect.right,
+      closeTo(kSettingsRowInset, 0.5),
+      reason: '分隔线两端对称缩进，不顶到卡片边缘',
+    );
   });
 
   testWidgets('下拉按钮与菜单项的文字颜色必须显式给出', (tester) async {

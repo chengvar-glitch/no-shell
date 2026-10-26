@@ -4,9 +4,12 @@ part of 'sftp_browser.dart';
 Widget _menuRow(IconData icon, String label, {Color? color}) {
   return Row(
     children: [
-      Icon(icon, size: 16, color: color ?? AppPalette.idle),
-      const SizedBox(width: 8),
-      Text(label, style: TextStyle(fontSize: 13, color: color)),
+      Icon(icon, size: kMenuItemIconSize, color: color ?? AppPalette.idle),
+      const SizedBox(width: kMenuItemIconGap),
+      Text(
+        label,
+        style: TextStyle(fontSize: kMenuItemFontSize, color: color),
+      ),
     ],
   );
 }

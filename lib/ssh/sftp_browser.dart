@@ -132,6 +132,14 @@ final class SftpBrowserController extends ChangeNotifier {
   /// 已有内容时的刷新，界面保留旧列表并显示细进度条。
   bool get isRefreshing => _isRefreshing;
 
+  /// 是否有一份**成功载入**的目录内容可显示。
+  ///
+  /// 载入失败时列表会被清空、`_loadedPath` 一并置空（见 [_load]），所以无论
+  /// 首屏失败还是切目录失败，重试的那段往返里它都是 false——界面据此继续
+  /// 画等待态，而不是「此目录为空 / 0 项」。不能用 [isReady] / [path] 代替：
+  /// 失败那次同样会把目标路径写进 `_path`。
+  bool get hasLoaded => _loadedPath != null;
+
   /// 正在执行新建 / 重命名 / 删除等结构性操作。
   bool get isMutating => _isMutating;
 
@@ -537,6 +545,9 @@ final class SftpBrowserController extends ChangeNotifier {
       if (token != _loadToken || _disposed) return;
       // 路径栏如实反映「想打开哪里」，列表清空并把错误交给界面展示。
       _path = target;
+      // 列表已经清空了：此刻没有任何路径的内容还成立。清掉它，界面才能把
+      // 「失败后重试」认成首屏等待（见 [hasLoaded]），而不是画成空目录。
+      _loadedPath = null;
       _entries = const [];
       _orderedStale = true;
       _selected.clear();

@@ -8,6 +8,7 @@ import '../ssh/terminal_view.dart' show serverStatusOf;
 import '../theme.dart';
 import 'session_log_dialog.dart';
 import 'status_badges.dart';
+import 'window_caption.dart';
 
 /// 会话菜单：多会话时点详情头部的状态胶囊弹出来的那个小浮层。
 ///
@@ -54,7 +55,7 @@ Future<void> showSessionMenu(
         PopupMenuItem<Object>(
           value: session,
           // 与侧边栏菜单同高（36）：本项目的菜单行只有这一档密度。
-          height: 36,
+          height: kMenuItemHeight,
           padding: EdgeInsets.zero,
           child: _SessionRow(
             session: session,
@@ -65,14 +66,14 @@ Future<void> showSessionMenu(
       const PopupMenuDivider(),
       PopupMenuItem<Object>(
         value: _SessionMenuAction.newSession,
-        height: 36,
+        height: kMenuItemHeight,
         // 与会话行同样零内边距：两边的文字才会落在同一列（36pt）。
         padding: EdgeInsets.zero,
         child: _MenuAction(icon: Icons.add_rounded, label: l10n.newSession),
       ),
       PopupMenuItem<Object>(
         value: _SessionMenuAction.log,
-        height: 36,
+        height: kMenuItemHeight,
         padding: EdgeInsets.zero,
         child: _MenuAction(
           icon: Icons.receipt_long_outlined,

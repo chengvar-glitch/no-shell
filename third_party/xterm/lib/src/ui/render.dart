@@ -346,7 +346,10 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       );
     } else {
       var toPosition = getCellOffset(to);
-      if (toPosition.x >= fromPosition.x) {
+      // Row-major, not column-only: a drag that crosses rows in the opposite
+      // column direction would otherwise take the wrong branch and drop the
+      // cell under the pointer.
+      if (!toPosition.isBefore(fromPosition)) {
         toPosition = CellOffset(toPosition.x + 1, toPosition.y);
       }
       _controller.setSelection(

@@ -25,7 +25,11 @@ final class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    if (controller.isLoading) {
+    // 首屏等待态：打开通道 / 读家目录 / 失败后重试都算。重试时 `_path` 已被
+    // 失败那次写成目标路径、只置 isRefreshing，只看 isLoading 会在这段往返
+    // 里画成「此目录为空」——正是这次要消灭的那种误读。
+    if (controller.isLoading ||
+        (controller.isRefreshing && !controller.hasLoaded)) {
       return _LoadingState(label: l10n.sftpOpening);
     }
     final error = controller.error;
@@ -587,28 +591,28 @@ class _EntryRowState extends State<_EntryRow> {
         if (!entry.isDirectory && isSftpQuickPreviewCandidate(entry))
           PopupMenuItem(
             value: 'preview',
-            height: 38,
+            height: kMenuItemHeight,
             child: _menuRow(Icons.visibility_outlined, l10n.sftpPreview),
           ),
         if (!entry.isDirectory)
           PopupMenuItem(
             value: 'download',
-            height: 38,
+            height: kMenuItemHeight,
             child: _menuRow(Icons.download_rounded, l10n.sftpDownload),
           ),
         PopupMenuItem(
           value: 'rename',
-          height: 38,
+          height: kMenuItemHeight,
           child: _menuRow(Icons.drive_file_rename_outline, l10n.sftpRename),
         ),
         PopupMenuItem(
           value: 'copy',
-          height: 38,
+          height: kMenuItemHeight,
           child: _menuRow(Icons.content_copy_rounded, l10n.sftpCopyPath),
         ),
         PopupMenuItem(
           value: 'delete',
-          height: 38,
+          height: kMenuItemHeight,
           child: _menuRow(
             Icons.delete_outline_rounded,
             l10n.delete,

@@ -363,6 +363,7 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
     // 搜索结果是按**旧会话的缓冲区行号**记的，换会话必须整个丢掉：
     // 留着的话计数是旧的，点「下一个」还会拿旧行号去新缓冲区建锚点。
     _clearHighlights();
+    _lineCache.clear();
     _searchField.clear();
     _searching = false;
     _query = '';
@@ -851,6 +852,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   void _closeSearch() {
     _clearHighlights();
+    // 缓存里存着整块回滚的文本与下标表：没有搜索在跑就不该继续占着。
+    _lineCache.clear();
     _searchField.clear();
     setState(() {
       _searching = false;
@@ -863,6 +866,8 @@ final class _SshTerminalViewState extends State<SshTerminalView> {
 
   void _runSearch(String query) {
     final buffer = widget.session.terminal.buffer;
+    // 查询清空时整份缓存随之放掉（下一次输入再按需重建）。
+    if (query.isEmpty) _lineCache.clear();
     final matches = findTerminalMatches(buffer, query, lines: _lineCache);
     _query = query;
     _matches = matches;

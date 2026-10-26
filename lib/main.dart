@@ -297,12 +297,25 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   /// 是否已把桌面窗口亮出来；只对 [_defersWindowShow] 的平台有效。
   bool _windowShown = false;
 
+  /// 首帧迟迟不来时的兜底计时器（见 [_showWindowOnFirstFrame]）。
+  Timer? _windowShowFallback;
+
+  /// 窗口显示已经失败过几次；失败后最多再试一次，避免无休止地重试。
+  int _windowShowAttempts = 0;
+
   @override
   void initState() {
     super.initState();
     if (_defersWindowShow) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _showWindowOnFirstFrame(),
+      );
+      // 兜底：首帧迟迟不来（启动读盘卡住 / 平台回调丢失）也得把窗口亮出来，
+      // 否则进程在跑、屏幕上什么都没有。冷启动远快于这个时长，正常路径上
+      // 它会被首帧那次调用先取消掉。
+      _windowShowFallback = Timer(
+        const Duration(seconds: 3),
+        () => unawaited(_showWindowOnFirstFrame()),
       );
     }
     // 后台保活：构造即挂上会话监听，之后由会话集合的 0→1 / 1→0 推动平台侧
@@ -346,15 +359,26 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   bool _windowHooked = false;
 
   /// 首帧已画好，把窗口亮出来。窗口管理器的平台通道在测试环境里不可用，
-  /// 失败就算了——测试里本来也没有需要亮出来的窗口。
+  /// 失败也不能把窗口永远留在暗处——这是全库唯一一处 `show()`。
   Future<void> _showWindowOnFirstFrame() async {
     if (_windowShown) return;
     _windowShown = true;
     try {
       await windowManager.show();
       await windowManager.focus();
-    } catch (_) {
-      return;
+      // 成功之后兜底计时器没有存在意义了（失败时留着它再试一次）。
+      _windowShowFallback?.cancel();
+      _windowShowFallback = null;
+    } catch (error) {
+      // 复位后在下一帧再试一次：平台通道可能只是还没就绪。顺手留一条可查
+      // 的痕迹，否则「进程在跑但没有窗口」会变成无从诊断的黑盒。
+      _windowShown = false;
+      debugPrint('windowManager.show() failed: $error');
+      if (++_windowShowAttempts < 2) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _showWindowOnFirstFrame(),
+        );
+      }
     }
   }
 
@@ -426,6 +450,7 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
 
   @override
   void dispose() {
+    _windowShowFallback?.cancel();
     if (_windowHooked) windowManager.removeListener(this);
     _terminalStyle.removeListener(_scheduleSave);
     _quickPreviewLimit.removeListener(_scheduleSave);
@@ -486,13 +511,22 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
       ),
       // 开发自测的 FPS 悬浮表：kFpsHudEnabled 在 release 里是编译期 false，
       // 整个 Stack 分支连同 FpsHud 一起被 tree-shake，用户包零残留。
-      home: kFpsHudEnabled
-          ? Stack(children: [_buildShell(), const FpsHud()])
-          : _buildShell(),
+      //
+      // 外面这层 Builder 只为拿一个 **MaterialApp 之下** 的 context：
+      // [_buildShell] 要取主题底色，而 build 方法自己的 context 在 MaterialApp
+      // 之上，那里没有 Theme 祖先，`Theme.of` 只会返回 fallback 的浅色主题。
+      home: Builder(
+        builder: (context) {
+          final shell = _buildShell(context);
+          return kFpsHudEnabled
+              ? Stack(children: [shell, const FpsHud()])
+              : shell;
+        },
+      ),
     );
   }
 
-  Widget _buildShell() {
+  Widget _buildShell(BuildContext context) {
     // 页面底色整块铺满：骨架只负责内容，底色由这一层给出（窗口亮出来到
     // 骨架真正拿到尺寸之间，用户看到的就是它）。
     return ColoredBox(
