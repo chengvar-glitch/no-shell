@@ -143,17 +143,25 @@ Future<void> _setupDesktopWindow() async {
     minimum: kDesktopMinimumWindowSize,
     screen: await _primaryScreenSize(),
   );
+  // 只设好尺寸与样式，**不在这里 show()**：窗口比首帧早弹出来时，它带着
+  // 引擎清成的黑底露脸，浅色主题下就是「先黑一下再亮」。真正的显示交给
+  // 第一帧画完的回调（见 [_NoShellAppState._showWindowOnFirstFrame]）。
   await windowManager.waitUntilReadyToShow(
     WindowOptions(
       size: bounds.size,
       minimumSize: bounds.minimum,
       titleBarStyle: TitleBarStyle.hidden,
     ),
-    () async {
-      await windowManager.show();
-      await windowManager.focus();
-    },
   );
+}
+
+/// 桌面窗口是否由我们「等首帧再亮」：只有 `_setupDesktopWindow` 跑过的
+/// Windows / Linux 是；macOS 在 MainFlutterWindow 里自己显示，移动端与
+/// web 没有窗口概念。
+bool get _defersWindowShow {
+  if (kIsWeb) return false;
+  final platform = defaultTargetPlatform;
+  return platform == TargetPlatform.windows || platform == TargetPlatform.linux;
 }
 
 /// 主屏可用区域（逻辑像素，已排除任务栏 / 系统面板）；取不到时返回 null。
@@ -286,9 +294,17 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
     persistence: widget.updateCheckPersistence,
   );
 
+  /// 是否已把桌面窗口亮出来；只对 [_defersWindowShow] 的平台有效。
+  bool _windowShown = false;
+
   @override
   void initState() {
     super.initState();
+    if (_defersWindowShow) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _showWindowOnFirstFrame(),
+      );
+    }
     // 后台保活：构造即挂上会话监听，之后由会话集合的 0→1 / 1→0 推动平台侧
     // 前台服务的启停（非 Android 平台整条链路不接线）。
     if (keepAliveSupported) {
@@ -328,6 +344,19 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
 
   /// 是否成功挂上了窗口监听；没挂上时 [_flushAndClose] 不碰窗口管理器。
   bool _windowHooked = false;
+
+  /// 首帧已画好，把窗口亮出来。窗口管理器的平台通道在测试环境里不可用，
+  /// 失败就算了——测试里本来也没有需要亮出来的窗口。
+  Future<void> _showWindowOnFirstFrame() async {
+    if (_windowShown) return;
+    _windowShown = true;
+    try {
+      await windowManager.show();
+      await windowManager.focus();
+    } catch (_) {
+      return;
+    }
+  }
 
   /// 关窗：拦住默认关闭，落盘与偏好补写完成后再真的退出。
   @override
@@ -464,6 +493,15 @@ class _NoShellAppState extends State<NoShellApp> with WindowListener {
   }
 
   Widget _buildShell() {
+    // 页面底色整块铺满：骨架只负责内容，底色由这一层给出（窗口亮出来到
+    // 骨架真正拿到尺寸之间，用户看到的就是它）。
+    return ColoredBox(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: _buildSkeleton(),
+    );
+  }
+
+  Widget _buildSkeleton() {
     return LayoutBuilder(
       builder: (context, constraints) {
         // 窄屏走移动端底部导航骨架，宽屏保持桌面左右分栏。
