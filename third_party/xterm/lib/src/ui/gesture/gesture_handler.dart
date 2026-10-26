@@ -279,10 +279,13 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
       return;
     }
     // The character drag includes the cell the pointer sits on when moving
-    // forwards, so the extent goes one past it. Every `setSelection` takes
-    // fresh anchors: it disposes the pair it was given last time.
+    // forwards, so the extent goes one past it. "Forwards" is row-major —
+    // comparing columns alone takes the wrong branch as soon as the drag
+    // crosses rows (the cell under the pointer was dropped). Every
+    // `setSelection` takes fresh anchors: it disposes the pair it was given
+    // last time.
     var end = to;
-    if (end.x >= from.x) end = CellOffset(end.x + 1, end.y);
+    if (!to.isBefore(from)) end = CellOffset(end.x + 1, end.y);
     widget.terminalController.setSelection(
       buffer.createAnchor(from.x, from.y),
       buffer.createAnchor(end.x, end.y),
@@ -305,6 +308,13 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
     // Either gesture kind drives auto-scroll: mouse pans via [onDragUpdate],
     // touch long-press word selection via [onLongPressMoveUpdate].
     if (_lastDragPointer == null || _selectionBase == null) return;
+    // A base whose line was dropped from the scrollback (or whose cells were
+    // removed) can never extend the selection again: scrolling on would move
+    // the viewport with the highlight frozen (or gone).
+    if (!_selectionBase!.attached) {
+      _stopAutoScroll();
+      return;
+    }
     if (terminalView.widget.terminal.isUsingAltBuffer) return;
 
     final direction = _autoScrollDirectionOf(_lastDragPointer!);
@@ -338,6 +348,11 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
     if (!terminalView.scrollController.hasClients ||
         _lastDragPointer == null ||
         _selectionBase == null ||
+        // The base can detach while the drag is running (its line was evicted
+        // from the scrollback / cells before it were removed). Extending then
+        // silently does nothing, so stop instead of scrolling a frozen
+        // selection to the edge.
+        !_selectionBase!.attached ||
         // Entering the alternate screen mid-drag removes the scrollback this
         // scrolling assumes.
         terminalView.widget.terminal.isUsingAltBuffer) {

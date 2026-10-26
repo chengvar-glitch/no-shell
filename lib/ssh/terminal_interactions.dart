@@ -346,67 +346,49 @@ TerminalLink? findLinkAtCell(Terminal terminal, CellOffset cell) {
   return null;
 }
 
-/// 一行缓冲区的两张表：[text] 是按格子顺序拼出的文字，[folded] 是它的
-/// 小写形式；[folded] 为空串表示这一行的大小写转换改变了长度（如 `İ`），
-/// 调用方应退回大小写敏感匹配——长度变了下标就对不上格子。
+/// 搜索用的行视图：[text] 是按格子顺序拼出的文字，[folded] 是它的小写形式。
+/// [folded] 为空串表示这一行的大小写转换改变了长度（如 `İ`），调用方应退回
+/// 大小写敏感匹配——长度变了下标就对不上格子。
+///
+/// 文字与「字符串下标 → 格列」的映射**复用 [BufferLineText]**（与链接识别
+/// 同一份实现），这里只额外加大小写折叠与缓存用的签名：宽字符占位格的跳过
+/// 规则只要写一遍，链接下划线与搜索高亮就不会各说各话。
 ///
 /// 搜索每 300ms 就要重扫一遍整块回滚（满缓冲 50000 行），而两次搜索之间
 /// 绝大多数行根本没变——缓存见 [TerminalLineCache]。
 final class TerminalLineText {
-  const TerminalLineText._(
-    this.text,
-    this.folded,
-    this.signature,
-    this._starts,
-    this._widths,
-  );
+  TerminalLineText._(this._chars, this.folded, this.signature);
 
-  factory TerminalLineText.of(BufferLine line) => _read(line)!;
+  factory TerminalLineText.of(BufferLine line) {
+    final chars = BufferLineText(line);
+    final plain = chars.text;
+    final lowered = plain.toLowerCase();
+    return TerminalLineText._(
+      chars,
+      lowered.length == plain.length ? lowered : '',
+      signatureOf(line),
+    );
+  }
 
   /// 只要签名：命中的候选行先过这一道，签名没变才算缓存有效。
-  static int signatureOf(BufferLine line) => _read(line, text: false)!.signature;
-
-  /// 一次遍历同时得出签名与文本；[text] 为 false 时不拼字符串、不做
-  /// 大小写折叠，只算签名。
-  static TerminalLineText? _read(BufferLine line, {bool text = true}) {
-    if (!text) {
-      var signature = _kFnvOffset;
-      for (var i = 0; i < line.length; i++) {
-        signature = _mixSignature(signature, line.getCodePoint(i));
-        signature = _mixSignature(signature, line.getWidth(i));
-        signature = _mixSignature(signature, line.getBackground(i));
-      }
-      return TerminalLineText._('', '', signature, const [], const []);
-    }
-    final buffer = StringBuffer();
-    final starts = <int>[];
-    final widths = <int>[];
+  ///
+  /// 只算哈希，不拼字符串也不建下标表：搜索开着时每 300ms 会为整块回滚的
+  /// 每一行各来一次，这里不该造立刻丢掉的临时对象。
+  static int signatureOf(BufferLine line) {
     var signature = _kFnvOffset;
     // 整行都进签名（包括宽字符的占位格）：清行（eraseRange）只把码点与
     // 宽度清零、背景盖成默认色，只算可见字符的话刚清掉的行还会命中旧内容。
     for (var i = 0; i < line.length; i++) {
-      final codePoint = line.getCodePoint(i);
-      final width = line.getWidth(i);
-      signature = _mixSignature(signature, codePoint);
-      signature = _mixSignature(signature, width);
+      signature = _mixSignature(signature, line.getCodePoint(i));
+      signature = _mixSignature(signature, line.getWidth(i));
       signature = _mixSignature(signature, line.getBackground(i));
-      if (codePoint == 0) continue;
-      starts.add(i);
-      widths.add(width);
-      buffer.writeCharCode(codePoint);
     }
-    final plain = buffer.toString();
-    final lowered = plain.toLowerCase();
-    return TerminalLineText._(
-      plain,
-      lowered.length == plain.length ? lowered : '',
-      signature,
-      starts,
-      widths,
-    );
+    return signature;
   }
 
-  final String text;
+  final BufferLineText _chars;
+
+  String get text => _chars.text;
 
   /// 小写形式；大小写转换改变了长度时为空串。
   final String folded;
@@ -414,14 +396,9 @@ final class TerminalLineText {
   /// 整行的字素签名：码点、宽度与背景色按顺序滚动混合。
   final int signature;
 
-  final List<int> _starts;
-  final List<int> _widths;
-
   /// 第 [index] 个字符占的格子区间（含首不含尾）。
-  (int, int) cellSpanOf(int index, int length) => (
-    _starts[index],
-    _starts[index + length - 1] + _widths[index + length - 1],
-  );
+  (int, int) cellSpanOf(int index, int length) =>
+      _chars.cellSpanOf(index, length);
 }
 
 const int _kFnvOffset = 0x811c9dc5;
@@ -432,12 +409,23 @@ int _mixSignature(int hash, int value) =>
 /// 逐行缓存的最近一次搜索的那份缓冲区文本。
 ///
 /// 以**行对象身份**记，不以下标：滚动时 xterm 摘走最旧的行，同一句话
-/// 会整体上移一格，按下标记就整块失效。行对象被回收后才在 GC 时消失。
+/// 会整体上移一格，按下标记就整块失效。
+///
+/// 注意缓存自己就是行对象的**强引用**：被回滚挤出行缓冲区的行不会因此
+/// 被回收，条目会一直留到 [clear]（收起查找栏时调用）或整份重来。每条还
+/// 带着整行文本与两张下标表，长时间会话不能指望 GC 兜底。
 final class TerminalLineCache {
   final Map<BufferLine, TerminalLineText> _byLine = {};
   Buffer? _owner;
 
   static const int _maxEntries = 60000;
+
+  /// 丢掉整份缓存。收起查找栏（或换会话）时调用：没有搜索在跑时这些文本
+  /// 没有任何用处，留着只会按会话时长一直占着整块回滚的内存。
+  void clear() {
+    _byLine.clear();
+    _owner = null;
+  }
 
   TerminalLineText of(Buffer buffer, int row) {
     // 换了缓冲区（切换会话、进 / 出备用缓冲区）就整份作废。
