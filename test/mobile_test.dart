@@ -277,9 +277,10 @@ void main() {
     expect(find.text('界面字体'), findsNothing);
     expect(find.text('终端主题'), findsOneWidget);
     expect(find.text('终端字体'), findsOneWidget);
-    // 与桌面设置弹窗共用同一套分组卡片：没有分隔线，靠底色与间距分层。
-    // （ListView 只挂载可见子树，分区数量断言留给桌面弹窗那份用例。）
-    expect(find.byType(Divider), findsNothing);
+    // 与桌面设置弹窗共用同一套分组卡片与卡内分隔线：行与行之间画线区分，
+    // 分区之间靠底色与间距分层。两端必须一样，只在桌面加线就回到「两端观感
+    // 不一致」的老问题。
+    expect(find.byType(Divider), findsWidgets);
     expect(find.byType(SettingsSection), findsWidgets);
 
     // 终端字体：切到内置 Fira Code 后写入全局终端样式作用域。

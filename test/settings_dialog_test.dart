@@ -219,15 +219,9 @@ void main() {
     );
   });
 
-  testWidgets('设置弹窗：卡片不描边、不画分隔线，标签与分区标题同一列', (tester) async {
+  testWidgets('设置弹窗：卡片不描边，标签与分区标题同一列', (tester) async {
     await pumpDesktop(tester);
     await openSettings(tester);
-
-    // 弹窗里一根分隔线都没有：头部 / 底部 / 卡片内全靠间距与底色分层。
-    expect(
-      find.descendant(of: find.byType(Dialog), matching: find.byType(Divider)),
-      findsNothing,
-    );
 
     // 分组卡片是面板底色的实心块（比页面底色亮一档），没有边框。
     final section = find.byType(SettingsSection).first;
@@ -247,6 +241,12 @@ void main() {
       tester.getTopLeft(find.text('主题')).dx,
       tester.getTopLeft(find.text('外观')).dx,
     );
+
+    // 卡片内相邻两项之间画一根分隔线；它在行内容的左端开始（与标签同一列
+    // 所属的行内边距一致），不顶到卡片圆角上。
+    expect(find.byType(SettingsDivider), findsWidgets);
+    expect(kSettingsDividerPadding.left, kSettingsRowInset);
+    expect(kSettingsDividerPadding.right, kSettingsRowInset);
   });
 
   testWidgets('下拉按钮与菜单项的文字颜色必须显式给出', (tester) async {

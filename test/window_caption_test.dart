@@ -158,10 +158,12 @@ void main() {
         tester.getTopLeft(find.text('NoShell')).dy,
         lessThan(kWindowCaptionHeight),
       );
+      // 搜索框紧贴标题区下方（头部下方只留 8px 的呼吸），不再多让出
+      // 一整条标题栏的空档。
       expect(
         tester.getTopLeft(find.byType(TextField)).dy,
-        kWindowCaptionHeight + 10,
-        reason: '搜索框应紧贴标题区下方，不再多让出一整条标题栏的空档',
+        kWindowCaptionHeight + 8,
+        reason: '搜索框应紧贴标题区下方',
       );
 
       // 侧边栏头部与窗口按钮同一行：垂直中心线对齐。

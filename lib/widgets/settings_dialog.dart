@@ -108,11 +108,14 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
           children: [
             // 头部 / 内容 / 底部之间不画分隔线：间距与分组卡片的底色已经分好层。
             _buildHeader(context, theme, l10n),
+            // 头部与内容区之间的那一段空隙就放在这里，不并进下面的滚动区：
+            // 放进滚动区的内边距里，内容滚动时标题会从缝隙里滚上来。
+            const SizedBox(height: 4),
             Flexible(
               child: SingleChildScrollView(
                 // 桌面默认的回弹（果冻）效果在设置页没有意义，钳住。
                 physics: const ClampingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -163,8 +166,11 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
   ) {
     // 减重成一行标题：应用身份在侧边栏品牌区已经有了，版本号归「更新」分区
     // 那一行与「关于」对话框，这里不再重复。
+    //
+    // 左右都是 20：标题左缘、卡片左缘、底部按钮组右缘与关闭按钮右缘
+    // 落在同两条竖线上（关闭按钮此前比卡片右缘多冒出 12，右上角看着是歪的）。
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
       child: Row(
         children: [
           Expanded(
@@ -172,6 +178,7 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
               l10n.navSettings,
               style: TextStyle(
                 fontSize: 16,
+                height: 1.2,
                 fontWeight: FontWeight.w700,
                 color: theme.colorScheme.onSurface,
               ),
@@ -194,7 +201,7 @@ final class _SettingsDialogState extends State<_SettingsDialog> {
     AppLocalizations l10n,
   ) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 14, 12),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
       child: Row(
         children: [
           const Spacer(),

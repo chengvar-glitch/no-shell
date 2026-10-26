@@ -23,6 +23,39 @@ const double kSettingsRowInset = 21;
 const double kSettingsSectionIconSize = 14;
 const double kSettingsSectionIconGap = 7;
 
+/// 分区标题到下方卡片的间距。
+const double kSettingsSectionTitleGap = 10;
+
+/// 相邻两张卡片之间的间距（分区之间）。
+const double kSettingsSectionGap = 24;
+
+/// 同一张卡片内相邻两项之间的间距。
+///
+/// 卡内每项上下各 [kSettingsRowVertical]，相邻两项之间就是 24；它与
+/// [kSettingsSectionGap] 相等是刻意的——分组内的行距与分组之间的间距一样大，
+/// 只有卡片底色区分层次，读数时不会觉得某一边「挤」了一格。
+const double kSettingsRowVertical = 12;
+
+/// 分隔线的左右缩进：从行内容的左端（[kSettingsRowInset]）开始，
+/// 与卡片内文字同一列，不顶到卡片圆角上。
+const EdgeInsets kSettingsDividerPadding = EdgeInsets.only(
+  left: kSettingsRowInset,
+  right: kSettingsRowInset,
+);
+
+/// 标签与它下方控件的间距。
+const double kSettingsLabelGap = 8;
+
+/// 行标题 / 正文 / 小字三档字号，与侧边栏同一套层级：
+/// 13 是正文（设置行标签），12.5 是小字（说明与结果细节）。
+const double kSettingsLabelFontSize = 13;
+const double kSettingsHintFontSize = 12.5;
+
+/// 设置面板里控件（下拉框、分段控件、字号步进）的统一最小高度。
+/// 几个控件此前各自靠 Material 默认值撑高，排在同一列里高矮不一；
+/// 统一到这里之后同一分区内的控件底边对得上。
+const double kSettingsControlHeight = 40;
+
 /// 下拉 / 输入类控件的文字：与设置行标签同一号字（默认 titleMedium 的 16
 /// 在设置面板里偏大，窄屏也更容易顶破卡片宽度）。
 ///
@@ -52,32 +85,64 @@ class SettingsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.only(bottom: kSettingsSectionGap),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Icon(
-                icon,
-                size: kSettingsSectionIconSize,
-                color: theme.secondaryText,
-              ),
-              const SizedBox(width: kSettingsSectionIconGap),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.4,
-                  color: theme.secondaryText,
+          // 图标与标题**按字形中心对齐**：默认布局是中心线对齐，比它略高的
+          // 图标看着会「浮」在文字上方半行；这里取两者外接框的中心，
+          // 在图标的字号与标题的字号不同时也稳。
+          SizedBox(
+            height: 20,
+            child: Row(
+              children: [
+                Center(
+                  child: Icon(
+                    icon,
+                    size: kSettingsSectionIconSize,
+                    color: theme.secondaryText,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: kSettingsSectionIconGap),
+                Center(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.0,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.4,
+                      color: theme.secondaryText,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: kSettingsSectionTitleGap),
           SettingsCard(children: children),
         ],
+      ),
+    );
+  }
+}
+
+/// 卡片内相邻两项之间的分隔线。
+///
+/// 只在「有标签的行」之间画：带标签的行是一组「标题 + 控件」，没有标签的
+/// 行（如语言分段控件、只有开关的那一项）本身就是完整的一行，与上下之间
+/// 靠间距分开就够了，再画线反而把同一块内容切成两截。
+class SettingsDivider extends StatelessWidget {
+  const SettingsDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: kSettingsDividerPadding,
+      child: Divider(
+        height: 1,
+        thickness: 1,
+        color: Theme.of(context).hairline,
       ),
     );
   }
@@ -181,12 +246,11 @@ class SettingsRow extends StatelessWidget {
     final theme = Theme.of(context);
     final label = this.label;
     return Padding(
-      // 上下各 14：相邻两项之间留出 28 的空隙，不用分隔线也分得开。
-      padding: const EdgeInsets.fromLTRB(
-        kSettingsRowInset,
-        14,
-        kSettingsRowInset,
-        14,
+      // 上下各 [kSettingsRowVertical]：相邻两项之间留出 24 的空隙，
+      // 与分区之间（[kSettingsSectionGap]）同一个节奏。
+      padding: const EdgeInsets.symmetric(
+        horizontal: kSettingsRowInset,
+        vertical: kSettingsRowVertical,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -195,14 +259,22 @@ class SettingsRow extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: kSettingsLabelFontSize,
+                height: 1.0,
                 fontWeight: FontWeight.w500,
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.92),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: kSettingsLabelGap),
           ],
-          child,
+          // 控件列统一最小高度：下拉框、分段控件、字号步进排在同一张卡片里
+          // 高矮一致（各控件此前靠 Material 默认值撑高，40 / 44 / 48 混着）。
+          ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: kSettingsControlHeight,
+            ),
+            child: child,
+          ),
         ],
       ),
     );
@@ -386,37 +458,44 @@ class TerminalFontSizeControl extends StatelessWidget {
       valueListenable: scope.notifier,
       builder: (context, prefs, _) {
         final size = prefs.fontSize;
-        return InputDecorator(
-          decoration: const InputDecoration(isDense: true),
-          child: Row(
-            children: [
-              SettingsIconButton(
-                icon: Icons.remove_rounded,
-                tooltip: l10n.fontSizeDecrease,
-                onPressed: size > TerminalStylePrefs.minFontSize
-                    ? () => scope.notifier.value = prefs.withFontSize(size - 1)
-                    : null,
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    '$size',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.onSurface,
+        // 固定成与下拉框同高：里面那对 30px 的加减按钮会把 InputDecorator
+        // 撑到 46，与上下两个下拉框（40）排在一列时高矮不一。
+        return SizedBox(
+          height: kSettingsControlHeight,
+          child: InputDecorator(
+            decoration: const InputDecoration(isDense: true),
+            child: Row(
+              children: [
+                SettingsIconButton(
+                  icon: Icons.remove_rounded,
+                  tooltip: l10n.fontSizeDecrease,
+                  onPressed: size > TerminalStylePrefs.minFontSize
+                      ? () =>
+                            scope.notifier.value = prefs.withFontSize(size - 1)
+                      : null,
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '$size',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              SettingsIconButton(
-                icon: Icons.add_rounded,
-                tooltip: l10n.fontSizeIncrease,
-                onPressed: size < TerminalStylePrefs.maxFontSize
-                    ? () => scope.notifier.value = prefs.withFontSize(size + 1)
-                    : null,
-              ),
-            ],
+                SettingsIconButton(
+                  icon: Icons.add_rounded,
+                  tooltip: l10n.fontSizeIncrease,
+                  onPressed: size < TerminalStylePrefs.maxFontSize
+                      ? () =>
+                            scope.notifier.value = prefs.withFontSize(size + 1)
+                      : null,
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -620,20 +699,24 @@ class TerminalSettingsSection extends StatelessWidget {
       title: l10n.terminal,
       children: [
         SettingsRow(label: l10n.terminalPreset, child: presetPicker),
+        const SettingsDivider(),
         SettingsRow(
           label: l10n.terminalFont,
           child: const TerminalFontDropdown(),
         ),
+        const SettingsDivider(),
         // 字号单独一行、撑满整行：与字体下拉同宽，高度不再写死
         // （并排那套才需要钳高对齐）。
         SettingsRow(
           label: l10n.terminalFontSize,
           child: const TerminalFontSizeControl(),
         ),
+        const SettingsDivider(),
         SettingsRow(
           label: l10n.terminalPreview,
           child: const TerminalPreview(),
         ),
+        const SettingsDivider(),
         SettingsRow(
           label: l10n.copyOnSelect,
           child: const TerminalCopyOnSelectControl(),
@@ -712,7 +795,7 @@ class ConnectionSettingsSection extends StatelessWidget {
                 child: Text(
                   l10n.allowLegacyHostKeysHint,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: kSettingsHintFontSize,
                     height: 1.4,
                     color: theme.secondaryText,
                   ),
@@ -721,6 +804,7 @@ class ConnectionSettingsSection extends StatelessWidget {
             ],
           ),
         ),
+        const SettingsDivider(),
         SettingsRow(
           label: l10n.quickPreviewLimit,
           child: const QuickPreviewLimitDropdown(),

@@ -23,6 +23,17 @@ const double kWindowCaptionButtonInset = 8.0;
 /// 标题条左侧内容与窗口左边缘的间距，和侧边栏头部同一套内边距。
 const double kWindowCaptionLeadingInset = 12.0;
 
+/// 右键 / 下拉菜单的行几何。
+///
+/// 全应用只此一份：侧边栏主机行与分组头的菜单、头部导入导出菜单、SFTP
+/// 工具条菜单此前各写各的（行高 36 / 38 混着用，图标间距 8 与 10 也不一致），
+/// 同一套菜单在不同地方打开时行距肉眼可见地不同。带图标的行与纯文字行
+/// 共用同一行高。
+const double kMenuItemHeight = 36;
+const double kMenuItemIconSize = 16;
+const double kMenuItemIconGap = 9;
+const double kMenuItemFontSize = 13;
+
 /// macOS 收起侧边栏后，详情面板头部一列让开左上角红绿灯的缩进量。
 /// 红绿灯左缘 21pt、右缘约 82pt（见 MainFlutterWindow 的
 /// trafficLightLeftInset 与系统灯位间距），96 与之留出约 14pt 间距；
