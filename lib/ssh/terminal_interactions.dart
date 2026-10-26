@@ -346,6 +346,120 @@ TerminalLink? findLinkAtCell(Terminal terminal, CellOffset cell) {
   return null;
 }
 
+/// 一行缓冲区的两张表：[text] 是按格子顺序拼出的文字，[folded] 是它的
+/// 小写形式；[folded] 为空串表示这一行的大小写转换改变了长度（如 `İ`），
+/// 调用方应退回大小写敏感匹配——长度变了下标就对不上格子。
+///
+/// 搜索每 300ms 就要重扫一遍整块回滚（满缓冲 50000 行），而两次搜索之间
+/// 绝大多数行根本没变——缓存见 [TerminalLineCache]。
+final class TerminalLineText {
+  const TerminalLineText._(
+    this.text,
+    this.folded,
+    this.signature,
+    this._starts,
+    this._widths,
+  );
+
+  factory TerminalLineText.of(BufferLine line) => _read(line)!;
+
+  /// 只要签名：命中的候选行先过这一道，签名没变才算缓存有效。
+  static int signatureOf(BufferLine line) => _read(line, text: false)!.signature;
+
+  /// 一次遍历同时得出签名与文本；[text] 为 false 时不拼字符串、不做
+  /// 大小写折叠，只算签名。
+  static TerminalLineText? _read(BufferLine line, {bool text = true}) {
+    if (!text) {
+      var signature = _kFnvOffset;
+      for (var i = 0; i < line.length; i++) {
+        signature = _mixSignature(signature, line.getCodePoint(i));
+        signature = _mixSignature(signature, line.getWidth(i));
+        signature = _mixSignature(signature, line.getBackground(i));
+      }
+      return TerminalLineText._('', '', signature, const [], const []);
+    }
+    final buffer = StringBuffer();
+    final starts = <int>[];
+    final widths = <int>[];
+    var signature = _kFnvOffset;
+    // 整行都进签名（包括宽字符的占位格）：清行（eraseRange）只把码点与
+    // 宽度清零、背景盖成默认色，只算可见字符的话刚清掉的行还会命中旧内容。
+    for (var i = 0; i < line.length; i++) {
+      final codePoint = line.getCodePoint(i);
+      final width = line.getWidth(i);
+      signature = _mixSignature(signature, codePoint);
+      signature = _mixSignature(signature, width);
+      signature = _mixSignature(signature, line.getBackground(i));
+      if (codePoint == 0) continue;
+      starts.add(i);
+      widths.add(width);
+      buffer.writeCharCode(codePoint);
+    }
+    final plain = buffer.toString();
+    final lowered = plain.toLowerCase();
+    return TerminalLineText._(
+      plain,
+      lowered.length == plain.length ? lowered : '',
+      signature,
+      starts,
+      widths,
+    );
+  }
+
+  final String text;
+
+  /// 小写形式；大小写转换改变了长度时为空串。
+  final String folded;
+
+  /// 整行的字素签名：码点、宽度与背景色按顺序滚动混合。
+  final int signature;
+
+  final List<int> _starts;
+  final List<int> _widths;
+
+  /// 第 [index] 个字符占的格子区间（含首不含尾）。
+  (int, int) cellSpanOf(int index, int length) => (
+    _starts[index],
+    _starts[index + length - 1] + _widths[index + length - 1],
+  );
+}
+
+const int _kFnvOffset = 0x811c9dc5;
+
+int _mixSignature(int hash, int value) =>
+    ((hash ^ value) * 0x01000193) & 0xffffffff;
+
+/// 逐行缓存的最近一次搜索的那份缓冲区文本。
+///
+/// 以**行对象身份**记，不以下标：滚动时 xterm 摘走最旧的行，同一句话
+/// 会整体上移一格，按下标记就整块失效。行对象被回收后才在 GC 时消失。
+final class TerminalLineCache {
+  final Map<BufferLine, TerminalLineText> _byLine = {};
+  Buffer? _owner;
+
+  static const int _maxEntries = 60000;
+
+  TerminalLineText of(Buffer buffer, int row) {
+    // 换了缓冲区（切换会话、进 / 出备用缓冲区）就整份作废。
+    if (!identical(_owner, buffer)) {
+      _byLine.clear();
+      _owner = buffer;
+    }
+    final line = buffer.lines[row];
+    final cached = _byLine[line];
+    if (cached != null &&
+        cached.signature == TerminalLineText.signatureOf(line)) {
+      return cached;
+    }
+    final fresh = TerminalLineText.of(line);
+    // 长期开着搜索、输入量又大的会话里，行对象会不断被替换；上限只是
+    // 防止那份表跟着会话一起无限长，超出就整份重来（比 LRU 简单且够用）。
+    if (_byLine.length >= _maxEntries) _byLine.clear();
+    _byLine[line] = fresh;
+    return fresh;
+  }
+}
+
 /// 回滚缓冲里的一处命中：行号（与 `CellOffset.y` 同一坐标系，含回滚）与
 /// 它在行内占的格子区间（含首不含尾）。
 final class TerminalMatch {
@@ -379,20 +493,23 @@ final class TerminalMatch {
 /// 不跨行匹配：终端里一行就是一条记录，跨行命中在日志里几乎没有意义，
 /// 而实现代价是多一倍的边界处理。
 ///
-/// 每次输入都重扫一遍整块缓冲区（50000 行满缓冲是最坏情况）。没有加去抖：
-/// 一屏日志量级下这是微不足道的一次遍历，真在低端机上感到卡顿再加。
-List<TerminalMatch> findTerminalMatches(Buffer buffer, String query) {
+/// [lines] 是跨调用复用的按行缓存（见 [TerminalLineCache]）；不传就现算，
+/// 单次搜索的结果与传缓存完全一致。
+List<TerminalMatch> findTerminalMatches(
+  Buffer buffer,
+  String query, {
+  TerminalLineCache? lines,
+}) {
   if (query.isEmpty) return const [];
+  final loweredNeedle = query.toLowerCase();
   final out = <TerminalMatch>[];
   for (var row = 0; row < buffer.height; row++) {
-    final line = BufferLineText(buffer.lines[row]);
+    final line =
+        lines?.of(buffer, row) ?? TerminalLineText.of(buffer.lines[row]);
     if (line.text.isEmpty) continue;
-    // 大小写转换可能改变长度（如 'İ'），那样下标就对不上格列映射了——
-    // 这种行退回大小写敏感，宁可少命中几个，也不能把高亮画错格子。
-    final folded = line.text.toLowerCase();
-    final caseInsensitive = folded.length == line.text.length;
-    final haystack = caseInsensitive ? folded : line.text;
-    final needle = caseInsensitive ? query.toLowerCase() : query;
+    final caseInsensitive = line.folded.isNotEmpty;
+    final haystack = caseInsensitive ? line.folded : line.text;
+    final needle = caseInsensitive ? loweredNeedle : query;
 
     var from = 0;
     while (from <= haystack.length - needle.length) {

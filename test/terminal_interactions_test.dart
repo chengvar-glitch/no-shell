@@ -285,6 +285,32 @@ void main() {
       expect(hits.single.row, 0, reason: '第 0 行就是最早那行，仍在缓冲区里');
     });
 
+    test('带行缓存与不带缓存的命中完全一致', () {
+      final terminal = Terminal(maxLines: 100)
+        ..write('alpha Needle\n')
+        ..write('beta needle\n');
+      final cache = TerminalLineCache();
+      expect(
+        findTerminalMatches(terminal.buffer, 'needle', lines: cache),
+        findTerminalMatches(terminal.buffer, 'needle'),
+      );
+      // 同一行再搜一次走缓存，结果不变。
+      expect(
+        findTerminalMatches(terminal.buffer, 'needle', lines: cache),
+        hasLength(2),
+      );
+    });
+
+    test('行内容变了缓存不给出旧命中', () {
+      final terminal = Terminal(maxLines: 100)..write('hello\n');
+      final cache = TerminalLineCache();
+      final line = terminal.buffer.lines[0];
+      expect(cache.of(terminal.buffer, 0).text, 'hello');
+      // 直接改同一行对象（xterm 清行就是这么干），再取必须看到新内容。
+      line.eraseRange(0, line.length, CursorStyle());
+      expect(cache.of(terminal.buffer, 0).text, isEmpty);
+    });
+
     test('Cmd/Ctrl+F 那一支键位已绑上查找意图', () {
       final shortcuts = terminalShortcuts();
       final searchKeys = shortcuts.entries
