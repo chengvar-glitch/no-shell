@@ -774,6 +774,33 @@ void main() {
       expect(find.text('nginx.conf'), findsOneWidget);
     });
 
+    testWidgets('读取失败后重试：往返期间仍是等待态，不画成空目录', (tester) async {
+      final fs = FakeSftpFileSystem();
+      fs.addFile(fs.home, 'nginx.conf');
+      await pumpPanel(tester, fileSystem: fs);
+
+      // 先失败一次：路径被写成目标，但从未成功载入过内容。
+      fs.listError = const SftpException(SftpErrorKind.permission);
+      await tester.tap(find.byIcon(Icons.refresh_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('没有权限访问该位置'), findsOneWidget);
+
+      // 重试时列表请求挂在网关上（这段往返只有 isRefreshing）：面板与状态栏
+      // 都必须继续画「正在打开」，而不是「此目录为空 / 0 项」。
+      fs.listError = null;
+      fs.listGate = Completer<void>();
+      await tester.tap(find.text('重试'));
+      await tester.pump();
+      expect(find.text('此目录为空'), findsNothing);
+      expect(find.text('0 项'), findsNothing);
+      expect(find.text('正在打开 SFTP…'), findsWidgets);
+
+      fs.listGate!.complete();
+      fs.listGate = null;
+      await tester.pumpAndSettle();
+      expect(find.text('nginx.conf'), findsOneWidget);
+    });
+
     testWidgets('筛选在当前目录内即时生效', (tester) async {
       final fs = FakeSftpFileSystem();
       fs.addFile(fs.home, 'nginx.conf');

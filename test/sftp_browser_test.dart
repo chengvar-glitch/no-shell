@@ -543,6 +543,34 @@ void main() {
       expect(controller.error, isNull);
     });
 
+    test('失败后重试仍算首屏：hasLoaded 保持 false，成功后才为 true', () async {
+      final (:controller, :fs) = await ready();
+      addTearDown(controller.dispose);
+      fs.listings['/root'] = [];
+
+      fs.listError = const SftpException(SftpErrorKind.permission);
+      await controller.navigate('/root');
+      expect(controller.error?.kind, SftpErrorKind.permission);
+      // 失败那次已经把列表清空、路径写成目标：没有任何内容可显示。
+      expect(controller.path, '/root');
+      expect(controller.hasLoaded, isFalse);
+
+      // 重试请求挂在网关上：这段往返只置 isRefreshing，界面必须仍按首屏
+      // 等待处理，否则会画成「此目录为空 / 0 项」。
+      fs.listError = null;
+      final gate = Completer<void>();
+      fs.listGate = gate;
+      final retry = controller.refresh();
+      expect(controller.isRefreshing, isTrue);
+      expect(controller.isLoading, isFalse);
+      expect(controller.hasLoaded, isFalse);
+
+      gate.complete();
+      fs.listGate = null;
+      await retry;
+      expect(controller.hasLoaded, isTrue);
+    });
+
     test('打开通道失败时暴露错误，重试可恢复', () async {
       final fs = FakeSftpFileSystem();
       var calls = 0;
