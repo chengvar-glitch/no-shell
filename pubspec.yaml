@@ -1,7 +1,7 @@
 name: no_shell
 description: "NoShell — cross-platform SSH connection manager with terminal, SFTP and secure credential storage."
 publish_to: 'none'
-version: 4.9.6+20
+version: 4.9.7+21
 
 environment:
   sdk: ^3.13.3
