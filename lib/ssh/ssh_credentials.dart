@@ -19,6 +19,13 @@ class SshCredentials {
   /// agent 本身没有可记的机密，「记住凭据」落盘的只是这个意图标记。
   final bool useAgent;
 
+  /// 本次认证是否走密钥（私钥文件或本机 agent）。
+  ///
+  /// 服务器主机密钥变更时「自动清除旧指纹并记下新指纹」（见
+  /// `host_key_store.dart` 的 `verifyHostKey`）只对这条路径生效；密码认证
+  /// 仍然拦下连接、请用户先核对指纹。
+  bool get isKeyAuth => useAgent || privateKey != null;
+
   Map<String, Object?> toJson() => {
     if (password != null) 'password': password,
     if (privateKey != null) 'privateKey': privateKey,

@@ -16,6 +16,9 @@ final class FakeHostKeyStore implements HostKeyStore {
   /// 非 null 时 [save] 直接抛出，模拟底层写操作抛异常。
   Object? saveError;
 
+  /// true 时 [replace] 写不进去（返回 false，且旧记录原样保留）。
+  bool replaceFails = false;
+
   String _key(String host, int port) => '$host:$port';
 
   List<HostKeyRecord> records(String host, int port) =>
@@ -39,6 +42,14 @@ final class FakeHostKeyStore implements HostKeyStore {
     if (saveFails) return false;
     final stored = _records.putIfAbsent(_key(host, port), () => []);
     if (!stored.contains(record)) stored.add(record);
+    return true;
+  }
+
+  @override
+  Future<bool> replace(String host, int port, HostKeyRecord record) async {
+    if (replaceFails) return false;
+    // 单次写入：成功时旧记录整份消失，失败时一条都没动。
+    _records[_key(host, port)] = [record];
     return true;
   }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dartssh2/dartssh2.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:xterm/core.dart';
 
 import '../models.dart';
@@ -282,11 +283,12 @@ final class DartSsh2Transport implements SshTransport {
             ],
           )
         : const SSHAlgorithms(),
-    // known_hosts / TOFU 指纹校验：首次记录、变更拒绝（见 host_key_store.dart）。
+    // known_hosts / TOFU 指纹校验：首次记录、变更拒绝（见 host_key_store.dart）；
+    // 本次是密钥 / agent 认证时，变更改为自动清除旧记录并记下新指纹。
     onVerifyHostKey: _hostKeys == null
         ? null
         : (keyType, rawFingerprint) =>
-              _verifyHostKey(server, keyType, rawFingerprint),
+              _verifyHostKey(server, credentials, keyType, rawFingerprint),
   );
 
   /// 指纹回调失败后抛出的错误：指纹读不出来时不能给「清除指纹」这条路。
@@ -297,6 +299,7 @@ final class DartSsh2Transport implements SshTransport {
 
   Future<bool> _verifyHostKey(
     SshServer server,
+    SshCredentials credentials,
     String keyType,
     Uint8List rawFingerprint,
   ) async {
@@ -308,10 +311,19 @@ final class DartSsh2Transport implements SshTransport {
       port: server.port,
       keyType: keyType,
       fingerprint: fingerprint,
+      acceptChangedKey: credentials.isKeyAuth,
     );
     switch (decision) {
       case HostKeyDecision.trusted:
       case HostKeyDecision.firstUse:
+        return true;
+      case HostKeyDecision.replaced:
+        // 用户看不到任何提示（密钥认证下这是刻意做成无感的），留一条可查的
+        // 痕迹：哪台机器、哪种密钥、旧记录已被新指纹顶掉。
+        debugPrint(
+          'host key changed for ${server.host}:${server.port} '
+          '($keyType, key auth); old record replaced with $fingerprint',
+        );
         return true;
       case HostKeyDecision.mismatch:
         _hostKeyMismatch = HostKeyChangedException(

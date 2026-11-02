@@ -227,6 +227,80 @@ void main() {
     });
   });
 
+  group('密钥认证下主机密钥变更', () {
+    test('私钥 / agent 认证时自动清除旧记录并记下新指纹', () async {
+      // 这是刻意的取舍：密钥 / agent 登录做成无感，变更不再拦下连接。
+      // 代价是这条路径上不再有「疑似中间人」的人工核对。
+      final store = FakeHostKeyStore();
+      await store.save('h1', 22, _rec('SHA256:k1'));
+      final decision = await verifyHostKey(
+        store,
+        host: 'h1',
+        port: 22,
+        keyType: 'ssh-ed25519',
+        fingerprint: 'SHA256:new',
+        acceptChangedKey: true,
+      );
+      expect(decision, HostKeyDecision.replaced);
+      // 旧记录整份作废：换成仅含新指纹的一条。
+      expect(_recordsOf(store, 'h1', 22), [_rec('SHA256:new')]);
+    });
+
+    test('新指纹替换写不进去时拒绝连接，旧记录原样保留', () async {
+      // 没记下新指纹却放行，等于放弃这条主机的指纹校验。
+      final store = FakeHostKeyStore()..replaceFails = true;
+      await store.save('h1', 22, _rec('SHA256:k1'));
+      final decision = await verifyHostKey(
+        store,
+        host: 'h1',
+        port: 22,
+        keyType: 'ssh-ed25519',
+        fingerprint: 'SHA256:new',
+        acceptChangedKey: true,
+      );
+      expect(decision, HostKeyDecision.unavailable);
+      expect(_recordsOf(store, 'h1', 22), [_rec('SHA256:k1')]);
+    });
+
+    test('密码认证不自动替换，仍需用户显式清除', () async {
+      final store = FakeHostKeyStore();
+      await store.save('h1', 22, _rec('SHA256:k1'));
+      final decision = await verifyHostKey(
+        store,
+        host: 'h1',
+        port: 22,
+        keyType: 'ssh-ed25519',
+        fingerprint: 'SHA256:new',
+        acceptChangedKey: false,
+      );
+      expect(decision, HostKeyDecision.mismatch);
+      expect(_recordsOf(store, 'h1', 22), [_rec('SHA256:k1')]);
+    });
+
+    test('自动替换只在指纹不符时发生：命中记录不多写一笔', () async {
+      final store = FakeHostKeyStore();
+      await store.save('h1', 22, _rec('SHA256:k1'));
+      final decision = await verifyHostKey(
+        store,
+        host: 'h1',
+        port: 22,
+        keyType: 'ssh-ed25519',
+        fingerprint: 'SHA256:k1',
+        acceptChangedKey: true,
+      );
+      expect(decision, HostKeyDecision.trusted);
+      expect(_recordsOf(store, 'h1', 22), [_rec('SHA256:k1')]);
+    });
+
+    test('认证方式决定是否自动替换', () {
+      // 密码：只有密码就走原来的「拦下并核对」。
+      expect(const SshCredentials(password: 'pw').isKeyAuth, isFalse);
+      // 私钥文件与 agent 都算密钥认证。
+      expect(const SshCredentials(privateKey: 'pem').isKeyAuth, isTrue);
+      expect(const SshCredentials(useAgent: true).isKeyAuth, isTrue);
+    });
+  });
+
   group('SharedPreferencesHostKeyStore', () {
     test('save / load / delete 往返：一台主机可存多条，同指纹去重', () async {
       SharedPreferences.setMockInitialValues({});
@@ -247,6 +321,17 @@ void main() {
 
       await store.delete('h1', 22);
       expect(await store.load('h1', 22), isA<HostKeysNeverRecorded>());
+    });
+
+    test('replace 单次写入整体替换记录（旧条目不再保留）', () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = SharedPreferencesHostKeyStore();
+      await store.save('h1', 22, _rec('SHA256:k1'));
+      await store.save('h1', 22, _rec('SHA256:k2'));
+
+      expect(await store.replace('h1', 22, _rec('SHA256:new')), isTrue);
+      final loaded = await store.load('h1', 22);
+      expect((loaded as HostKeysLoaded).records, [_rec('SHA256:new')]);
     });
 
     test('不是当前格式的内容一律判为读不出来（开发阶段不背旧格式）', () async {

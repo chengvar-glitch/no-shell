@@ -2,6 +2,10 @@
 
 面向用户的版本变化记录。新条目先进顶部「未发布」段，发版时定稿为版本段；纯开发向改动（测试、脚本、CI、文档）不记录。约定细节见 `AGENTS.md` 编辑约定的「更新日志」条。
 
+## 未发布
+
+- 改进：用私钥或本机 agent 登录时，服务器主机密钥变更不再拦住连接——自动清除旧指纹、记下新指纹后照常连上；密码登录仍会拦下并请用户核对指纹。六端
+
 ## 4.9.6 - 2026-10-29
 
 - 内部：升级依赖——flutter_svg 2.3.2、shared_preferences 的 Android / iOS·macOS 平台实现（2.5.4 / 2.6.1）、crypto 3.0.8、vector_graphics 1.3.3 等约束内更新，另含 asn1lib、jni、posix、vector_math、web、file_selector_macos 等传递依赖。界面与交互无变化

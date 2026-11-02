@@ -69,6 +69,13 @@ abstract interface class HostKeyStore {
 
   /// 用户确认服务器密钥变更后清除全部记录，下次连接重新走首次记录流程。
   Future<void> delete(String host, int port);
+
+  /// 用 [record] 整体替换该主机的记录；返回**是否真的写进去了**。
+  ///
+  /// 供「密钥 / agent 认证时自动清除旧指纹」用：先 [delete] 再 [save] 的两步
+  /// 写法在第二步失败时会把用户仅存的可信记录丢掉，而单次写入要么整份换掉、
+  /// 要么旧记录原样保留。
+  Future<bool> replace(String host, int port, HostKeyRecord record);
 }
 
 /// 基于 shared_preferences 的实现，六个平台均可用（web 为 localStorage）。
@@ -94,7 +101,7 @@ final class SharedPreferencesHostKeyStore implements HostKeyStore {
         : HostKeysLoaded(records);
   }
 
-  /// save 的串行尾巴：读-改-写没有并发防护的话，同一主机的并发首连
+  /// save / replace 的串行尾巴：读-改-写没有并发防护的话，同一主机的并发首连
   /// （多开会话同时校验）都 load 到 NeverRecorded 再各自 save，后写会
   /// 覆盖先写、丢掉其中一条指纹，下次用到那条算法就被误判成「疑似中间人」。
   Future<void>? _saveTail;
@@ -130,6 +137,23 @@ final class SharedPreferencesHostKeyStore implements HostKeyStore {
       _key(host, port),
       jsonEncode([...records, record].map((r) => r.toJson()).toList()),
     );
+  }
+
+  @override
+  Future<bool> replace(String host, int port, HostKeyRecord record) {
+    // 与 save 共用串行尾巴：save 的读-改-写不能被一次 replace 插进去。
+    final run = (_saveTail ?? Future<void>.value()).then(
+      (_) => _replaceWith(host, port, record),
+    );
+    _saveTail = run.then((_) {}, onError: (Object _) {});
+    return run;
+  }
+
+  Future<bool> _replaceWith(String host, int port, HostKeyRecord record) async {
+    final prefs = await SharedPreferences.getInstance();
+    // setString 返回 false 就是没写进去：此时旧记录仍然在，调用方按
+    // 「存储故障」拒绝连接，不能当成已信任新密钥。
+    return prefs.setString(_key(host, port), jsonEncode([record.toJson()]));
   }
 
   @override
@@ -174,6 +198,10 @@ enum HostKeyDecision {
   /// 出示的指纹与该主机已记录的全部指纹都不一致：拒绝。
   mismatch,
 
+  /// 与已记录的指纹都不一致，但本次是密钥 / agent 认证：已用出示的指纹
+  /// **整体替换**记录并放行（旧记录随之作废）。
+  replaced,
+
   /// 已记录的指纹读不出来，或本次指纹存不进去：拒绝，且不改写任何记录。
   unavailable,
 }
@@ -182,7 +210,11 @@ enum HostKeyDecision {
 /// - 读写指纹记录失败 → 拒绝（unavailable），不写任何东西；
 /// - 从未记录且**确实记下了** → 放行（firstUse）；
 /// - 指纹命中已记录的任何一条 → 放行（trusted），不写任何东西；
-/// - 都不命中 → 拒绝（mismatch），不改写记录，必须由用户显式清除。
+/// - 都不命中、且 [acceptChangedKey] 为 true（本次是密钥 / agent 认证）：
+///   用出示的指纹整体替换记录后放行（replaced），用户不必再手动点
+///   「清除指纹并重连」；
+/// - 都不命中、且 [acceptChangedKey] 为 false（密码认证）：拒绝（mismatch），
+///   不改写记录，必须由用户显式清除。
 ///
 /// 命中判据是**指纹**：同一把密钥换算法名（服务器同时提供 ed25519 与 rsa、
 /// 或客户端升级后改变了算法偏好）指纹不变，不该被误判成中间人。
@@ -193,6 +225,7 @@ Future<HostKeyDecision> verifyHostKey(
   required int port,
   required String keyType,
   required String fingerprint,
+  bool acceptChangedKey = false,
 }) async {
   final presented = HostKeyRecord(fingerprint: fingerprint);
   final HostKeyLoad loaded;
@@ -216,8 +249,18 @@ Future<HostKeyDecision> verifyHostKey(
       }
       return HostKeyDecision.firstUse;
     case HostKeysLoaded(:final records):
-      if (!records.contains(presented)) return HostKeyDecision.mismatch;
-      return HostKeyDecision.trusted;
+      if (records.contains(presented)) return HostKeyDecision.trusted;
+      if (!acceptChangedKey) return HostKeyDecision.mismatch;
+      // 密钥 / agent 认证：旧记录整体换成这次出示的指纹。写不进去就按存储
+      // 故障拒绝（旧记录还在），绝不能「没记下新指纹也放行」——那等于放弃校验。
+      try {
+        if (!await store.replace(host, port, presented)) {
+          return HostKeyDecision.unavailable;
+        }
+      } catch (_) {
+        return HostKeyDecision.unavailable;
+      }
+      return HostKeyDecision.replaced;
   }
 }
 
