@@ -43,7 +43,7 @@ jobs:
     name: build (${{ matrix.target }})
     runs-on: ${{ matrix.runs-on }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
@@ -242,7 +242,7 @@ jobs:
           Compress-Archive -Path build\windows\x64\runner\Release\*
           -DestinationPath "NoShell-$($env:GITHUB_REF_NAME)-windows-x64.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: noshell-${{ matrix.target }}
           path: NoShell-*
@@ -252,13 +252,13 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
           path: dist
 
       - name: 创建 GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           # 带 `-` 的 tag（v4.1.6-test.1）算预发布：标成 prerelease 才不会
