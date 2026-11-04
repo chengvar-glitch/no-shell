@@ -31,7 +31,7 @@ dependencies:
   share_plus: ^13.3.1
   shared_preferences: ^2.5.5
   url_launcher: ^6.3.3
-  window_manager: ^0.5.2
+  window_manager: ^0.6.0
   # 版本号只是名义值：实际取的是仓库内打了补丁的 third_party/xterm
   # （见下面的 dependency_overrides 与 third_party/README.md）。
   xterm: ^4.0.0
