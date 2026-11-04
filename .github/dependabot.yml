@@ -33,6 +33,12 @@ updates:
       # （中文输入法上屏去重，见 third_party/README.md）。这里升名义版本号没有意义；
       # 上游合了修复后人工删掉 override 与 third_party/xterm 即可。
       - dependency-name: "xterm"
+      # window_manager 0.6.0 是底层换成 nativeapi 的重写版：旧 API 挪到
+      # package:window_manager/legacy.dart（@Deprecated 过渡桥），且 Linux 构建
+      # 需要 GTK/X11 开发包、macOS 最低 10.15。迁移前冻结在 0.5.x；
+      # 决定迁移时删掉这条 ignore（PR #4 已按此原因关闭，可 reopen 或重做）。
+      - dependency-name: "window_manager"
+        versions: [">=0.6.0"]
     groups:
       # 只给 patch 合组（自动合并的那批）；minor / major 各开各的 PR——
       # 某个包升不上去（比如 window_manager 0.6.0 要改 API）时不会拖住同组的其他包，
