@@ -66,7 +66,10 @@ jobs:
           fi
 
           author=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json author --jq .author.login)
-          if [ "$author" != "dependabot[bot]" ]; then
+          # gh CLI 把 bot 显示成 app/dependabot，REST API 里是 dependabot[bot]，
+          # 统一成 dependabot 再比，两种形态都认。
+          author=$(echo "$author" | sed -E 's#^app/##; s/\[bot\]$//')
+          if [ "$author" != "dependabot" ]; then
             echo "PR #$pr 的作者是 $author，不是 Dependabot，跳过。"
             exit 0
           fi
