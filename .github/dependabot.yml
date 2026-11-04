@@ -9,7 +9,7 @@
 # 合并策略（由 dependabot-auto-merge.yml 执行）：
 #   - pub 的 patch 升级：合组一个 PR，CI 全绿后自动合并（CI 覆盖 analyze / test、
 #     iOS 编译、web 编译与 SSH 冒烟）；
-#   - pub 的 minor / major 升级：合组或单独 PR，一律留给人——CI 只覆盖 Linux / iOS / web，
+#   - pub 的 minor / major 升级：各自单独一个 PR，一律留给人——CI 只覆盖 Linux / iOS / web，
 #     macOS / Windows / Android 的原生插件改动（window_manager 这类）CI 验不到；
 #   - GitHub Actions 的更新：一律留给人——release.yml 里的 action 只有发版才跑，
 #     PR 上的 CI 并不验证它们。
@@ -34,14 +34,12 @@ updates:
       # 上游合了修复后人工删掉 override 与 third_party/xterm 即可。
       - dependency-name: "xterm"
     groups:
-      # patch 与 minor 分开：patch 自动合并，minor 必须人工看一眼，
-      # 所以不能让两者混在同一个 PR 里（混了就只能整体按 minor 处理）。
+      # 只给 patch 合组（自动合并的那批）；minor / major 各开各的 PR——
+      # 某个包升不上去（比如 window_manager 0.6.0 要改 API）时不会拖住同组的其他包，
+      # 也方便逐个审、逐个合。
       pub-patch:
         applies-to: "version-updates"
         update-types: ["patch"]
-      pub-minor:
-        applies-to: "version-updates"
-        update-types: ["minor"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
