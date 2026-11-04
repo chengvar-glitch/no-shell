@@ -1,0 +1,87 @@
+# Dependabot PR 自动合并：CI 全绿后，把 patch / minor 升级直接合掉；major 永远留给人。
+#
+# 为什么挂在 workflow_run 上而不是 pull_request 上：
+#   - Dependabot 触发的 pull_request workflow 拿的是只读 token，要写回 PR 得额外开权限；
+#   - 本仓库没开 GitHub 的 auto-merge 功能，也没有「必须通过 CI」的分支保护，
+#     `gh pr merge --auto` 会立刻合并、等不到 CI；
+#   - workflow_run 在 CI 结束之后才跑，此时结论已经是 success，直接合并即可。
+#
+# 更新类型靠仓库里的 major / minor / patch 三个标签判断：
+# Dependabot 只有在标签已存在时才会给 PR 打上 SemVer 标签（见 dependabot.yml 的注释）。
+# 标签被删掉时这里会安静地跳过，不会误合 major。
+name: Dependabot auto-merge
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-auto-merge
+  cancel-in-progress: false
+
+jobs:
+  auto-merge:
+    # 只有「由 PR 触发、且 CI 成功」的 run 才可能是 Dependabot 的升级 PR；
+    # push 到 main 的 CI 也走这里，被下面这行挡掉。
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 合并 patch / minor 升级
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+
+          # workflow_run 的 pull_requests 在个别情况下（如重跑）会是空的，用分支名兜底找 PR。
+          pr="$PR_NUMBER"
+          if [ -z "$pr" ] && [ -n "$HEAD_BRANCH" ]; then
+            pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$HEAD_BRANCH" \
+              --state open --json number --jq '.[0].number // empty')
+          fi
+          if [ -z "$pr" ]; then
+            echo "找不到关联的 PR，跳过。"
+            exit 0
+          fi
+
+          state=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json state --jq .state)
+          if [ "$state" != "OPEN" ]; then
+            echo "PR #$pr 已 $state，跳过。"
+            exit 0
+          fi
+
+          author=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json author --jq .author.login)
+          if [ "$author" != "dependabot[bot]" ]; then
+            echo "PR #$pr 的作者是 $author，不是 Dependabot，跳过。"
+            exit 0
+          fi
+
+          labels=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' | tr '\n' ' ')
+          echo "PR #$pr 标签：$labels"
+
+          case " $labels " in
+            *" major "*)
+              echo "major 升级，留给人处理。"
+              exit 0
+              ;;
+            *" minor "* | *" patch "*) ;;
+            *)
+              echo "没有 minor / patch 标签（SemVer 标签可能已被删除），跳过。"
+              exit 0
+              ;;
+          esac
+
+          # GITHUB_TOKEN 推送的提交不会再触发 workflow，所以这次合并不会引起 main 上的 CI。
+          # 合并失败（通常是并发/冲突）只记 warning，让 Dependabot 下一轮 rebase 后自愈。
+          if ! gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --delete-branch; then
+            echo "::warning::PR #$pr 自动合并失败，留给人处理。"
+          fi

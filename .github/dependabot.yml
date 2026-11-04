@@ -1,0 +1,50 @@
+# Dependabot：依赖自动升级。
+#
+# 只开两个生态：
+#   - pub：Flutter / Dart 依赖（pubspec.yaml + pubspec.lock）
+#   - github-actions：workflow 里引用的 action 版本
+# android/ 下的 Gradle 依赖不在这里升——AGP / Kotlin 版本由 Flutter SDK 模板决定，
+# 跟着 flutter upgrade 走，让 Dependabot 单独改容易和模板打架。
+#
+# 分工：
+#   - minor + patch 合成一个 PR，CI（.github/workflows/ci.yml）全绿后由
+#     dependabot-auto-merge.yml 自动合并；
+#   - major 永远单独开 PR、永远留给人处理（大版本升级要人工过六端）。
+version: 2
+updates:
+  - package-ecosystem: "pub"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    # 现有 ^ 约束已经允许的升级就别去抬高 pubspec.yaml 的下界，只更新 lockfile，
+    # PR 的 diff 更干净，也少拿无意义的约束变更加剧合并冲突。
+    versioning-strategy: "increase-if-necessary"
+    commit-message:
+      prefix: "chore(deps)"
+    ignore:
+      # 实际生效的是 dependency_overrides 指向的 third_party/xterm 补丁副本
+      # （中文输入法上屏去重，见 third_party/README.md）。这里升名义版本号没有意义；
+      # 上游合了修复后人工删掉 override 与 third_party/xterm 即可。
+      - dependency-name: "xterm"
+    groups:
+      # minor 与 patch 合成一个 PR，避免一周十几个 PR 淹没通知。
+      pub-minor-patch:
+        applies-to: "version-updates"
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ["*"]
