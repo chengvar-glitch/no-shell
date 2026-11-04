@@ -1,4 +1,10 @@
-# Dependabot PR 自动合并：CI 全绿后，把 patch / minor 升级直接合掉；major 永远留给人。
+# Dependabot PR 自动合并：CI 全绿后，只把 pub 的 patch 升级直接合掉。
+#
+# 为什么只合 patch：
+#   - CI 只覆盖 Linux / iOS / web（analyze + test + iOS 编译 + web 编译 + SSH 冒烟），
+#     macOS / Windows / Android 的原生插件改动要等发版构建才暴露，minor 及以上留给人过一遍；
+#   - GitHub Actions 的更新也不合：release.yml 里引用的 action 只有发版才跑，PR 上的 CI
+#     并不验证它们，混进自动合并等于裸奔。pub 的 PR 带 dart 标签，据此区分两个生态。
 #
 # 为什么挂在 workflow_run 上而不是 pull_request 上：
 #   - Dependabot 触发的 pull_request workflow 拿的是只读 token，要写回 PR 得额外开权限；
@@ -8,7 +14,7 @@
 #
 # 更新类型靠仓库里的 major / minor / patch 三个标签判断：
 # Dependabot 只有在标签已存在时才会给 PR 打上 SemVer 标签（见 dependabot.yml 的注释）。
-# 标签被删掉时这里会安静地跳过，不会误合 major。
+# 标签被删掉时这里会安静地跳过，不会误合 major / minor。
 name: Dependabot auto-merge
 
 on:
@@ -34,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: 合并 patch / minor 升级
+      - name: 合并 pub 的 patch 升级
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
@@ -68,17 +74,24 @@ jobs:
           labels=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' | tr '\n' ' ')
           echo "PR #$pr 标签：$labels"
 
-          case " $labels " in
-            *" major "*)
-              echo "major 升级，留给人处理。"
-              exit 0
-              ;;
-            *" minor "* | *" patch "*) ;;
-            *)
-              echo "没有 minor / patch 标签（SemVer 标签可能已被删除），跳过。"
-              exit 0
-              ;;
-          esac
+          has() { case " $labels " in *" $1 "*) return 0;; *) return 1;; esac; }
+
+          if has major; then
+            echo "major 升级，留给人处理。"
+            exit 0
+          fi
+          if has minor; then
+            echo "minor 升级，留给人处理。"
+            exit 0
+          fi
+          if ! has patch; then
+            echo "不是 patch 升级，跳过。"
+            exit 0
+          fi
+          if ! has dart; then
+            echo "不是 pub 依赖（缺 dart 标签），跳过。"
+            exit 0
+          fi
 
           # GITHUB_TOKEN 推送的提交不会再触发 workflow，所以这次合并不会引起 main 上的 CI。
           # 合并失败（通常是并发/冲突）只记 warning，让 Dependabot 下一轮 rebase 后自愈。

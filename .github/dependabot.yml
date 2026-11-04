@@ -6,10 +6,13 @@
 # android/ 下的 Gradle 依赖不在这里升——AGP / Kotlin 版本由 Flutter SDK 模板决定，
 # 跟着 flutter upgrade 走，让 Dependabot 单独改容易和模板打架。
 #
-# 分工：
-#   - minor + patch 合成一个 PR，CI（.github/workflows/ci.yml）全绿后由
-#     dependabot-auto-merge.yml 自动合并；
-#   - major 永远单独开 PR、永远留给人处理（大版本升级要人工过六端）。
+# 合并策略（由 dependabot-auto-merge.yml 执行）：
+#   - pub 的 patch 升级：合组一个 PR，CI 全绿后自动合并（CI 覆盖 analyze / test、
+#     iOS 编译、web 编译与 SSH 冒烟）；
+#   - pub 的 minor / major 升级：合组或单独 PR，一律留给人——CI 只覆盖 Linux / iOS / web，
+#     macOS / Windows / Android 的原生插件改动（window_manager 这类）CI 验不到；
+#   - GitHub Actions 的更新：一律留给人——release.yml 里的 action 只有发版才跑，
+#     PR 上的 CI 并不验证它们。
 version: 2
 updates:
   - package-ecosystem: "pub"
@@ -31,10 +34,14 @@ updates:
       # 上游合了修复后人工删掉 override 与 third_party/xterm 即可。
       - dependency-name: "xterm"
     groups:
-      # minor 与 patch 合成一个 PR，避免一周十几个 PR 淹没通知。
-      pub-minor-patch:
+      # patch 与 minor 分开：patch 自动合并，minor 必须人工看一眼，
+      # 所以不能让两者混在同一个 PR 里（混了就只能整体按 minor 处理）。
+      pub-patch:
         applies-to: "version-updates"
-        update-types: ["minor", "patch"]
+        update-types: ["patch"]
+      pub-minor:
+        applies-to: "version-updates"
+        update-types: ["minor"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
