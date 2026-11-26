@@ -45,9 +45,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # 固定在 3.47.5：Flutter 3.48 起 package:flutter/material.dart 被标记为弃用
+      # （迁往 package:material_ui），工程尚未迁移；跟着 stable 浮动会让 CI 在
+      # SDK 升级当天整片变红。迁移完成后再改回 channel: stable。
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.5'
           cache: true
 
       - name: 安装 Linux 构建依赖
@@ -217,8 +220,10 @@ jobs:
             --output "$DEB.asc" "$DEB"
 
           # 自检：公钥导入后两条链路都必须验得过，签名坏的包不许上 Release。
-          rpmkeys --import "$PUB"
-          rpm --checksig -v "$RPM"
+          # runner 镜像的 rpm 默认库在 /var/lib/rpm，非 root 导入会撞上事务锁；
+          # 导入与校验都走 sudo，两条命令看的是同一个库。
+          sudo rpmkeys --import "$PUB"
+          sudo rpm --checksig -v "$RPM"
           gpg --verify "$DEB.asc" "$DEB"
 
       # macOS 构建产物已在 Release.xcconfig 限定 arm64（仅 Apple Silicon）。

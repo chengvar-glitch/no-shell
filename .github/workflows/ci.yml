@@ -16,9 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # 固定在 3.47.5：Flutter 3.48 起 package:flutter/material.dart 被标记为弃用
+      # （迁往 package:material_ui），工程尚未迁移；跟着 stable 浮动会让 CI 在
+      # SDK 升级当天整片变红。迁移完成后再改回 channel: stable。
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.5'
           cache: true
 
       - name: 安装依赖
@@ -37,9 +40,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # 固定在 3.47.5：Flutter 3.48 起 package:flutter/material.dart 被标记为弃用
+      # （迁往 package:material_ui），工程尚未迁移；跟着 stable 浮动会让 CI 在
+      # SDK 升级当天整片变红。迁移完成后再改回 channel: stable。
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.5'
           cache: true
 
       - name: 安装依赖
@@ -85,9 +91,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # 固定在 3.47.5：Flutter 3.48 起 package:flutter/material.dart 被标记为弃用
+      # （迁往 package:material_ui），工程尚未迁移；跟着 stable 浮动会让 CI 在
+      # SDK 升级当天整片变红。迁移完成后再改回 channel: stable。
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.5'
           cache: true
 
       - name: 安装依赖
@@ -104,9 +113,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # 固定在 3.47.5：Flutter 3.48 起 package:flutter/material.dart 被标记为弃用
+      # （迁往 package:material_ui），工程尚未迁移；跟着 stable 浮动会让 CI 在
+      # SDK 升级当天整片变红。迁移完成后再改回 channel: stable。
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.5'
           cache: true
 
       - name: 安装依赖
