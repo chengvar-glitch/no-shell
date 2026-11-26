@@ -725,5 +725,73 @@
     }
   },
   "keepAliveNotificationTitle": "SSH 会话保持中",
-  "keepAliveNotificationBody": "后台保持连接，避免被系统回收"
+  "keepAliveNotificationBody": "后台保持连接，避免被系统回收",
+  "serverLoad": "服务器负载",
+  "serverLoadLive": "实时 · 每 {seconds} 秒",
+  "@serverLoadLive": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "serverLoadLoading": "采样中…",
+  "serverLoadIdleHint": "连接主机后可查看 CPU、内存、磁盘与网络负载。",
+  "serverLoadUnsupported": "该主机不提供系统指标。",
+  "serverLoadFailed": "系统负载读取失败",
+  "serverLoadRetry": "重试",
+  "systemInfo": "系统",
+  "systemHostname": "主机名",
+  "systemOs": "系统",
+  "systemKernel": "内核",
+  "systemArch": "架构",
+  "systemUptime": "运行时长",
+  "systemLoadAverage": "平均负载",
+  "systemCpuCores": "CPU 核数",
+  "metricCpu": "CPU",
+  "metricMemory": "内存",
+  "metricDisk": "磁盘",
+  "metricNetwork": "网络",
+  "metricWaiting": "等待采样…",
+  "metricCores": "{count} 核",
+  "@metricCores": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "uptimeDaysHours": "{days} 天 {hours} 小时",
+  "@uptimeDaysHours": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      },
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "uptimeHoursMinutes": "{hours} 小时 {minutes} 分",
+  "@uptimeHoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "uptimeMinutes": "{minutes} 分钟",
+  "@uptimeMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "metricUsed": "已用",
+  "metricTotal": "总量",
+  "serverLoadRefresh": "刷新"
 }

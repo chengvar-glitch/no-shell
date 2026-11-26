@@ -1338,4 +1338,95 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get keepAliveNotificationBody => '后台保持连接，避免被系统回收';
+
+  @override
+  String get serverLoad => '服务器负载';
+
+  @override
+  String serverLoadLive(int seconds) {
+    return '实时 · 每 $seconds 秒';
+  }
+
+  @override
+  String get serverLoadLoading => '采样中…';
+
+  @override
+  String get serverLoadIdleHint => '连接主机后可查看 CPU、内存、磁盘与网络负载。';
+
+  @override
+  String get serverLoadUnsupported => '该主机不提供系统指标。';
+
+  @override
+  String get serverLoadFailed => '系统负载读取失败';
+
+  @override
+  String get serverLoadRetry => '重试';
+
+  @override
+  String get systemInfo => '系统';
+
+  @override
+  String get systemHostname => '主机名';
+
+  @override
+  String get systemOs => '系统';
+
+  @override
+  String get systemKernel => '内核';
+
+  @override
+  String get systemArch => '架构';
+
+  @override
+  String get systemUptime => '运行时长';
+
+  @override
+  String get systemLoadAverage => '平均负载';
+
+  @override
+  String get systemCpuCores => 'CPU 核数';
+
+  @override
+  String get metricCpu => 'CPU';
+
+  @override
+  String get metricMemory => '内存';
+
+  @override
+  String get metricDisk => '磁盘';
+
+  @override
+  String get metricNetwork => '网络';
+
+  @override
+  String get metricWaiting => '等待采样…';
+
+  @override
+  String metricCores(int count) {
+    return '$count 核';
+  }
+
+  @override
+  String uptimeDaysHours(int days, int hours) {
+    return '$days 天 $hours 小时';
+  }
+
+  @override
+  String uptimeHoursMinutes(int hours, int minutes) {
+    return '$hours 小时 $minutes 分';
+  }
+
+  @override
+  String uptimeMinutes(int minutes) {
+    return '$minutes 分钟';
+  }
+
+  @override
+  String get metricUsed => '已用';
+
+  @override
+  String get metricTotal => '总量';
+
+  @override
+  String get serverLoadRefresh => '刷新';
 }

@@ -19,6 +19,7 @@ final class FakeTransport with NoForwardingTransport {
     this.lines = const ['welcome'],
     this.handshakeDelay = Duration.zero,
     this.closeAfterConnect = false,
+    this.commandResult,
   });
 
   /// 非 null 时 [attach] 抛出该错误，模拟连接 / 认证失败。
@@ -33,6 +34,13 @@ final class FakeTransport with NoForwardingTransport {
 
   /// 连接成功后立即触发远端关闭（模拟刚连上就掉线）。
   final bool closeAfterConnect;
+
+  /// 远端命令的固定 stdout；为空表示这个假传输不支持远端命令
+  /// （概览的负载采集据此展示「不支持指标采集」）。
+  final String? commandResult;
+
+  /// 收到过的远端命令（断言「采样有起停」用）。
+  final List<String> commands = [];
 
   /// 置 true 时接管终端的 onOutput，把「发往远端」的内容收进 [sent]。
   bool captureOutput = false;
@@ -77,6 +85,16 @@ final class FakeTransport with NoForwardingTransport {
     }
     onConnected();
     if (closeAfterConnect) onClosed();
+  }
+
+  @override
+  Future<String> runCommand(String command) async {
+    commands.add(command);
+    final result = commandResult;
+    if (result == null) {
+      throw UnsupportedError('fake transport has no remote command');
+    }
+    return result;
   }
 
   @override

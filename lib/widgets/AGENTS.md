@@ -9,6 +9,7 @@
 - `lib/widgets/` — 桌面端组件（侧边栏、详情面板、SFTP 面板、状态徽章）。三个大件各管一摊：`sidebar.dart` 是主机列表（分组头、主机行、搜索、底部入口），行内边距、图标列与行高由文件顶部的 `_kRow*` 常量定义——分组头、主机行、底部入口三者共用同一列文字与同一行高，改其中一个常量就是整条侧边栏一起改，**不要在单个组件里另写一套 padding**（这正是 4.9.2 之后返工过一轮的地方）；`server_detail.dart` 是详情面板外壳与四个 Tab 的常见态（概览 / 未连接引导 / 状态），Tab 下标归 `ShellLayoutState.detailTab`；`sftp_browser.dart` 见下一条
 - `port_forward_panel.dart` — 「转发」页（规则列表 + 新建 / 编辑弹窗），桌面与移动端共用
 - `jump_host_field.dart` — 跳板机下拉（桌面弹窗与移动端编辑页共用）
+- `overview_metrics.dart` — 概览页的「服务器负载」分区（系统信息 + CPU / 内存 / 磁盘 / 网络四张卡片）。图表是自绘 `CustomPainter`（迷你折线 + 磁盘环形），不引图表库；数据来自会话层的 `TerminalSession.monitor`，分区只负责按可见性起停采样：`TabVisibilityScope`（网页 `tab_visibility.dart`，桌面 `_DetailTabView` 与移动端 `_TabActivity` 提供）+ `AppLifecycleListener`（前后台）+ `ModalRoute.isCurrent`（被其他路由盖住）。桌面与移动端共用同一个 `OverviewTab`，两端只有列数不同（宽度 ≥900 四列、≥520 两列、否则单列）
 - `sftp_browser.dart` — 库入口，组件按区域拆在同目录的 `sftp_browser_*.dart` part 文件中，外部只可见 `SftpTab`。首屏等待态（`sftp_browser_list.dart` 的 `_LoadingState` 与状态栏）只在 `controller.isLoading || (controller.isRefreshing && !controller.hasLoaded)` 时出现，文案共用 `sftpOpening`：打开通道 / 读家目录 / 失败后重试期间都不许画成空态或报「0 项」，那几处此前被读成「目录是空的」
 - `settings_controls.dart` — 设置面板共用件（分组卡片 `SettingsSection` / `SettingsCard` / 设置行 `SettingsRow` / `SettingsIconButton`、各设置控件，以及四个分区的正文 `AppearanceSettingsSection` / `TerminalSettingsSection` / `LanguageSettingsSection` / `ConnectionSettingsSection`，外加「更新」分区的 `UpdateSettingsRow` 与红点 `UpdateAvailableDot`），桌面设置弹窗与移动端设置 Tab 共用同一套，两端观感必须一致，只差配色选择器的形态（宽屏色卡平铺 / 窄屏下拉）
 - `host_form.dart` — 主机表单共用件（`HostFormController` 持有输入框、校验与保存时构造 `SshServer`，`HostFormFields` 是字段列，`AuthMethodSelector` 是认证方式三段选择器），桌面编辑弹窗与移动端编辑页共用——两端外壳不同（弹窗 / 整页），字段、校验与主机构造只此一份。**表单里没有「粘贴元数据」入口**（两端都没有，`HostFormDensity` 只管间距 / 字号 / 备注行数 / 输入框有没有「下一项」动作）：主机文本（`key: value` 那种）只在「导入主机」里解析（`host_transfer.dart` → `parseHostsText`），表单逐格输入——此前桌面去掉、移动端保留，后来两端统一去掉，别只在一端加回来。构造 `SshServer` 时**必须显式带上 `forwards` 与 `jumpServerId`**（见 `lib/ssh/AGENTS.md` 的「端口转发」「跳板机」）
@@ -26,6 +27,7 @@
 - `session_log_dialog.dart` — 会话日志查看器（纯文本快照，复制与保存出自同一份），桌面与移动端都以弹窗呈现
 - `session_menu.dart` — 多会话时点详情头部状态胶囊弹出的会话切换浮层
 - `session_switch_flash.dart` — 切换会话后终端顶部短暂浮出「会话 N · 远端标题」的提示条（约 1.4 秒淡出）；整层 `IgnorePointer`、不占布局高度，PTY 不因它重排。单会话主机不提示
+- `tab_visibility.dart` — 详情 Tab 可见性的共享 InheritedWidget：Tab 内容常驻保活，概览的负载采样不能靠 initState / dispose 判断在不在屏幕上，由 Tab 外壳往下传「当前可见吗」
 - `status_badges.dart` — 主机状态圆点与徽章，颜色一律取自 `theme.dart` 的语义色
 - `jump_host_field.dart` — 跳板机下拉（`jumpHostCandidates` 负责过滤掉自己与成环的候选），桌面弹窗与移动端编辑页共用
 - `window_caption.dart` — Windows / Linux 的自绘窗口标题条（原生标题栏已被隐藏），高度 `kWindowCaptionHeight` 同时是侧边栏头部与内容区顶部的对齐基准

@@ -13,6 +13,7 @@ import '../ssh/terminal_session.dart';
 import '../ssh/terminal_view.dart';
 import '../store.dart';
 import '../theme.dart';
+import 'overview_metrics.dart';
 import 'port_forward_panel.dart';
 import 'session_idle_view.dart';
 import 'session_menu.dart';
@@ -20,6 +21,7 @@ import 'session_selection.dart';
 import 'session_switch_flash.dart';
 import 'sftp_browser.dart';
 import 'status_badges.dart';
+import 'tab_visibility.dart';
 import 'window_caption.dart';
 import 'confirm_dialog.dart';
 
@@ -318,6 +320,7 @@ class _ServerDetailState extends State<_ServerDetail>
       children: [
         OverviewTab(
           server: server,
+          session: session,
           // 跳板机存的是 id，概览要给人看的名字；那台主机已被删时名字为空，
           // 卡片退回显示 id，让用户看得出这条配置指着的东西不在了。
           jumpHostName: widget.store.byId(server.jumpServerId)?.name,
@@ -694,7 +697,7 @@ class _DetailTabView extends StatelessWidget {
             maintainSize: true,
             maintainState: true,
             maintainAnimation: true,
-            child: children[i],
+            child: TabVisibilityScope(visible: i == index, child: children[i]),
           ),
       ],
     );
@@ -725,9 +728,17 @@ class _TagChip extends StatelessWidget {
 }
 
 class OverviewTab extends StatelessWidget {
-  const OverviewTab({super.key, required this.server, this.jumpHostName});
+  const OverviewTab({
+    super.key,
+    required this.server,
+    this.jumpHostName,
+    this.session,
+  });
 
   final SshServer server;
+
+  /// 当前会话；为空（或尚未连上）时负载分区只给连接提示。
+  final TerminalSession? session;
 
   /// 跳板机的主机名，由调用方从 store 查好传进来；为空时退回显示 id。
   final String? jumpHostName;
@@ -833,6 +844,8 @@ class OverviewTab extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 20),
+          ServerLoadSection(server: server, session: session),
         ],
       ),
     );

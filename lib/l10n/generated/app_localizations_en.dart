@@ -1393,4 +1393,97 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get keepAliveNotificationBody =>
       'Holding the connection open in the background';
+
+  @override
+  String get serverLoad => 'Server load';
+
+  @override
+  String serverLoadLive(int seconds) {
+    return 'Live · every ${seconds}s';
+  }
+
+  @override
+  String get serverLoadLoading => 'Sampling…';
+
+  @override
+  String get serverLoadIdleHint =>
+      'Connect to this host to see live CPU, memory, disk and network load.';
+
+  @override
+  String get serverLoadUnsupported =>
+      'This host doesn\'t expose system metrics.';
+
+  @override
+  String get serverLoadFailed => 'Failed to read server load';
+
+  @override
+  String get serverLoadRetry => 'Retry';
+
+  @override
+  String get systemInfo => 'System';
+
+  @override
+  String get systemHostname => 'Hostname';
+
+  @override
+  String get systemOs => 'OS';
+
+  @override
+  String get systemKernel => 'Kernel';
+
+  @override
+  String get systemArch => 'Architecture';
+
+  @override
+  String get systemUptime => 'Uptime';
+
+  @override
+  String get systemLoadAverage => 'Load average';
+
+  @override
+  String get systemCpuCores => 'CPU cores';
+
+  @override
+  String get metricCpu => 'CPU';
+
+  @override
+  String get metricMemory => 'Memory';
+
+  @override
+  String get metricDisk => 'Disk';
+
+  @override
+  String get metricNetwork => 'Network';
+
+  @override
+  String get metricWaiting => 'Waiting for samples…';
+
+  @override
+  String metricCores(int count) {
+    return '$count cores';
+  }
+
+  @override
+  String uptimeDaysHours(int days, int hours) {
+    return '${days}d ${hours}h';
+  }
+
+  @override
+  String uptimeHoursMinutes(int hours, int minutes) {
+    return '${hours}h ${minutes}m';
+  }
+
+  @override
+  String uptimeMinutes(int minutes) {
+    return '${minutes}m';
+  }
+
+  @override
+  String get metricUsed => 'Used';
+
+  @override
+  String get metricTotal => 'Total';
+
+  @override
+  String get serverLoadRefresh => 'Refresh';
 }

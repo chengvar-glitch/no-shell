@@ -10,6 +10,7 @@ import 'jump_host.dart';
 import 'local_files.dart';
 import 'port_forward_runtime.dart';
 import 'sftp_browser.dart';
+import 'server_monitor.dart';
 import 'session_log.dart';
 import 'ssh_agent.dart';
 import 'ssh_credentials.dart';
@@ -105,6 +106,13 @@ final class TerminalSession extends ChangeNotifier {
   /// 会话日志：终端画面与回滚的纯文本快照（见 [SessionLog]）。
   /// 惰性构造，无状态——每次读取都现从缓冲区取一份。
   late final SessionLog sessionLog = SessionLog(terminal);
+
+  /// 概览页的服务器负载采样器：复用本会话已认证的连接，在独立 exec 通道上
+  /// 轮询系统指标（不写进终端缓冲区）。采样由概览页显式 start / stop，
+  /// 没人看的时候不产生任何远端命令。
+  late final ServerMonitor monitor = ServerMonitor(
+    runCommand: _transport.runCommand,
+  );
 
   /// 远端通过 OSC 0 / 2 设置的窗口标题（shell 与 tmux 常发
   /// `user@host: ~/dir` 这种串）。xterm 只提供回调、自己不存字段，
@@ -288,6 +296,7 @@ final class TerminalSession extends ChangeNotifier {
     _disposed = true;
     _sftp?.dispose();
     _sftp = null;
+    monitor.dispose();
     forwards.dispose();
     // 先摘掉标题回调再拆传输 / 通知器：传输关闭时可能还有一笔迟到的输出
     // 落进缓冲区（内含 OSC 标题），那时往已 dispose 的通知器里写值会断言失败。
