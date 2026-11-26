@@ -212,8 +212,14 @@ class _HomePageState extends State<HomePage> {
     if (session != null) widget.sessions.activate(session);
   }
 
-  /// ⌘F / Ctrl+F：跳到侧边栏搜索框。侧边栏收着就先展开再聚焦；
-  /// 聚焦安排在帧回调里，因为展开动画的第一帧搜索框还没挂上焦点节点。
+  /// ⌘F / Ctrl+F：跳到侧边栏搜索框。侧边栏收着就先展开再聚焦。
+  ///
+  /// 聚焦**当场**请求，不要塞进 `addPostFrameCallback`：那个回调只在下一次
+  /// 帧的尾部执行，而它自己并不 scheduleFrame——应用闲下来（没有动画、没有
+  /// 流式输出）时那一帧根本不会来，快捷键按下去就像没反应（macOS 上实测：
+  /// 动作确实触发了，焦点却一直没动）。搜索框在侧边栏收起时也挂在树上
+  /// （`_SplitPane` 只把宽度动画到 0，不拆子树），不必等重建。
+  ///
   /// 终端聚焦时按下的 ⌘F 不会走到这里——终端自己的键位表是更近的
   /// 祖先，Apple 平台它先接走（终端内查找）；非 Apple 平台终端查找是
   /// Ctrl+Shift+F，Ctrl+F 始终归侧边栏。
@@ -221,9 +227,7 @@ class _HomePageState extends State<HomePage> {
     if (_sidebarCollapsed) {
       setState(() => _layout.sidebarCollapsed = false);
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _searchFocus.requestFocus();
-    });
+    _searchFocus.requestFocus();
   }
 
   Future<void> _importHosts() => importHostsFlow(
