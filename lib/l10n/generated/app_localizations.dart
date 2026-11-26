@@ -2359,6 +2359,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Holding the connection open in the background'**
   String get keepAliveNotificationBody;
+
+  /// No description provided for @serverLoad.
+  ///
+  /// In en, this message translates to:
+  /// **'Server load'**
+  String get serverLoad;
+
+  /// No description provided for @serverLoadLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Live · every {seconds}s'**
+  String serverLoadLive(int seconds);
+
+  /// No description provided for @serverLoadLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Sampling…'**
+  String get serverLoadLoading;
+
+  /// No description provided for @serverLoadIdleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to this host to see live CPU, memory, disk and network load.'**
+  String get serverLoadIdleHint;
+
+  /// No description provided for @serverLoadUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This host doesn\'t expose system metrics.'**
+  String get serverLoadUnsupported;
+
+  /// No description provided for @serverLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to read server load'**
+  String get serverLoadFailed;
+
+  /// No description provided for @serverLoadRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get serverLoadRetry;
+
+  /// No description provided for @systemInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get systemInfo;
+
+  /// No description provided for @systemHostname.
+  ///
+  /// In en, this message translates to:
+  /// **'Hostname'**
+  String get systemHostname;
+
+  /// No description provided for @systemOs.
+  ///
+  /// In en, this message translates to:
+  /// **'OS'**
+  String get systemOs;
+
+  /// No description provided for @systemKernel.
+  ///
+  /// In en, this message translates to:
+  /// **'Kernel'**
+  String get systemKernel;
+
+  /// No description provided for @systemArch.
+  ///
+  /// In en, this message translates to:
+  /// **'Architecture'**
+  String get systemArch;
+
+  /// No description provided for @systemUptime.
+  ///
+  /// In en, this message translates to:
+  /// **'Uptime'**
+  String get systemUptime;
+
+  /// No description provided for @systemLoadAverage.
+  ///
+  /// In en, this message translates to:
+  /// **'Load average'**
+  String get systemLoadAverage;
+
+  /// No description provided for @systemCpuCores.
+  ///
+  /// In en, this message translates to:
+  /// **'CPU cores'**
+  String get systemCpuCores;
+
+  /// No description provided for @metricCpu.
+  ///
+  /// In en, this message translates to:
+  /// **'CPU'**
+  String get metricCpu;
+
+  /// No description provided for @metricMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory'**
+  String get metricMemory;
+
+  /// No description provided for @metricDisk.
+  ///
+  /// In en, this message translates to:
+  /// **'Disk'**
+  String get metricDisk;
+
+  /// No description provided for @metricNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Network'**
+  String get metricNetwork;
+
+  /// No description provided for @metricWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for samples…'**
+  String get metricWaiting;
+
+  /// No description provided for @metricCores.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} cores'**
+  String metricCores(int count);
+
+  /// No description provided for @uptimeDaysHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{days}d {hours}h'**
+  String uptimeDaysHours(int days, int hours);
+
+  /// No description provided for @uptimeHoursMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours}h {minutes}m'**
+  String uptimeHoursMinutes(int hours, int minutes);
+
+  /// No description provided for @uptimeMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes}m'**
+  String uptimeMinutes(int minutes);
+
+  /// No description provided for @metricUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Used'**
+  String get metricUsed;
+
+  /// No description provided for @metricTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Total'**
+  String get metricTotal;
+
+  /// No description provided for @serverLoadRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get serverLoadRefresh;
 }
 
 class _AppLocalizationsDelegate

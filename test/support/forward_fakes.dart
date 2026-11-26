@@ -34,6 +34,13 @@ mixin NoForwardingTransport implements SshTransport {
     ForwardErrorKind.notConnected,
     'fake transport has no forwarding',
   );
+
+  /// 概览的负载采集会经这里发命令；假传输默认按「远端没有这项能力」拒绝，
+  /// 概览据此展示「不支持指标采集」，不再无限重试。
+  /// 需要真数据的用例在具体假实现里覆盖它。
+  @override
+  Future<String> runCommand(String command) async =>
+      throw UnsupportedError('fake transport has no remote command');
 }
 
 /// 内存里的双向通道：测试自己喂入站字节，也能读到对面写出去的字节。

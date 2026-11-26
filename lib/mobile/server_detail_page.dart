@@ -16,6 +16,7 @@ import '../widgets/session_menu.dart';
 import '../widgets/session_selection.dart';
 import '../widgets/sftp_browser.dart' show SftpTab;
 import '../widgets/status_badges.dart';
+import '../widgets/tab_visibility.dart';
 import 'server_edit_page.dart';
 
 /// 移动端主机详情页：概览 / 终端 / SFTP / 转发四个 Tab，
@@ -239,14 +240,18 @@ class _ServerDetailPageState extends State<ServerDetailPage>
                     physics: const NeverScrollableScrollPhysics(),
                     // 保活四个 Tab：切走不再 dispose，切回终端无需重建 xterm 视图。
                     children: [
-                      _KeepAlive(
-                        child: OverviewTab(
-                          server: server,
-                          // 跳板机存的是 id，概览要给人看的名字；那台主机已被删时
-                          // 名字为空，卡片退回显示 id，让用户看出引用已经失效。
-                          jumpHostName: widget.store
-                              .byId(server.jumpServerId)
-                              ?.name,
+                      _TabActivity(
+                        index: 0,
+                        child: _KeepAlive(
+                          child: OverviewTab(
+                            server: server,
+                            session: session,
+                            // 跳板机存的是 id，概览要给人看的名字；那台主机已被删时
+                            // 名字为空，卡片退回显示 id，让用户看出引用已经失效。
+                            jumpHostName: widget.store
+                                .byId(server.jumpServerId)
+                                ?.name,
+                          ),
                         ),
                       ),
                       _KeepAlive(
@@ -311,5 +316,53 @@ class _KeepAliveState extends State<_KeepAlive>
   Widget build(BuildContext context) {
     super.build(context);
     return widget.child;
+  }
+}
+
+/// 把「当前 Tab 是否可见」经 [TabVisibilityScope] 传给概览页。
+///
+/// 移动端用的是 [TabBarView] + [DefaultTabController]（页面按索引切换、
+/// 四个 Tab 都保活），所以这里监听控制器自己算可见性：概览页的负载采样
+/// 要跟着 Tab 起停，没人看的时候不该继续去服务器跑命令。
+class _TabActivity extends StatefulWidget {
+  const _TabActivity({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<_TabActivity> createState() => _TabActivityState();
+}
+
+class _TabActivityState extends State<_TabActivity> {
+  TabController? _controller;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = DefaultTabController.maybeOf(context);
+    if (!identical(controller, _controller)) {
+      _controller?.removeListener(_onTabChanged);
+      _controller = controller;
+      controller?.addListener(_onTabChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TabVisibilityScope(
+      visible: _controller?.index == widget.index,
+      child: widget.child,
+    );
   }
 }

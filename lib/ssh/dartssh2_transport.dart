@@ -375,6 +375,18 @@ final class DartSsh2Transport implements SshTransport {
   }
 
   @override
+  Future<String> runCommand(String command) async {
+    final client = _client;
+    if (client == null || _disposed) {
+      throw StateError('SSH connection is not established');
+    }
+    // stderr 不要：采集脚本用 2>/dev/null 自己吞掉了预期内的错误，
+    // 剩下的 stderr 只可能是环境噪声，混进 stdout 反而会污染解析。
+    final result = await client.runWithResult(command, stderr: false);
+    return utf8.decode(result.stdout, allowMalformed: true);
+  }
+
+  @override
   Future<SftpFileSystem> openSftp() async {
     final client = _requireClient();
     try {

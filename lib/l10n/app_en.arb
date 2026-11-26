@@ -850,5 +850,73 @@
     }
   },
   "keepAliveNotificationTitle": "SSH session kept alive",
-  "keepAliveNotificationBody": "Holding the connection open in the background"
+  "keepAliveNotificationBody": "Holding the connection open in the background",
+  "serverLoad": "Server load",
+  "serverLoadLive": "Live · every {seconds}s",
+  "@serverLoadLive": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "serverLoadLoading": "Sampling…",
+  "serverLoadIdleHint": "Connect to this host to see live CPU, memory, disk and network load.",
+  "serverLoadUnsupported": "This host doesn't expose system metrics.",
+  "serverLoadFailed": "Failed to read server load",
+  "serverLoadRetry": "Retry",
+  "systemInfo": "System",
+  "systemHostname": "Hostname",
+  "systemOs": "OS",
+  "systemKernel": "Kernel",
+  "systemArch": "Architecture",
+  "systemUptime": "Uptime",
+  "systemLoadAverage": "Load average",
+  "systemCpuCores": "CPU cores",
+  "metricCpu": "CPU",
+  "metricMemory": "Memory",
+  "metricDisk": "Disk",
+  "metricNetwork": "Network",
+  "metricWaiting": "Waiting for samples…",
+  "metricCores": "{count} cores",
+  "@metricCores": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "uptimeDaysHours": "{days}d {hours}h",
+  "@uptimeDaysHours": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      },
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "uptimeHoursMinutes": "{hours}h {minutes}m",
+  "@uptimeHoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "uptimeMinutes": "{minutes}m",
+  "@uptimeMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "metricUsed": "Used",
+  "metricTotal": "Total",
+  "serverLoadRefresh": "Refresh"
 }
