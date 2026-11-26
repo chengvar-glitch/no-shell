@@ -32,8 +32,17 @@ void main() {
 
   setUp(AppTheme.resetCache);
 
-  /// 按一次 Ctrl+K：修饰键要显式按下再松开（sendKeyEvent 的 platform 参数
-  /// 只影响字符模拟，不会自动带 Ctrl）。
+  /// 按一次 ⌘K：修饰键要显式按下再松开（sendKeyEvent 的 platform 参数只
+  /// 影响字符模拟，不会自动带 ⌘）。macOS 变体用它，其余用例走 [pressCtrl]。
+  Future<void> pressMeta(WidgetTester tester, LogicalKeyboardKey key) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyDownEvent(key);
+    await tester.sendKeyUpEvent(key);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pump();
+  }
+
+  /// 按一次 Ctrl+K：同样要显式按下 / 松开修饰键。
   Future<void> pressCtrl(WidgetTester tester, LogicalKeyboardKey key) async {
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyDownEvent(key);
@@ -118,6 +127,22 @@ void main() {
     await tester.pump();
     expect(find.text('db-primary'), findsOneWidget);
   });
+
+  testWidgets('macOS ⌘F 聚焦侧边栏搜索框（应用空闲、没有待处理帧时也要立即生效）', (tester) async {
+    await pumpDesktop(tester);
+    // 空闲态：没有动画、没有流式输出，也就没有待处理帧。聚焦此前被塞进
+    // addPostFrameCallback，而那个回调不会自己 scheduleFrame——这一帧永远
+    // 不会来，快捷键按下去焦点始终不动（macOS 上实测）。
+    expect(tester.binding.hasScheduledFrame, isFalse);
+
+    await pressMeta(tester, LogicalKeyboardKey.keyF);
+    await tester.pumpAndSettle();
+    tester.testTextInput.enterText('db');
+    await tester.pump();
+
+    expect(find.text('db-primary'), findsOneWidget);
+    expect(find.text('web-prod-01'), findsNothing);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('底部设置行带键位标注，键盘按钮打开帮助弹窗', (tester) async {
     await pumpDesktop(tester);
