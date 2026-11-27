@@ -2402,12 +2402,6 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get serverLoadRetry;
 
-  /// No description provided for @systemInfo.
-  ///
-  /// In en, this message translates to:
-  /// **'System'**
-  String get systemInfo;
-
   /// No description provided for @systemHostname.
   ///
   /// In en, this message translates to:
@@ -2419,12 +2413,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'OS'**
   String get systemOs;
-
-  /// No description provided for @systemKernel.
-  ///
-  /// In en, this message translates to:
-  /// **'Kernel'**
-  String get systemKernel;
 
   /// No description provided for @systemArch.
   ///
@@ -2521,6 +2509,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Refresh'**
   String get serverLoadRefresh;
+
+  /// No description provided for @basicInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Basic info'**
+  String get basicInfo;
 }
 
 class _AppLocalizationsDelegate

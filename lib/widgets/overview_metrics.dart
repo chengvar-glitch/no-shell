@@ -6,6 +6,7 @@ import '../ssh/server_metrics.dart';
 import '../ssh/server_monitor.dart';
 import '../ssh/terminal_session.dart';
 import '../theme.dart';
+import 'overview_layout.dart';
 import 'tab_visibility.dart';
 
 /// 概览页的「服务器负载」分区：系统信息 + CPU / 内存 / 磁盘 / 网络图表。
@@ -112,14 +113,8 @@ class _ServerLoadSectionState extends State<ServerLoadSection> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SectionHeader(
-            theme: theme,
-            l10n: l10n,
-            status: _SectionStatus.idle,
-            interval: null,
-            onRefresh: null,
-          ),
-          const SizedBox(height: 10),
+          OverviewSectionHeader(label: l10n.serverLoad),
+          const SizedBox(height: kOverviewHeaderGap),
           _NoticePanel(
             theme: theme,
             icon: Icons.monitor_heart_outlined,
@@ -137,23 +132,26 @@ class _ServerLoadSectionState extends State<ServerLoadSection> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _SectionHeader(
-              theme: theme,
-              l10n: l10n,
-              // 标题行的状态只说「现在在做什么」；采样中与「失败且没有数据」
-              // 由下面的面板说明，不在这里重复一遍。
-              status: switch (status) {
-                ServerMonitorStatus.unsupported => _SectionStatus.unsupported,
-                ServerMonitorStatus.failed when hasMetrics =>
-                  _SectionStatus.failed,
-                _ => hasMetrics ? _SectionStatus.live : _SectionStatus.idle,
-              },
-              interval: monitor.interval,
-              onRefresh: status == ServerMonitorStatus.unsupported
-                  ? null
-                  : () => monitor.refresh(),
+            OverviewSectionHeader(
+              label: l10n.serverLoad,
+              trailing: _LoadHeaderTrailing(
+                theme: theme,
+                l10n: l10n,
+                // 标题行的状态只说「现在在做什么」；采样中与「失败且没有数据」
+                // 由下面的面板说明，不在这里重复一遍。
+                status: switch (status) {
+                  ServerMonitorStatus.unsupported => _SectionStatus.unsupported,
+                  ServerMonitorStatus.failed when hasMetrics =>
+                    _SectionStatus.failed,
+                  _ => hasMetrics ? _SectionStatus.live : _SectionStatus.idle,
+                },
+                interval: monitor.interval,
+                onRefresh: status == ServerMonitorStatus.unsupported
+                    ? null
+                    : () => monitor.refresh(),
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: kOverviewHeaderGap),
             if (status == ServerMonitorStatus.unsupported)
               _NoticePanel(
                 theme: theme,
@@ -191,8 +189,12 @@ class _ServerLoadSectionState extends State<ServerLoadSection> {
 
 enum _SectionStatus { idle, live, failed, unsupported }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
+/// 负载分区标题右侧的状态与刷新：状态文字 + 指示点 + 刷新按钮。
+///
+/// 都收在右侧、与面板右缘对齐；标题行高度由 [OverviewSectionHeader] 统一，
+/// 有没有刷新按钮都不会把下面的面板顶下去一截。
+class _LoadHeaderTrailing extends StatelessWidget {
+  const _LoadHeaderTrailing({
     required this.theme,
     required this.l10n,
     required this.status,
@@ -220,17 +222,8 @@ class _SectionHeader extends StatelessWidget {
       _SectionStatus.idle => null,
     };
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          l10n.serverLoad,
-          style: TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
-            color: theme.secondaryText,
-          ),
-        ),
-        const SizedBox(width: 10),
         if (statusText != null) ...[
           Container(
             width: 6,
@@ -238,7 +231,8 @@ class _SectionHeader extends StatelessWidget {
             decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
-          Flexible(
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
             child: Text(
               statusText,
               maxLines: 1,
@@ -246,16 +240,16 @@ class _SectionHeader extends StatelessWidget {
               style: TextStyle(fontSize: 11, color: theme.secondaryText),
             ),
           ),
+          const SizedBox(width: 8),
         ],
-        const Spacer(),
         if (onRefresh != null)
           IconButton(
             tooltip: l10n.serverLoadRefresh,
             onPressed: onRefresh,
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-            iconSize: 16,
+            constraints: const BoxConstraints.tightFor(width: 22, height: 22),
+            iconSize: 15,
             icon: Icon(Icons.refresh_rounded, color: theme.secondaryText),
           ),
       ],
@@ -299,14 +293,8 @@ class _NoticePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      decoration: BoxDecoration(
-        color: theme.panelBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.hairline),
-      ),
+    return OverviewPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       child: Row(
         children: [
           Icon(icon, size: 18, color: theme.secondaryText),
@@ -427,13 +415,8 @@ class _MetricsBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _SystemInfoCard(
-          theme: theme,
-          l10n: l10n,
-          server: server,
-          metrics: metrics,
-        ),
-        const SizedBox(height: 12),
+        _SystemInfoPanel(l10n: l10n, server: server, metrics: metrics),
+        const SizedBox(height: kOverviewGridGap),
         LayoutBuilder(
           builder: (context, constraints) {
             final columns = constraints.maxWidth >= 900
@@ -441,7 +424,7 @@ class _MetricsBody extends StatelessWidget {
                 : constraints.maxWidth >= 520
                 ? 2
                 : 1;
-            const gap = 12.0;
+            const gap = kOverviewGridGap;
             final width =
                 (constraints.maxWidth - gap * (columns - 1)) / columns;
             return Wrap(
@@ -481,15 +464,14 @@ class _MetricsBody extends StatelessWidget {
   }
 }
 
-class _SystemInfoCard extends StatelessWidget {
-  const _SystemInfoCard({
-    required this.theme,
+/// 系统信息面板：与「基础信息」同一套标签 / 值网格，只是数据来自远端。
+class _SystemInfoPanel extends StatelessWidget {
+  const _SystemInfoPanel({
     required this.l10n,
     required this.server,
     required this.metrics,
   });
 
-  final ThemeData theme;
   final AppLocalizations l10n;
   final SshServer server;
   final ServerMetrics metrics;
@@ -497,102 +479,38 @@ class _SystemInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final system = [?metrics.osName, ?metrics.kernel].join(' ');
-    final load = _loadText(metrics);
-    final items = <(String, String?)>[
-      (l10n.systemHostname, metrics.hostname ?? server.host),
-      (l10n.systemOs, system.isEmpty ? null : system),
-      (l10n.systemArch, metrics.arch),
-      (
-        l10n.systemUptime,
-        metrics.uptime == null ? null : _formatUptime(l10n, metrics.uptime!),
-      ),
-      (l10n.systemLoadAverage, load),
-      (
-        l10n.systemCpuCores,
-        metrics.cpuCores == null ? null : '${metrics.cpuCores}',
-      ),
-    ];
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
-      decoration: BoxDecoration(
-        color: theme.panelBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.hairline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.systemInfo,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.4,
-              color: theme.secondaryText,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 26,
-            runSpacing: 11,
-            children: [
-              for (final item in items)
-                if (item.$2 != null && item.$2!.isNotEmpty)
-                  _InfoItem(theme: theme, label: item.$1, value: item.$2!),
-            ],
-          ),
-        ],
-      ),
+    return OverviewInfoPanel(
+      entries: [
+        OverviewInfoEntry(
+          label: l10n.systemHostname,
+          value: metrics.hostname ?? server.host,
+        ),
+        OverviewInfoEntry(label: l10n.systemOs, value: system),
+        OverviewInfoEntry(label: l10n.systemArch, value: metrics.arch ?? ''),
+        OverviewInfoEntry(
+          label: l10n.systemUptime,
+          value: metrics.uptime == null
+              ? ''
+              : _formatUptime(l10n, metrics.uptime!),
+        ),
+        OverviewInfoEntry(
+          label: l10n.systemLoadAverage,
+          value: _loadText(metrics),
+        ),
+        OverviewInfoEntry(
+          label: l10n.systemCpuCores,
+          value: metrics.cpuCores == null ? '' : '${metrics.cpuCores}',
+        ),
+      ],
     );
   }
 
-  static String? _loadText(ServerMetrics metrics) {
+  static String _loadText(ServerMetrics metrics) {
     final values = [metrics.load1, metrics.load5, metrics.load15];
-    if (values.every((value) => value == null)) return null;
+    if (values.every((value) => value == null)) return '';
     return values
         .map((value) => value == null ? '-' : value.toStringAsFixed(2))
         .join('  ');
-  }
-}
-
-class _InfoItem extends StatelessWidget {
-  const _InfoItem({
-    required this.theme,
-    required this.label,
-    required this.value,
-  });
-
-  final ThemeData theme;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 240),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(fontSize: 10.5, color: theme.secondaryText),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -618,13 +536,7 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
-      decoration: BoxDecoration(
-        color: theme.panelBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.hairline),
-      ),
+    return OverviewPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -662,39 +574,44 @@ class _MetricCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 7),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                value ?? '--',
-                style: TextStyle(
-                  fontSize: 21,
-                  height: 1.1,
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurface,
+          // 数值行高度固定：四张卡里有的带副说明、有的不带，行高跟着文字
+          // 自然撑开会让并排的卡片底边参差（网络卡尤其明显）。
+          SizedBox(
+            height: 26,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  value ?? '--',
+                  style: TextStyle(
+                    fontSize: 21,
+                    height: 1.1,
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface,
+                  ),
                 ),
-              ),
-              if (detail != null) ...[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(
-                      detail!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: theme.secondaryText,
+                if (detail != null) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        detail!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: theme.secondaryText,
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 9),
           SizedBox(height: 54, child: chart),
         ],
       ),

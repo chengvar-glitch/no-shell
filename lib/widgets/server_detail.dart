@@ -13,6 +13,7 @@ import '../ssh/terminal_session.dart';
 import '../ssh/terminal_view.dart';
 import '../store.dart';
 import '../theme.dart';
+import 'overview_layout.dart';
 import 'overview_metrics.dart';
 import 'port_forward_panel.dart';
 import 'session_idle_view.dart';
@@ -750,90 +751,51 @@ class OverviewTab extends StatelessWidget {
     // 跳板机已被删除时名字查不到，卡片退回显示 id：让用户看得出这条配置
     // 指着的东西不在了，而不是一片空白。
     final jumpId = server.jumpServerId;
+    final entries = <OverviewInfoEntry>[
+      OverviewInfoEntry(
+        label: l10n.hostAddress,
+        value: server.host,
+        trailing: IconButton(
+          tooltip: l10n.copyAddress,
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(width: 24, height: 24),
+          iconSize: 14,
+          icon: Icon(Icons.copy_rounded, size: 14, color: theme.secondaryText),
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: server.host));
+            showToast(context, l10n.copied(server.host));
+          },
+        ),
+      ),
+      OverviewInfoEntry(label: l10n.port, value: '${server.port}'),
+      OverviewInfoEntry(label: l10n.username, value: server.username),
+      OverviewInfoEntry(
+        label: l10n.authMethod,
+        value: authMethodLabel(l10n, server.authMethod),
+      ),
+      OverviewInfoEntry(
+        label: l10n.lastConnected,
+        value: formatRelativeTime(l10n, server.lastConnectedAt),
+      ),
+      OverviewInfoEntry(label: l10n.group, value: server.group),
+      // 直连的主机不写一行「不使用」：那是噪音，只有真配了跳板机时才多这一格。
+      if (jumpId != null)
+        OverviewInfoEntry(label: l10n.jumpHost, value: jumpHostName ?? jumpId),
+    ];
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _InfoCard(
-                theme: theme,
-                label: l10n.hostAddress,
-                value: server.host,
-                trailing: IconButton(
-                  tooltip: l10n.copyAddress,
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 26,
-                    height: 26,
-                  ),
-                  iconSize: 14,
-                  icon: Icon(
-                    Icons.copy_rounded,
-                    size: 14,
-                    color: theme.secondaryText,
-                  ),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: server.host));
-                    showToast(context, l10n.copied(server.host));
-                  },
-                ),
-              ),
-              _InfoCard(
-                theme: theme,
-                label: l10n.port,
-                value: '${server.port}',
-              ),
-              _InfoCard(
-                theme: theme,
-                label: l10n.username,
-                value: server.username,
-              ),
-              _InfoCard(
-                theme: theme,
-                label: l10n.authMethod,
-                value: authMethodLabel(l10n, server.authMethod),
-              ),
-              _InfoCard(
-                theme: theme,
-                label: l10n.lastConnected,
-                value: formatRelativeTime(l10n, server.lastConnectedAt),
-              ),
-              _InfoCard(theme: theme, label: l10n.group, value: server.group),
-              // 直连的主机不摆一张写着「不使用」的卡片：那是噪音，
-              // 只有真配了跳板机时才多出这张。
-              if (jumpId != null)
-                _InfoCard(
-                  theme: theme,
-                  label: l10n.jumpHost,
-                  value: jumpHostName ?? jumpId,
-                ),
-            ],
-          ),
+          OverviewSectionHeader(label: l10n.basicInfo),
+          const SizedBox(height: kOverviewHeaderGap),
+          OverviewInfoPanel(entries: entries),
           if (server.notes != null) ...[
-            const SizedBox(height: 18),
-            Text(
-              l10n.notes,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.4,
-                color: theme.secondaryText,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: theme.panelBackground,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.hairline),
-              ),
+            const SizedBox(height: kOverviewSectionGap),
+            OverviewSectionHeader(label: l10n.notes),
+            const SizedBox(height: kOverviewHeaderGap),
+            OverviewPanel(
               child: Text(
                 server.notes!,
                 style: TextStyle(
@@ -844,68 +806,8 @@ class OverviewTab extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: kOverviewSectionGap),
           ServerLoadSection(server: server, session: session),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({
-    required this.theme,
-    required this.label,
-    required this.value,
-    this.trailing,
-  });
-
-  final ThemeData theme;
-  final String label;
-  final String value;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 218,
-      padding: const EdgeInsets.fromLTRB(14, 11, 8, 11),
-      decoration: BoxDecoration(
-        color: theme.panelBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.hairline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.3,
-              color: theme.secondaryText,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-              ),
-              ?trailing,
-            ],
-          ),
         ],
       ),
     );

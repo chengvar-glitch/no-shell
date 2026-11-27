@@ -1420,16 +1420,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverLoadRetry => 'Retry';
 
   @override
-  String get systemInfo => 'System';
-
-  @override
   String get systemHostname => 'Hostname';
 
   @override
   String get systemOs => 'OS';
-
-  @override
-  String get systemKernel => 'Kernel';
 
   @override
   String get systemArch => 'Architecture';
@@ -1486,4 +1480,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverLoadRefresh => 'Refresh';
+
+  @override
+  String get basicInfo => 'Basic info';
 }
