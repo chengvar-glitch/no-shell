@@ -129,7 +129,7 @@ python3 -m venv /tmp/sftp-venv && /tmp/sftp-venv/bin/pip install asyncssh
 flutter test integration_test/screenshots_test.dart -d macos
 ```
 
-> PNGs are written to `docs/screenshots` relative to the app's working directory; set `SSH_SHOTS_DIR` to an absolute path to send them somewhere else.
+> PNGs are written to `docs/screenshots` relative to the app's working directory; set `SSH_SHOTS_DIR` to an absolute path to send them somewhere else. On macOS the generator captures the native window (`screencapture -l`) so the traffic lights are included; other desktops fall back to a Flutter-layer capture. The raw window PNGs are close to 1 MB each — re-encode them before committing if size matters (the committed ones were optimized with Pillow).
 
 ## Architecture overview
 

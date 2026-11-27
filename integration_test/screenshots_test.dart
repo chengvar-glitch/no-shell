@@ -1,5 +1,6 @@
-// README 截图生成器：驱动真实应用（macOS 窗口、真实字体、真实 SSH 链路），
-// 在渲染层直接导出窗口 PNG。演示链路指向本机一次性 SFTP 服务端
+// README 截图生成器：驱动真实应用（macOS 窗口、真实字体、真实 SSH 链路）。
+// macOS 上直接抓原生窗口，红绿灯一并入镜；其余平台在渲染层导出内容 PNG。
+// 演示链路指向本机一次性 SFTP 服务端
 // （tool/dev_sftp_server.py，仅绑定 127.0.0.1，账号 smoke/smoke）。
 //
 // 运行：先起本地服务端，再执行
@@ -85,6 +86,35 @@ final List<SshServer> demoSeed = [
   ),
 ];
 
+/// 取当前进程主窗口的 CGWindowID，供 [Process] 调 screencapture 抓整窗。
+///
+/// AppKit 的红绿灯画在 Flutter 视图之上，RepaintBoundary 永远拍不到；
+/// 走窗口截屏才能把红绿灯一起带进 README 图。按 owner PID 匹配，
+/// 避免抓到同名的其它实例。
+Future<int?> macosWindowNumber() async {
+  final source =
+      '''
+import CoreGraphics
+let pid = $pid
+let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as! [[String: Any]]
+for window in list {
+  let owner = window[kCGWindowOwnerPID as String] as? Int
+  let layer = window[kCGWindowLayer as String] as? Int
+  if owner == pid, layer == 0, let number = window[kCGWindowNumber as String] as? Int {
+    print(number)
+    break
+  }
+}
+''';
+  try {
+    final result = await Process.run('/usr/bin/swift', ['-e', source]);
+    if (result.exitCode != 0) return null;
+    return int.tryParse((result.stdout as String).trim());
+  } catch (_) {
+    return null;
+  }
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
@@ -143,13 +173,41 @@ void main() {
     Future<void> settle([int ms = 400]) =>
         tester.pump(Duration(milliseconds: ms));
 
-    Future<void> shot(String name) async {
+    // macOS 的红绿灯由 AppKit 画在 Flutter 视图之上，RepaintBoundary 取不到；
+    // 桌面截图改走窗口截屏（screencapture -l），把窗口控件一并带进 README 图。
+    // 非 macOS、取不到窗口号或截屏失败时退回 RepaintBoundary。
+    int? windowNumber;
+    Future<bool> nativeShot(String path) async {
+      if (!Platform.isMacOS) return false;
+      windowNumber ??= await macosWindowNumber();
+      final id = windowNumber;
+      if (id == null) {
+        debugPrint('screencapture: 未取到窗口号，退回 RepaintBoundary');
+        return false;
+      }
+      final result = await Process.run('/usr/sbin/screencapture', [
+        '-x',
+        '-o',
+        '-l',
+        '$id',
+        path,
+      ]);
+      if (result.exitCode != 0) {
+        debugPrint('screencapture 失败：${result.stderr}');
+        return false;
+      }
+      return true;
+    }
+
+    Future<void> shot(String name, {bool native = true}) async {
       await settle();
+      final path = '$shotsDir/$name.png';
+      if (native && await nativeShot(path)) return;
       final boundary =
           shotKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
       final image = await boundary.toImage(pixelRatio: 2);
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      File('$shotsDir/$name.png').writeAsBytesSync(data!.buffer.asUint8List());
+      File(path).writeAsBytesSync(data!.buffer.asUint8List());
     }
 
     // 1. 桌面主界面：选中 web-prod-01 的概览详情。
@@ -274,6 +332,8 @@ void main() {
       ),
     );
     await settle(800);
-    await shot('08-mobile');
+    // 窄屏那张是在 1280 宽的原生窗口里塞了一个 430 宽的子树，
+    // 整窗截图会把窗口其余部分与红绿灯一起拍进来；这里必须按子树截。
+    await shot('08-mobile', native: false);
   });
 }

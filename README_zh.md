@@ -137,7 +137,7 @@ python3 -m venv /tmp/sftp-venv && /tmp/sftp-venv/bin/pip install asyncssh
 flutter test integration_test/screenshots_test.dart -d macos
 ```
 
-> PNG 写入应用工作目录下的 `docs/screenshots`；想让它们落到别处，用 `SSH_SHOTS_DIR` 指定绝对路径。
+> PNG 写入应用工作目录下的 `docs/screenshots`；想让它们落到别处，用 `SSH_SHOTS_DIR` 指定绝对路径。macOS 上生成器抓的是原生窗口（`screencapture -l`），红绿灯会一起入镜；其它桌面平台退回 Flutter 渲染层截取。原始窗口 PNG 每张接近 1 MB，介意体积的话提交前重编码一遍（仓库里这几张是用 Pillow 压过的）。
 
 ## 架构速览
 
