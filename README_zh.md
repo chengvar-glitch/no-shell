@@ -9,7 +9,7 @@
 [![CI](https://github.com/chengvar-glitch/no-shell/actions/workflows/ci.yml/badge.svg)](https://github.com/chengvar-glitch/no-shell/actions/workflows/ci.yml)
 [English](README.md) · **[中文](README_zh.md)**
 
-<img src="docs/screenshots/01-desktop-overview.svg" width="860" alt="NoShell 桌面主界面" />
+<img src="docs/screenshots/01-desktop-overview.png" width="860" alt="NoShell 桌面主界面" />
 
 *桌面端左右分栏：主机分组列表 · 主机概览 · 终端 / SFTP 同屏切换*
 
@@ -34,23 +34,23 @@
 
 ## 界面预览
 
-> 截图由 `integration_test/screenshots_test.dart` 驱动真实应用生成（英文界面），演示链路为本机一次性服务端（仅绑定 127.0.0.1），不含任何真实主机信息；上面两张移动端终端图由 `test/mobile_terminal_shot_test.dart` 渲染（组件测试，因此不含系统状态栏与软键盘）。
+> 截图取自 macOS 版本，由 `integration_test/screenshots_test.dart` 驱动真实应用生成（英文界面），演示链路为本机一次性服务端（仅绑定 127.0.0.1），不含任何真实主机信息；上面两张移动端终端图由 `test/mobile_terminal_shot_test.dart` 渲染（组件测试，因此不含系统状态栏与软键盘）。
 
 | 新建连接 | 连接认证 |
 | --- | --- |
-| <img src="docs/screenshots/02-new-connection.svg" width="420" /> | <img src="docs/screenshots/03-credentials.svg" width="420" /> |
+| <img src="docs/screenshots/02-new-connection.png" width="420" /> | <img src="docs/screenshots/03-credentials.png" width="420" /> |
 
 | 终端 | SFTP 文件浏览 |
 | --- | --- |
-| <img src="docs/screenshots/04-terminal.svg" width="420" /> | <img src="docs/screenshots/05-sftp.svg" width="420" /> |
+| <img src="docs/screenshots/04-terminal.png" width="420" /> | <img src="docs/screenshots/05-sftp.png" width="420" /> |
 
 | 深色主题 | 设置 |
 | --- | --- |
-| <img src="docs/screenshots/07-dark.svg" width="420" /> | <img src="docs/screenshots/06-settings.svg" width="420" /> |
+| <img src="docs/screenshots/07-dark.png" width="420" /> | <img src="docs/screenshots/06-settings.png" width="420" /> |
 
 | 移动端布局（窄屏自动切换底部导航） |
 | --- |
-| <img src="docs/screenshots/08-mobile.svg" width="300" /> |
+| <img src="docs/screenshots/08-mobile.png" width="300" /> |
 
 | 移动端终端：快捷键条 | 回滚搜索 |
 | --- | --- |
