@@ -865,10 +865,8 @@
   "serverLoadUnsupported": "This host doesn't expose system metrics.",
   "serverLoadFailed": "Failed to read server load",
   "serverLoadRetry": "Retry",
-  "systemInfo": "System",
   "systemHostname": "Hostname",
   "systemOs": "OS",
-  "systemKernel": "Kernel",
   "systemArch": "Architecture",
   "systemUptime": "Uptime",
   "systemLoadAverage": "Load average",
@@ -918,5 +916,6 @@
   },
   "metricUsed": "Used",
   "metricTotal": "Total",
-  "serverLoadRefresh": "Refresh"
+  "serverLoadRefresh": "Refresh",
+  "basicInfo": "Basic info"
 }

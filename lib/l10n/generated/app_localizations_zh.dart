@@ -1363,16 +1363,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get serverLoadRetry => '重试';
 
   @override
-  String get systemInfo => '系统';
-
-  @override
   String get systemHostname => '主机名';
 
   @override
   String get systemOs => '系统';
-
-  @override
-  String get systemKernel => '内核';
 
   @override
   String get systemArch => '架构';
@@ -1429,4 +1423,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get serverLoadRefresh => '刷新';
+
+  @override
+  String get basicInfo => '基础信息';
 }

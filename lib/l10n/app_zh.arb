@@ -740,10 +740,8 @@
   "serverLoadUnsupported": "该主机不提供系统指标。",
   "serverLoadFailed": "系统负载读取失败",
   "serverLoadRetry": "重试",
-  "systemInfo": "系统",
   "systemHostname": "主机名",
   "systemOs": "系统",
-  "systemKernel": "内核",
   "systemArch": "架构",
   "systemUptime": "运行时长",
   "systemLoadAverage": "平均负载",
@@ -793,5 +791,6 @@
   },
   "metricUsed": "已用",
   "metricTotal": "总量",
-  "serverLoadRefresh": "刷新"
+  "serverLoadRefresh": "刷新",
+  "basicInfo": "基础信息"
 }
